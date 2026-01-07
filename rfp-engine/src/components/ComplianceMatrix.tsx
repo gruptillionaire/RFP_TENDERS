@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -167,7 +167,7 @@ interface RequirementRowProps {
   req: Requirement;
   index: number;
   isExpanded: boolean;
-  onToggle: () => void;
+  onToggle: (id: string) => void;
   onStatusChange: (id: string, status: Requirement["status"]) => void;
   onTypeChange: (id: string, type: RequirementType) => void;
   onDomainChange: (id: string, domain: DomainContext) => void;
@@ -177,7 +177,6 @@ interface RequirementRowProps {
   onCopy: (text: string, id: string) => void;
   isGenerating: boolean;
   isCopied: boolean;
-  rowRef: (el: HTMLTableRowElement | null) => void;
 }
 
 const RequirementRow = React.memo(function RequirementRow({
@@ -194,7 +193,6 @@ const RequirementRow = React.memo(function RequirementRow({
   onCopy,
   isGenerating,
   isCopied,
-  rowRef,
 }: RequirementRowProps) {
   const getStatusColor = (status: Requirement["status"]) => {
     switch (status) {
@@ -207,12 +205,17 @@ const RequirementRow = React.memo(function RequirementRow({
     }
   };
 
+  // Stable click handler using the row's req.id
+  const handleRowClick = useCallback(() => {
+    onToggle(req.id);
+  }, [onToggle, req.id]);
+
   return (
     <React.Fragment>
       <TableRow
-        ref={rowRef}
+        data-req-id={req.id}
         className="cursor-pointer hover:bg-gray-50 transition-colors"
-        onClick={onToggle}
+        onClick={handleRowClick}
       >
         <TableCell className="font-medium">{index + 1}</TableCell>
         <TableCell>
@@ -311,7 +314,7 @@ const RequirementRow = React.memo(function RequirementRow({
             variant="ghost"
             onClick={(e) => {
               e.stopPropagation();
-              onToggle();
+              onToggle(req.id);
             }}
           >
             {isExpanded ? "Collapse" : "Expand"}
@@ -484,7 +487,6 @@ export function ComplianceMatrix({
   const [sortBy, setSortBy] = useState<SortOption>("order");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Get unique sections - MEMOIZED
@@ -528,16 +530,16 @@ export function ComplianceMatrix({
     setActiveSection(null);
     // Expand the requirement
     setExpandedId(id);
-    // Scroll to the requirement after a short delay to allow filter change
+    // Scroll to the requirement after a short delay to allow filter change and re-render
     setTimeout(() => {
-      const row = rowRefs.current.get(id);
+      const row = tableContainerRef.current?.querySelector(`[data-req-id="${id}"]`) as HTMLElement | null;
       if (row) {
         row.scrollIntoView({ behavior: "smooth", block: "center" });
         // Flash effect to highlight
         row.classList.add("bg-blue-50");
         setTimeout(() => row.classList.remove("bg-blue-50"), 1500);
       }
-    }, 50);
+    }, 100);
   }, []);
 
   // Filter and sort requirements - MEMOIZED
@@ -566,13 +568,18 @@ export function ComplianceMatrix({
     });
   }, [requirements, filter, activeSection, sortBy]);
 
-  // Stats - MEMOIZED
-  const stats = useMemo(() => ({
-    total: requirements.length,
-    answered: requirements.filter((r) => r.status === "ANSWERED").length,
-    partial: requirements.filter((r) => r.status === "PARTIAL").length,
-    unanswered: requirements.filter((r) => r.status === "UNANSWERED").length,
-  }), [requirements]);
+  // Stats - MEMOIZED with single-pass computation for efficiency
+  const stats = useMemo(() => {
+    let answered = 0;
+    let partial = 0;
+    let unanswered = 0;
+    for (const r of requirements) {
+      if (r.status === "ANSWERED") answered++;
+      else if (r.status === "PARTIAL") partial++;
+      else unanswered++;
+    }
+    return { total: requirements.length, answered, partial, unanswered };
+  }, [requirements]);
 
   // MatrixOverview requirements - MEMOIZED to avoid creating new objects on each render
   const matrixRequirements = useMemo(() =>
@@ -595,17 +602,24 @@ export function ComplianceMatrix({
     return counts;
   }, [requirements]);
 
+  // Stable estimateSize function - uses fixed estimates to avoid recalculation loops
+  // The virtualizer will measure actual sizes and cache them
+  const estimateSize = useCallback(() => 56, []); // Base collapsed height
+
   // Virtualizer for large lists - only render visible rows
   const rowVirtualizer = useVirtualizer({
     count: sortedRequirements.length,
     getScrollElement: () => tableContainerRef.current,
-    estimateSize: useCallback((index: number) => {
-      // Estimate row height: collapsed ~56px, expanded ~350px
-      const req = sortedRequirements[index];
-      return expandedId === req?.id ? 350 : 56;
-    }, [expandedId, sortedRequirements]),
+    estimateSize,
     overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
+    // Enable dynamic measurement for accurate row heights when expanded
+    measureElement: (element) => element.getBoundingClientRect().height,
   });
+
+  // Notify virtualizer when expanded state changes so it can remeasure
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [expandedId, rowVirtualizer]);
 
   return (
     <div className="space-y-4">
@@ -768,7 +782,7 @@ export function ComplianceMatrix({
                     req={req}
                     index={virtualRow.index}
                     isExpanded={expandedId === req.id}
-                    onToggle={() => handleToggle(req.id)}
+                    onToggle={handleToggle}
                     onStatusChange={onStatusChange}
                     onTypeChange={onTypeChange}
                     onDomainChange={onDomainChange}
@@ -778,7 +792,6 @@ export function ComplianceMatrix({
                     onCopy={handleCopy}
                     isGenerating={generatingIds.has(req.id)}
                     isCopied={copiedId === req.id}
-                    rowRef={(el) => { if (el) rowRefs.current.set(req.id, el); }}
                   />
                 );
               })}

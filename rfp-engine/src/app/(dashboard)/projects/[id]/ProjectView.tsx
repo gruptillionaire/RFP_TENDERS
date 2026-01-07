@@ -46,8 +46,18 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   const [project, setProject] = useState(initialProject);
   const [requirements, setRequirements] = useState(initialProject.requirements);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Separate timeout refs to prevent draft saves from canceling notes saves and vice versa
+  const draftSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cleanup timeouts on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+      if (notesSaveTimeoutRef.current) clearTimeout(notesSaveTimeoutRef.current);
+    };
+  }, []);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(initialProject.name);
   const [isRenamingSaving, setIsRenamingSaving] = useState(false);
@@ -93,9 +103,9 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       prev.map((r) => (r.id === id ? { ...r, draftAnswer } : r))
     );
 
-    // Debounced save using ref (no dependency, stable callback)
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
+    // Debounced save using dedicated ref (prevents notes edits from canceling draft saves)
+    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+    draftSaveTimeoutRef.current = setTimeout(async () => {
       await fetch("/api/requirements", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -163,9 +173,9 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       prev.map((r) => (r.id === id ? { ...r, internalNotes } : r))
     );
 
-    // Debounced save using ref (no dependency, stable callback)
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
+    // Debounced save using dedicated ref (prevents draft edits from canceling notes saves)
+    if (notesSaveTimeoutRef.current) clearTimeout(notesSaveTimeoutRef.current);
+    notesSaveTimeoutRef.current = setTimeout(async () => {
       await fetch("/api/requirements", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

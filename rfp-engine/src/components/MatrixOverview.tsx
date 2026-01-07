@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback, MouseEvent } from "react";
 
 interface Requirement {
   id: string;
@@ -33,17 +33,16 @@ const getStatusTooltip = (index: number, status: Requirement["status"], isMandat
   return `Requirement ${index + 1} (${label}) - ${statusLabel}`;
 };
 
-// Memoized cell component for the grid
+// Memoized cell component for the grid - uses data attribute to avoid unstable onClick
 interface MatrixCellProps {
   req: Requirement;
   index: number;
-  onClick: (id: string) => void;
 }
 
-const MatrixCell = React.memo(function MatrixCell({ req, index, onClick }: MatrixCellProps) {
+const MatrixCell = React.memo(function MatrixCell({ req, index }: MatrixCellProps) {
   return (
     <button
-      onClick={() => onClick(req.id)}
+      data-req-id={req.id}
       className={`w-6 h-6 rounded text-[10px] font-medium text-white flex items-center justify-center transition-all cursor-pointer ${getStatusColor(req.status, req.isMandatory)} ${req.isMandatory ? "ring-1 ring-red-400 ring-offset-1" : ""}`}
       title={getStatusTooltip(index, req.status, req.isMandatory)}
     >
@@ -53,15 +52,38 @@ const MatrixCell = React.memo(function MatrixCell({ req, index, onClick }: Matri
 });
 
 export const MatrixOverview = React.memo(function MatrixOverview({ requirements, onRequirementClick }: MatrixOverviewProps) {
-  // Memoize stats calculation
-  const stats = useMemo(() => ({
-    total: requirements.length,
-    answered: requirements.filter(r => r.status === "ANSWERED").length,
-    partial: requirements.filter(r => r.status === "PARTIAL").length,
-    unanswered: requirements.filter(r => r.status === "UNANSWERED").length,
-    mandatory: requirements.filter(r => r.isMandatory).length,
-    mandatoryAnswered: requirements.filter(r => r.isMandatory && r.status === "ANSWERED").length,
-  }), [requirements]);
+  // Single-pass stats calculation for efficiency with large lists
+  const stats = useMemo(() => {
+    let answered = 0;
+    let partial = 0;
+    let unanswered = 0;
+    let mandatory = 0;
+    let mandatoryAnswered = 0;
+
+    for (const r of requirements) {
+      if (r.isMandatory) {
+        mandatory++;
+        if (r.status === "ANSWERED") mandatoryAnswered++;
+      }
+      if (r.status === "ANSWERED") answered++;
+      else if (r.status === "PARTIAL") partial++;
+      else unanswered++;
+    }
+
+    return { total: requirements.length, answered, partial, unanswered, mandatory, mandatoryAnswered };
+  }, [requirements]);
+
+  // Single event handler using event delegation - no per-cell callbacks needed
+  const handleGridClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest("button[data-req-id]") as HTMLButtonElement | null;
+    if (button) {
+      const reqId = button.dataset.reqId;
+      if (reqId) {
+        onRequirementClick(reqId);
+      }
+    }
+  }, [onRequirementClick]);
 
   // Memoize progress calculations
   const { overallProgress, mandatoryProgress } = useMemo(() => ({
@@ -128,14 +150,13 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
         </div>
       </div>
 
-      {/* Visual grid */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Visual grid - uses event delegation via handleGridClick for performance */}
+      <div className="flex flex-wrap gap-1.5" onClick={handleGridClick}>
         {requirements.map((req, index) => (
           <MatrixCell
             key={req.id}
             req={req}
             index={index}
-            onClick={onRequirementClick}
           />
         ))}
       </div>
