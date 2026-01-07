@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -602,24 +601,6 @@ export function ComplianceMatrix({
     return counts;
   }, [requirements]);
 
-  // Stable estimateSize function - uses fixed estimates to avoid recalculation loops
-  // The virtualizer will measure actual sizes and cache them
-  const estimateSize = useCallback(() => 56, []); // Base collapsed height
-
-  // Virtualizer for large lists - only render visible rows
-  const rowVirtualizer = useVirtualizer({
-    count: sortedRequirements.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize,
-    overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
-    // Enable dynamic measurement for accurate row heights when expanded
-    measureElement: (element) => element.getBoundingClientRect().height,
-  });
-
-  // Notify virtualizer when expanded state changes so it can remeasure
-  useEffect(() => {
-    rowVirtualizer.measure();
-  }, [expandedId, rowVirtualizer]);
 
   return (
     <div className="space-y-4">
@@ -750,53 +731,44 @@ export function ComplianceMatrix({
         />
       </div>
 
-      {/* Requirements table with virtualization */}
+      {/* Requirements table */}
       <div className="bg-white rounded-lg border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">#</TableHead>
-              <TableHead>Requirement</TableHead>
-              <TableHead className="w-24">Priority</TableHead>
-              <TableHead className="w-28">Req. Type</TableHead>
-              <TableHead className="w-32">Status</TableHead>
-              <TableHead className="w-24">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-        </Table>
-        {/* Virtualized scrollable container */}
+        {/* Scrollable container */}
         <div
           ref={tableContainerRef}
           className="overflow-auto"
           style={{ maxHeight: "600px" }}
         >
           <Table>
+            <TableHeader className="sticky top-0 bg-white z-10">
+              <TableRow>
+                <TableHead className="w-12">#</TableHead>
+                <TableHead>Requirement</TableHead>
+                <TableHead className="w-24">Priority</TableHead>
+                <TableHead className="w-28">Req. Type</TableHead>
+                <TableHead className="w-32">Status</TableHead>
+                <TableHead className="w-24">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              {/* Spacer for items above viewport */}
-              <tr style={{ height: `${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px` }} />
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const req = sortedRequirements[virtualRow.index];
-                return (
-                  <RequirementRow
-                    key={req.id}
-                    req={req}
-                    index={virtualRow.index}
-                    isExpanded={expandedId === req.id}
-                    onToggle={handleToggle}
-                    onStatusChange={onStatusChange}
-                    onTypeChange={onTypeChange}
-                    onDomainChange={onDomainChange}
-                    onDraftChange={onDraftChange}
-                    onInternalNotesChange={onInternalNotesChange}
-                    onGenerateDraft={onGenerateDraft}
-                    onCopy={handleCopy}
-                    isGenerating={generatingIds.has(req.id)}
-                    isCopied={copiedId === req.id}
-                  />
-                );
-              })}
-              {/* Spacer for items below viewport */}
-              <tr style={{ height: `${rowVirtualizer.getTotalSize() - (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1]?.end ?? 0)}px` }} />
+              {sortedRequirements.map((req, index) => (
+                <RequirementRow
+                  key={req.id}
+                  req={req}
+                  index={index}
+                  isExpanded={expandedId === req.id}
+                  onToggle={handleToggle}
+                  onStatusChange={onStatusChange}
+                  onTypeChange={onTypeChange}
+                  onDomainChange={onDomainChange}
+                  onDraftChange={onDraftChange}
+                  onInternalNotesChange={onInternalNotesChange}
+                  onGenerateDraft={onGenerateDraft}
+                  onCopy={handleCopy}
+                  isGenerating={generatingIds.has(req.id)}
+                  isCopied={copiedId === req.id}
+                />
+              ))}
             </TableBody>
           </Table>
         </div>
