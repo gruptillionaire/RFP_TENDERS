@@ -5,6 +5,13 @@ import { generateDraft } from "@/lib/openai";
 import { RequirementType } from "@/lib/constants";
 import { DomainContext } from "@/lib/domain-context";
 
+// Security constants
+const MAX_DRAFT_LENGTH = 50000; // 50KB
+const MAX_NOTES_LENGTH = 10000; // 10KB
+const VALID_STATUSES = ["UNANSWERED", "PARTIAL", "ANSWERED"];
+const VALID_TYPES = ["CONTEXTUAL", "PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED"];
+const VALID_DOMAINS = ["FEATURE", "PROCESS", "LEGAL"];
+
 export async function PATCH(request: Request) {
   try {
     const session = await auth();
@@ -14,8 +21,35 @@ export async function PATCH(request: Request) {
 
     const { id, status, draftAnswer, type, domainContext, internalNotes } = await request.json();
 
-    if (!id) {
+    if (!id || typeof id !== "string") {
       return NextResponse.json({ error: "Requirement ID is required" }, { status: 400 });
+    }
+
+    // Input validation
+    if (status && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
+    }
+
+    if (type && !VALID_TYPES.includes(type)) {
+      return NextResponse.json({ error: "Invalid type value" }, { status: 400 });
+    }
+
+    if (domainContext && !VALID_DOMAINS.includes(domainContext)) {
+      return NextResponse.json({ error: "Invalid domain context value" }, { status: 400 });
+    }
+
+    if (draftAnswer !== undefined && typeof draftAnswer === "string" && draftAnswer.length > MAX_DRAFT_LENGTH) {
+      return NextResponse.json(
+        { error: `Draft answer must not exceed ${MAX_DRAFT_LENGTH} characters` },
+        { status: 400 }
+      );
+    }
+
+    if (internalNotes !== undefined && typeof internalNotes === "string" && internalNotes.length > MAX_NOTES_LENGTH) {
+      return NextResponse.json(
+        { error: `Internal notes must not exceed ${MAX_NOTES_LENGTH} characters` },
+        { status: 400 }
+      );
     }
 
     // Verify ownership through project

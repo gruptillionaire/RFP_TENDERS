@@ -4,8 +4,17 @@ import { sanitizeForLLM } from "./security";
 import { matchTemplate } from "./templates";
 import { DomainContext, detectDomainContext, getDomainPromptModifier, applyDomainRules, DOMAIN_RULES } from "./domain-context";
 
+// Validate OpenAI API key
+const apiKey = process.env.OPENAI_API_KEY;
+if (!apiKey) {
+  console.error("CRITICAL: OPENAI_API_KEY environment variable is not set");
+}
+if (apiKey && !apiKey.startsWith("sk-")) {
+  console.error("WARNING: OPENAI_API_KEY does not appear to be a valid OpenAI key format");
+}
+
 export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: apiKey || "missing-key", // Provide fallback to prevent crash, but log error above
 });
 
 // =============================================================================

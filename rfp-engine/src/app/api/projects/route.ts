@@ -5,6 +5,15 @@ import { parsePDF } from "@/lib/parsers/pdf";
 import { parseDOCX } from "@/lib/parsers/docx";
 import { extractRequirements } from "@/lib/openai";
 import { checkAndIncrementQuota } from "@/lib/quota";
+import fileType from "file-type";
+
+// Security constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const MAX_PROJECT_NAME_LENGTH = 255;
 
 export async function POST(request: Request) {
   try {
@@ -13,18 +22,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // TEMPORARILY DISABLED FOR DEBUGGING - TODO: Re-enable quota check
-    // const quotaCheck = await checkAndIncrementQuota(session.user.id, false);
-    // if (!quotaCheck.allowed) {
-    //   return NextResponse.json(
-    //     {
-    //       error: "Monthly extraction limit reached. Please upgrade your plan.",
-    //       remaining: 0,
-    //       limit: quotaCheck.limit,
-    //     },
-    //     { status: 403 }
-    //   );
-    // }
+    // Quota check - re-enabled for security
+    const quotaCheck = await checkAndIncrementQuota(session.user.id, false);
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "Monthly extraction limit reached. Please upgrade your plan.",
+          remaining: 0,
+          limit: quotaCheck.limit,
+        },
+        { status: 403 }
+      );
+    }
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -33,6 +42,14 @@ export async function POST(request: Request) {
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    // Validate project name length
+    if (name && name.length > MAX_PROJECT_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `Project name must not exceed ${MAX_PROJECT_NAME_LENGTH} characters` },
+        { status: 400 }
+      );
     }
 
     const fileName = file.name;
@@ -59,17 +76,47 @@ export async function POST(request: Request) {
         );
       }
     }
-    const fileExtension = fileName.split(".").pop()?.toLowerCase();
-
     // Read file buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Parse document based on type
+    // Security: Validate file size
+    if (buffer.length > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File too large. Maximum file size is 10MB." },
+        { status: 400 }
+      );
+    }
+
+    // Security: Validate file type using magic bytes (not just extension)
+    const detectedType = await fileType.fromBuffer(buffer);
+    const fileExtension = fileName.split(".").pop()?.toLowerCase();
+
+    // Check magic bytes for actual file type
+    if (!detectedType || !ALLOWED_MIME_TYPES.includes(detectedType.mime)) {
+      // Fallback: also check extension for DOCX files (sometimes magic bytes detection fails)
+      const isDocxExtension = fileExtension === "docx" || fileExtension === "doc";
+      const isPdfExtension = fileExtension === "pdf";
+
+      if (!isDocxExtension && !isPdfExtension) {
+        return NextResponse.json(
+          { error: "Invalid file type. Only PDF and DOCX files are allowed." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Parse document based on validated type
     let rawText: string;
-    if (fileExtension === "pdf") {
+    const detectedMime = detectedType?.mime;
+
+    if (detectedMime === "application/pdf" || fileExtension === "pdf") {
       rawText = await parsePDF(buffer);
-    } else if (fileExtension === "docx" || fileExtension === "doc") {
+    } else if (
+      detectedMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      fileExtension === "docx" ||
+      fileExtension === "doc"
+    ) {
       rawText = await parseDOCX(buffer);
     } else {
       return NextResponse.json(
@@ -137,8 +184,8 @@ export async function POST(request: Request) {
           },
         });
 
-        // TEMPORARILY DISABLED FOR DEBUGGING - TODO: Re-enable quota increment
-        // await checkAndIncrementQuota(session.user.id, true);
+        // Increment quota on successful extraction
+        await checkAndIncrementQuota(session.user.id, true);
       })
       .catch(async (error) => {
         console.error("Extraction failed:", error);

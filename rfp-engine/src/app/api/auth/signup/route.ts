@@ -2,37 +2,149 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+// Security constants
+const MAX_EMAIL_LENGTH = 255;
+const MAX_NAME_LENGTH = 100;
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
+
+// Simple in-memory rate limiter for signup
+const signupAttempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_SIGNUP_ATTEMPTS = 5;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = signupAttempts.get(ip);
+
+  if (!record || record.resetAt < now) {
+    signupAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= MAX_SIGNUP_ATTEMPTS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// Password strength validation
+function validatePassword(password: string): { valid: boolean; error?: string } {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { valid: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` };
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return { valid: false, error: `Password must not exceed ${MAX_PASSWORD_LENGTH} characters` };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one uppercase letter" };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one lowercase letter" };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one number" };
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one special character" };
+  }
+  return { valid: true };
+}
+
+// Email validation
+function validateEmail(email: string): { valid: boolean; normalized?: string; error?: string } {
+  if (!email || typeof email !== "string") {
+    return { valid: false, error: "Email is required" };
+  }
+
+  // Normalize: trim and lowercase
+  const normalized = email.toLowerCase().trim();
+
+  if (normalized.length > MAX_EMAIL_LENGTH) {
+    return { valid: false, error: `Email must not exceed ${MAX_EMAIL_LENGTH} characters` };
+  }
+
+  // Basic email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(normalized)) {
+    return { valid: false, error: "Invalid email format" };
+  }
+
+  return { valid: true, normalized };
+}
+
 export async function POST(request: Request) {
   try {
+    // Rate limiting - get IP from headers
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: "Too many signup attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const { email, password, name } = await request.json();
 
-    if (!email || !password) {
+    // Validate email
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: emailValidation.error },
+        { status: 400 }
+      );
+    }
+    const normalizedEmail = emailValidation.normalized!;
+
+    // Validate password
+    if (!password || typeof password !== "string") {
+      return NextResponse.json(
+        { error: "Password is required" },
         { status: 400 }
       );
     }
 
-    // Check if user already exists
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: passwordValidation.error },
+        { status: 400 }
+      );
+    }
+
+    // Validate name length if provided
+    if (name && typeof name === "string" && name.length > MAX_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `Name must not exceed ${MAX_NAME_LENGTH} characters` },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already exists (use normalized email)
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
+      // Security: Generic error to prevent user enumeration
       return NextResponse.json(
-        { error: "User already exists" },
+        { error: "Unable to create account. Please check your details or try logging in." },
         { status: 400 }
       );
     }
 
-    // Hash password
+    // Hash password with strong salt rounds
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user with normalized email
     const user = await prisma.user.create({
       data: {
-        email,
-        name,
+        email: normalizedEmail,
+        name: name?.trim() || null,
         passwordHash,
       },
     });
@@ -44,8 +156,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Signup error:", error);
+    // Generic error message to avoid leaking information
     return NextResponse.json(
-      { error: "Failed to create user" },
+      { error: "An error occurred. Please try again." },
       { status: 500 }
     );
   }
