@@ -79,20 +79,30 @@ DOMAIN CLASSIFICATION PRIORITY:
 2. If asks "how" something works, or mentions process/steps/timeline/implementation → PROCESS
 3. Otherwise → FEATURE (default)
 
+6. WORD/CHARACTER LIMITS - For each requirement, detect if there are response length limits:
+- Look for patterns: "maximum X words", "not to exceed X characters", "in X words or less", "limit: X words", "X word limit"
+- Extract numeric values for wordLimit and/or characterLimit
+- If no limit mentioned, set to null
+
 Return your response as a JSON object with this structure:
 {
+  "deadline": "ISO 8601 date string (YYYY-MM-DDTHH:mm:ss) or null if no deadline found",
+  "deadlineText": "Original deadline text from document (e.g., '5pm Friday 14 February 2025') or null",
   "requirements": [
     {
       "text": "The exact requirement or question text",
       "isMandatory": true/false,
       "section": "Section name if identifiable, or null",
       "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED",
-      "domainContext": "FEATURE" | "PROCESS" | "LEGAL"
+      "domainContext": "FEATURE" | "PROCESS" | "LEGAL",
+      "wordLimit": number or null,
+      "characterLimit": number or null
     }
   ]
 }
 
 CRITICAL INSTRUCTIONS:
+- DEADLINE: Search the ENTIRE document for submission deadline. Look for: "submit by", "due date", "deadline", "responses due", "closing date", "must be received by". Extract the most specific deadline found.
 - Be thorough - extract ALL questions, requirements, deliverables, and compliance items
 - Include direct questions, mandatory requirements, deliverables, timelines, compliance requirements, technical specifications, and pricing requirements
 - Do not summarize or paraphrase - extract the actual text from the document
@@ -276,9 +286,13 @@ export interface ExtractedRequirement {
   section: string | null;
   type: RequirementType;
   domainContext: DomainContext;
+  wordLimit: number | null;
+  characterLimit: number | null;
 }
 
 export interface ExtractionResult {
+  deadline: string | null;       // ISO 8601 date string
+  deadlineText: string | null;   // Original text from RFP
   requirements: ExtractedRequirement[];
 }
 
@@ -315,15 +329,21 @@ export async function extractRequirements(documentText: string): Promise<Extract
   }
 
   try {
-    const result = JSON.parse(content) as ExtractionResult;
+    const parsed = JSON.parse(content);
 
-    // Validate and normalize requirement types and domain contexts
-    result.requirements = result.requirements.map((req) => ({
-      ...req,
-      type: validateRequirementType(req.type),
-      // Use LLM-provided domain context or fallback to heuristic detection
-      domainContext: validateDomainContext(req.domainContext) || detectDomainContext(req.text),
-    }));
+    // Build the result with deadline and requirements
+    const result: ExtractionResult = {
+      deadline: parsed.deadline || null,
+      deadlineText: parsed.deadlineText || null,
+      requirements: (parsed.requirements || []).map((req: ExtractedRequirement) => ({
+        ...req,
+        type: validateRequirementType(req.type),
+        // Use LLM-provided domain context or fallback to heuristic detection
+        domainContext: validateDomainContext(req.domainContext) || detectDomainContext(req.text),
+        wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
+        characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
+      })),
+    };
 
     return result;
   } catch {

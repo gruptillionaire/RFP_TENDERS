@@ -76,6 +76,8 @@ model Project {
   fileName     String
   fileUrl      String?
   rawText      String        @db.Text
+  deadline     DateTime?     // Extracted submission deadline
+  deadlineText String?       // Original deadline text from RFP
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   requirements Requirement[]
@@ -101,6 +103,9 @@ model Requirement {
   section        String?
   isMandatory    Boolean           @default(false)
   draftAnswer    String?           @db.Text
+  internalNotes  String?           @db.Text  // Private notes, not exported
+  wordLimit      Int?              // Max words extracted from RFP
+  characterLimit Int?              // Max characters extracted from RFP
   status         RequirementStatus @default(UNANSWERED)
   type           RequirementType   @default(DECLARATIVE)
   domainContext  DomainContext     @default(FEATURE)

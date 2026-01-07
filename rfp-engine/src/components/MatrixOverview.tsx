@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import React, { useMemo } from "react";
 
 interface Requirement {
   id: string;
@@ -13,38 +13,61 @@ interface MatrixOverviewProps {
   onRequirementClick: (id: string) => void;
 }
 
-export function MatrixOverview({ requirements, onRequirementClick }: MatrixOverviewProps) {
-  const getStatusColor = useCallback((status: Requirement["status"], isMandatory: boolean) => {
-    switch (status) {
-      case "ANSWERED":
-        return "bg-green-500 hover:bg-green-600";
-      case "PARTIAL":
-        return "bg-yellow-400 hover:bg-yellow-500";
-      default:
-        return isMandatory
-          ? "bg-red-200 hover:bg-red-300"
-          : "bg-gray-200 hover:bg-gray-300";
-    }
-  }, []);
+// Helper functions moved outside component to avoid recreation
+const getStatusColor = (status: Requirement["status"], isMandatory: boolean): string => {
+  switch (status) {
+    case "ANSWERED":
+      return "bg-green-500 hover:bg-green-600";
+    case "PARTIAL":
+      return "bg-yellow-400 hover:bg-yellow-500";
+    default:
+      return isMandatory
+        ? "bg-red-200 hover:bg-red-300"
+        : "bg-gray-200 hover:bg-gray-300";
+  }
+};
 
-  const getStatusTooltip = useCallback((index: number, status: Requirement["status"], isMandatory: boolean) => {
-    const label = isMandatory ? "Mandatory" : "Optional";
-    const statusLabel = status === "ANSWERED" ? "Answered" : status === "PARTIAL" ? "Partial" : "Unanswered";
-    return `Requirement ${index + 1} (${label}) - ${statusLabel}`;
-  }, []);
+const getStatusTooltip = (index: number, status: Requirement["status"], isMandatory: boolean): string => {
+  const label = isMandatory ? "Mandatory" : "Optional";
+  const statusLabel = status === "ANSWERED" ? "Answered" : status === "PARTIAL" ? "Partial" : "Unanswered";
+  return `Requirement ${index + 1} (${label}) - ${statusLabel}`;
+};
 
-  // Calculate stats
-  const stats = {
+// Memoized cell component for the grid
+interface MatrixCellProps {
+  req: Requirement;
+  index: number;
+  onClick: (id: string) => void;
+}
+
+const MatrixCell = React.memo(function MatrixCell({ req, index, onClick }: MatrixCellProps) {
+  return (
+    <button
+      onClick={() => onClick(req.id)}
+      className={`w-6 h-6 rounded text-[10px] font-medium text-white flex items-center justify-center transition-all cursor-pointer ${getStatusColor(req.status, req.isMandatory)} ${req.isMandatory ? "ring-1 ring-red-400 ring-offset-1" : ""}`}
+      title={getStatusTooltip(index, req.status, req.isMandatory)}
+    >
+      {index + 1}
+    </button>
+  );
+});
+
+export const MatrixOverview = React.memo(function MatrixOverview({ requirements, onRequirementClick }: MatrixOverviewProps) {
+  // Memoize stats calculation
+  const stats = useMemo(() => ({
     total: requirements.length,
     answered: requirements.filter(r => r.status === "ANSWERED").length,
     partial: requirements.filter(r => r.status === "PARTIAL").length,
     unanswered: requirements.filter(r => r.status === "UNANSWERED").length,
     mandatory: requirements.filter(r => r.isMandatory).length,
     mandatoryAnswered: requirements.filter(r => r.isMandatory && r.status === "ANSWERED").length,
-  };
+  }), [requirements]);
 
-  const overallProgress = stats.total > 0 ? Math.round((stats.answered / stats.total) * 100) : 0;
-  const mandatoryProgress = stats.mandatory > 0 ? Math.round((stats.mandatoryAnswered / stats.mandatory) * 100) : 100;
+  // Memoize progress calculations
+  const { overallProgress, mandatoryProgress } = useMemo(() => ({
+    overallProgress: stats.total > 0 ? Math.round((stats.answered / stats.total) * 100) : 0,
+    mandatoryProgress: stats.mandatory > 0 ? Math.round((stats.mandatoryAnswered / stats.mandatory) * 100) : 100,
+  }), [stats]);
 
   return (
     <div className="bg-white rounded-lg border p-4 mb-4">
@@ -108,16 +131,14 @@ export function MatrixOverview({ requirements, onRequirementClick }: MatrixOverv
       {/* Visual grid */}
       <div className="flex flex-wrap gap-1.5">
         {requirements.map((req, index) => (
-          <button
+          <MatrixCell
             key={req.id}
-            onClick={() => onRequirementClick(req.id)}
-            className={`w-6 h-6 rounded text-[10px] font-medium text-white flex items-center justify-center transition-all cursor-pointer ${getStatusColor(req.status, req.isMandatory)} ${req.isMandatory ? "ring-1 ring-red-400 ring-offset-1" : ""}`}
-            title={getStatusTooltip(index, req.status, req.isMandatory)}
-          >
-            {index + 1}
-          </button>
+            req={req}
+            index={index}
+            onClick={onRequirementClick}
+          />
         ))}
       </div>
     </div>
   );
-}
+});

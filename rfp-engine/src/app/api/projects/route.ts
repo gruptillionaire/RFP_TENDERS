@@ -110,7 +110,7 @@ export async function POST(request: Request) {
           return;
         }
 
-        // SUCCESSFUL extraction - store requirements with type and domain context
+        // SUCCESSFUL extraction - store requirements with type, domain context, and limits
         await prisma.requirement.createMany({
           data: result.requirements.map((req, index) => ({
             projectId: project.id,
@@ -120,15 +120,21 @@ export async function POST(request: Request) {
             type: req.type,
             domainContext: req.domainContext || "FEATURE",
             requiresReview: req.domainContext === "LEGAL",
+            wordLimit: req.wordLimit,
+            characterLimit: req.characterLimit,
             status: "UNANSWERED",
             order: index,
           })),
         });
 
-        // Update project status to READY
+        // Update project status to READY and store deadline if extracted
         await prisma.project.update({
           where: { id: project.id },
-          data: { status: "READY" },
+          data: {
+            status: "READY",
+            deadline: result.deadline ? new Date(result.deadline) : null,
+            deadlineText: result.deadlineText,
+          },
         });
 
         // TEMPORARILY DISABLED FOR DEBUGGING - TODO: Re-enable quota increment

@@ -19,7 +19,15 @@ export default async function DashboardPage() {
 
   const projects = await prisma.project.findMany({
     where: { userId: session.user.id },
-    include: {
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      fileName: true,
+      status: true,
+      deadline: true,
+      deadlineText: true,
+      createdAt: true,
       _count: {
         select: { requirements: true },
       },
@@ -27,7 +35,6 @@ export default async function DashboardPage() {
         select: { status: true },
       },
     },
-    orderBy: { createdAt: "desc" },
   });
 
   const getProgressStats = (requirements: { status: string }[]) => {
@@ -142,12 +149,20 @@ export default async function DashboardPage() {
           <>
             {/* Separate projects into active and completed */}
             {(() => {
+              const now = new Date();
               const projectsWithStats = projects.map((project) => ({
                 ...project,
                 stats: getProgressStats(project.requirements),
+                isPastDeadline: project.deadline ? new Date(project.deadline) < now : false,
               }));
-              const activeProjects = projectsWithStats.filter(p => p.stats.percentage < 100 || p.status === "PROCESSING" || p.status === "FAILED");
-              const completedProjects = projectsWithStats.filter(p => p.stats.percentage === 100 && p.status !== "PROCESSING" && p.status !== "FAILED");
+              // Active projects: not 100% complete AND not past deadline, OR processing/failed
+              const activeProjects = projectsWithStats.filter(p =>
+                (p.stats.percentage < 100 && !p.isPastDeadline) || p.status === "PROCESSING" || p.status === "FAILED"
+              );
+              // Completed projects: 100% complete OR past deadline (silently moved)
+              const completedProjects = projectsWithStats.filter(p =>
+                (p.stats.percentage === 100 || p.isPastDeadline) && p.status !== "PROCESSING" && p.status !== "FAILED"
+              );
 
               const renderProjectCard = (project: typeof projectsWithStats[0]) => (
                 <ProjectCard key={project.id} project={project} />

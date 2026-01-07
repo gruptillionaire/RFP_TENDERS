@@ -12,7 +12,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, status, draftAnswer, type, domainContext } = await request.json();
+    const { id, status, draftAnswer, type, domainContext, internalNotes } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: "Requirement ID is required" }, { status: 400 });
@@ -36,6 +36,7 @@ export async function PATCH(request: Request) {
         ...(draftAnswer !== undefined && { draftAnswer }),
         ...(type && { type }),
         ...(domainContext && { domainContext }),
+        ...(internalNotes !== undefined && { internalNotes }),
       },
     });
 

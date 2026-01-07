@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,9 @@ interface Requirement {
   section: string | null;
   isMandatory: boolean;
   draftAnswer: string | null;
+  internalNotes: string | null;
+  wordLimit: number | null;
+  characterLimit: number | null;
   status: "UNANSWERED" | "PARTIAL" | "ANSWERED";
   type: RequirementType;
   domainContext?: "FEATURE" | "PROCESS" | "LEGAL";
@@ -27,6 +30,8 @@ interface Project {
   name: string;
   companyName: string | null;
   fileName: string;
+  deadline: Date | null;
+  deadlineText: string | null;
   status: "PROCESSING" | "READY" | "COMPLETED" | "FAILED";
   requirements: Requirement[];
   createdAt: Date;
@@ -41,7 +46,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   const [project, setProject] = useState(initialProject);
   const [requirements, setRequirements] = useState(initialProject.requirements);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
-  const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(initialProject.name);
@@ -88,17 +93,16 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       prev.map((r) => (r.id === id ? { ...r, draftAnswer } : r))
     );
 
-    // Debounced save
-    if (saveTimeout) clearTimeout(saveTimeout);
-    const timeout = setTimeout(async () => {
+    // Debounced save using ref (no dependency, stable callback)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
       await fetch("/api/requirements", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, draftAnswer }),
       });
     }, 1000);
-    setSaveTimeout(timeout);
-  }, [saveTimeout]);
+  }, []);
 
   const handleGenerateDraft = useCallback(async (id: string) => {
     setGeneratingIds((prev) => new Set(prev).add(id));
@@ -151,6 +155,23 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, domainContext }),
     });
+  }, []);
+
+  const handleInternalNotesChange = useCallback((id: string, internalNotes: string) => {
+    // Optimistic update
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, internalNotes } : r))
+    );
+
+    // Debounced save using ref (no dependency, stable callback)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
+      await fetch("/api/requirements", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, internalNotes }),
+      });
+    }, 1000);
   }, []);
 
   const handleDeleteProject = useCallback(async () => {
@@ -312,6 +333,33 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
               )}
             </div>
             <div className="flex items-center gap-3">
+              {project.deadline && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-md">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <div className="text-sm">
+                    <span className="text-amber-800 font-medium">
+                      Deadline: {new Date(project.deadline).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                    {project.deadlineText && (
+                      <span className="text-amber-600 ml-1 text-xs">({project.deadlineText})</span>
+                    )}
+                    {new Date(project.deadline) < new Date() && (
+                      <span className="ml-2 text-red-600 font-medium text-xs">(OVERDUE)</span>
+                    )}
+                    {new Date(project.deadline) >= new Date() && (
+                      <span className="ml-2 text-amber-600 text-xs">
+                        ({Math.ceil((new Date(project.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days left)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <Badge variant={getStatusBadgeVariant(project.status)}>
                 {project.status === "PROCESSING" && (
                   <svg className="animate-spin -ml-1 mr-2 h-3 w-3" fill="none" viewBox="0 0 24 24">
@@ -442,6 +490,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             onGenerateDraft={handleGenerateDraft}
             onTypeChange={handleTypeChange}
             onDomainChange={handleDomainChange}
+            onInternalNotesChange={handleInternalNotesChange}
             generatingIds={generatingIds}
           />
         )}

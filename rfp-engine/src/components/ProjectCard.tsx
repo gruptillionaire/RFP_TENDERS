@@ -13,6 +13,9 @@ interface ProjectCardProps {
     name: string;
     fileName: string;
     status: string;
+    deadline: Date | null;
+    deadlineText: string | null;
+    isPastDeadline?: boolean;
     stats: {
       total: number;
       answered: number;
@@ -104,6 +107,26 @@ export function ProjectCard({ project }: ProjectCardProps) {
             <Link href={`/projects/${project.id}`}>
               <CardDescription className="hover:text-gray-700">{project.fileName}</CardDescription>
             </Link>
+            {project.deadline && (
+              <div className="flex items-center gap-1.5 mt-1 text-xs">
+                <svg className={`w-3.5 h-3.5 ${project.isPastDeadline ? "text-red-500" : "text-amber-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className={project.isPastDeadline ? "text-red-600" : "text-amber-600"}>
+                  {new Date(project.deadline).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                  {project.isPastDeadline && " (overdue)"}
+                  {!project.isPastDeadline && (
+                    <span className="text-gray-500 ml-1">
+                      ({Math.ceil((new Date(project.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}d left)
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
           <Badge
             variant={
