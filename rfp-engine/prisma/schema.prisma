@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// NextAuth.js required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Application models
+model User {
+  id                      String         @id @default(cuid())
+  name                    String?
+  email                   String         @unique
+  emailVerified           DateTime?
+  image                   String?
+  passwordHash            String?
+  plan                    Plan           @default(FREE)
+  stripeCustomerId        String?
+  monthlyExtractionsUsed  Int            @default(0)
+  monthlyExtractionsLimit Int            @default(2)
+  lastUsageReset          DateTime       @default(now())
+  accounts                Account[]
+  sessions                Session[]
+  projects                Project[]
+  pastResponses           PastResponse[]
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  name         String
+  companyName  String?
+  fileName     String
+  fileUrl      String?
+  rawText      String        @db.Text
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requirements Requirement[]
+  status       ProjectStatus @default(PROCESSING)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+enum ProjectStatus {
+  PROCESSING
+  READY
+  COMPLETED
+  FAILED
+}
+
+model Requirement {
+  id             String            @id @default(cuid())
+  projectId      String
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  text           String            @db.Text
+  section        String?
+  isMandatory    Boolean           @default(false)
+  draftAnswer    String?           @db.Text
+  status         RequirementStatus @default(UNANSWERED)
+  type           RequirementType   @default(DECLARATIVE)
+  domainContext  DomainContext     @default(FEATURE)
+  requiresReview Boolean           @default(false)
+  order          Int
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([projectId])
+}
+
+enum RequirementStatus {
+  UNANSWERED
+  PARTIAL
+  ANSWERED
+}
+
+enum RequirementType {
+  PROCEDURAL
+  DECLARATIVE
+  DESCRIPTIVE
+  EVIDENCE_BASED
+}
+
+enum DomainContext {
+  FEATURE
+  PROCESS
+  LEGAL
+}
+
+model PastResponse {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   @db.Text
+  tags      String[]
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
