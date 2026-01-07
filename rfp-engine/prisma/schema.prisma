@@ -56,10 +56,28 @@ model User {
   monthlyExtractionsUsed  Int            @default(0)
   monthlyExtractionsLimit Int            @default(2)
   lastUsageReset          DateTime       @default(now())
+
+  // Consent tracking (GDPR compliance)
+  termsAcceptedAt         DateTime?
+  privacyPolicyAcceptedAt DateTime?
+  marketingConsentGiven   Boolean        @default(false)
+  cookieConsentGiven      Boolean        @default(false)
+
+  // CCPA compliance
+  doNotSellData           Boolean        @default(false)
+
+  // Soft delete for audit trail
+  deletedAt               DateTime?
+
+  // Relations
   accounts                Account[]
   sessions                Session[]
   projects                Project[]
   pastResponses           PastResponse[]
+  consentLogs             ConsentLog[]
+  auditLogs               AuditLog[]
+  dataExportRequests      DataExportRequest[]
+
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
 }
@@ -147,4 +165,58 @@ model PastResponse {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// =============================================================================
+// COMPLIANCE MODELS (GDPR, CCPA)
+// =============================================================================
+
+// Tracks all consent events for legal compliance
+model ConsentLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentType String   // "terms", "privacy", "marketing", "cookies", "dpa"
+  granted     Boolean  // true = consent given, false = consent revoked
+  ipAddress   String?
+  userAgent   String?
+  version     String   // Policy version consented to (e.g., "1.0", "2024-01-01")
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([consentType])
+}
+
+// Audit trail for all significant user actions (GDPR Art. 30)
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g., "user.login", "project.create", "data.export"
+  resource   String?  // e.g., "project", "requirement", "user"
+  resourceId String?  // ID of the affected resource
+  details    Json?    // Additional context (changed fields, etc.)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Tracks data export requests (GDPR Art. 20 - Data Portability)
+model DataExportRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      String    @default("pending") // "pending", "processing", "completed", "failed"
+  format      String    @default("json")    // "json", "csv"
+  downloadUrl String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateDraft } from "@/lib/openai";
 import { RequirementType } from "@/lib/constants";
 import { DomainContext } from "@/lib/domain-context";
+import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 
 // Security constants
 const MAX_DRAFT_LENGTH = 50000; // 50KB
@@ -74,6 +75,25 @@ export async function PATCH(request: Request) {
       },
     });
 
+    // Log the update
+    await logAudit({
+      userId: session.user.id,
+      action: AuditAction.REQUIREMENT_UPDATE,
+      resource: AuditResource.REQUIREMENT,
+      resourceId: id,
+      details: {
+        projectId: requirement.projectId,
+        changedFields: Object.keys({
+          ...(status && { status }),
+          ...(draftAnswer !== undefined && { draftAnswer }),
+          ...(type && { type }),
+          ...(domainContext && { domainContext }),
+          ...(internalNotes !== undefined && { internalNotes }),
+        }),
+      },
+      request,
+    });
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error("Requirement update error:", error);
@@ -128,6 +148,21 @@ export async function POST(request: Request) {
         status: "PARTIAL",
         requiresReview,
       },
+    });
+
+    // Log the draft generation
+    await logAudit({
+      userId: session.user.id,
+      action: AuditAction.REQUIREMENT_GENERATE_DRAFT,
+      resource: AuditResource.REQUIREMENT,
+      resourceId: id,
+      details: {
+        projectId: requirement.projectId,
+        requirementType: requirement.type,
+        domainContext: requirement.domainContext,
+        requiresReview,
+      },
+      request,
     });
 
     return NextResponse.json(updated);

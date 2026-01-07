@@ -14,20 +14,37 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Validate consent checkboxes
+    if (!acceptTerms || !acceptPrivacy) {
+      setError("You must accept the Terms of Service and Privacy Policy to create an account.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Create user
+      // Create user with consent data
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          acceptTerms,
+          acceptPrivacy,
+          acceptMarketing,
+        }),
       });
 
       const data = await res.json();
@@ -105,6 +122,61 @@ export default function SignupPage() {
                 required
                 minLength={8}
               />
+              <p className="text-xs text-gray-500">
+                Must include uppercase, lowercase, number, and special character
+              </p>
+            </div>
+
+            {/* Consent Checkboxes */}
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-start space-x-2">
+                <input
+                  type="checkbox"
+                  id="acceptTerms"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  required
+                />
+                <label htmlFor="acceptTerms" className="text-sm text-gray-700">
+                  I agree to the{" "}
+                  <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                    Terms of Service
+                  </Link>{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <input
+                  type="checkbox"
+                  id="acceptPrivacy"
+                  checked={acceptPrivacy}
+                  onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  required
+                />
+                <label htmlFor="acceptPrivacy" className="text-sm text-gray-700">
+                  I agree to the{" "}
+                  <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline">
+                    Privacy Policy
+                  </Link>{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <input
+                  type="checkbox"
+                  id="acceptMarketing"
+                  checked={acceptMarketing}
+                  onChange={(e) => setAcceptMarketing(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="acceptMarketing" className="text-sm text-gray-700">
+                  I would like to receive product updates and marketing emails (optional)
+                </label>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { logConsent, logAudit, AuditAction, AuditResource } from "@/lib/audit";
+
+// Current policy versions - increment when policies change
+const TERMS_VERSION = "1.0";
+const PRIVACY_VERSION = "1.0";
 
 // Security constants
 const MAX_EMAIL_LENGTH = 255;
@@ -88,7 +93,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password, name } = await request.json();
+    const { email, password, name, acceptTerms, acceptPrivacy, acceptMarketing } = await request.json();
+
+    // Validate consent - Terms and Privacy are required
+    if (!acceptTerms || !acceptPrivacy) {
+      return NextResponse.json(
+        { error: "You must accept the Terms of Service and Privacy Policy" },
+        { status: 400 }
+      );
+    }
 
     // Validate email
     const emailValidation = validateEmail(email);
@@ -140,14 +153,51 @@ export async function POST(request: Request) {
     // Hash password with strong salt rounds
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user with normalized email
+    const now = new Date();
+
+    // Create user with normalized email and consent timestamps
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
         name: name?.trim() || null,
         passwordHash,
+        termsAcceptedAt: now,
+        privacyPolicyAcceptedAt: now,
+        marketingConsentGiven: acceptMarketing || false,
       },
     });
+
+    // Log consent events for audit trail
+    await Promise.all([
+      logConsent({
+        userId: user.id,
+        consentType: "terms",
+        granted: true,
+        version: TERMS_VERSION,
+        request,
+      }),
+      logConsent({
+        userId: user.id,
+        consentType: "privacy",
+        granted: true,
+        version: PRIVACY_VERSION,
+        request,
+      }),
+      acceptMarketing && logConsent({
+        userId: user.id,
+        consentType: "marketing",
+        granted: true,
+        version: "1.0",
+        request,
+      }),
+      logAudit({
+        userId: user.id,
+        action: AuditAction.USER_SIGNUP,
+        resource: AuditResource.USER,
+        resourceId: user.id,
+        request,
+      }),
+    ].filter(Boolean));
 
     return NextResponse.json({
       id: user.id,

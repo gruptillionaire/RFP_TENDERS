@@ -6,6 +6,7 @@ import { parseDOCX } from "@/lib/parsers/docx";
 import { extractRequirements } from "@/lib/openai";
 import { checkAndIncrementQuota } from "@/lib/quota";
 import fileType from "file-type";
+import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 
 // Security constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -141,6 +142,20 @@ export async function POST(request: Request) {
         userId: session.user.id,
         status: "PROCESSING",
       },
+    });
+
+    // Log project creation
+    await logAudit({
+      userId: session.user.id,
+      action: AuditAction.PROJECT_CREATE,
+      resource: AuditResource.PROJECT,
+      resourceId: project.id,
+      details: {
+        fileName,
+        fileSize: buffer.length,
+        fileType: detectedMime || fileExtension,
+      },
+      request,
     });
 
     // Extract requirements using AI (async, don't block response)
