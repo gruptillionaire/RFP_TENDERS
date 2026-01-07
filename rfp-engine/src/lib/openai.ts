@@ -24,6 +24,15 @@ For each item extracted, identify:
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
 REQUIREMENT TYPES:
+- CONTEXTUAL: Background information, context-setting statements that do NOT require a response
+  INDICATORS - classify as CONTEXTUAL if ANY of these apply:
+  • Describes what the organization does or who they are
+  • States facts about the RFP issuer (location, size, history)
+  • Provides background context without asking for anything
+  • No implied action, question, or requirement
+  • Introductory paragraphs explaining the RFP purpose
+  Examples: "The Treasurer of X County is soliciting proposals for...", "ABC Organization serves 50,000 customers annually", "This RFP is issued to obtain competitive bids for..."
+
 - PROCEDURAL: Simple confirmations, acknowledgments, deadlines, administrative requirements
   Examples: "Confirm receipt of this RFP", "Submit by [date]", "Sign attached form", "Provide contact details", "Responses should be submitted by email by..."
 
@@ -50,12 +59,13 @@ REQUIREMENT TYPES:
   Examples: "Provide evidence of insurance", "Attach relevant certifications", "Reference three similar projects", "Include case studies..."
 
 CLASSIFICATION PRIORITY (use this order):
-1. If the requirement contains 3+ comma-separated features/capabilities → DESCRIPTIVE
-2. If it asks to "provide information on" platform/system capabilities → DESCRIPTIVE
-3. If it explicitly asks for certificates/evidence/documentation → EVIDENCE_BASED
-4. If it's a yes/no compliance question with brief justification → DECLARATIVE
-5. If it's administrative/deadline/submission related → PROCEDURAL
-6. When uncertain, prefer DESCRIPTIVE over DECLARATIVE for longer requirements
+1. If NO action/response is required, just background info → CONTEXTUAL
+2. If the requirement contains 3+ comma-separated features/capabilities → DESCRIPTIVE
+3. If it asks to "provide information on" platform/system capabilities → DESCRIPTIVE
+4. If it explicitly asks for certificates/evidence/documentation → EVIDENCE_BASED
+5. If it's a yes/no compliance question with brief justification → DECLARATIVE
+6. If it's administrative/deadline/submission related → PROCEDURAL
+7. When uncertain, prefer DESCRIPTIVE over DECLARATIVE for longer requirements
 
 5. The DOMAIN CONTEXT - classify into ONE of these domains:
 
@@ -76,7 +86,7 @@ Return your response as a JSON object with this structure:
       "text": "The exact requirement or question text",
       "isMandatory": true/false,
       "section": "Section name if identifiable, or null",
-      "type": "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED",
+      "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED",
       "domainContext": "FEATURE" | "PROCESS" | "LEGAL"
     }
   ]
@@ -140,6 +150,7 @@ ANTI-OVERCLAIMING RULES (CRITICAL - LEGAL RISK):
 - NEVER make claims about specific SLAs, uptime, or performance metrics without placeholders`;
 
 const DRAFT_PROMPTS: Record<RequirementType, string> = {
+  CONTEXTUAL: "", // No draft needed for contextual requirements
   PROCEDURAL: `${DRAFT_PROMPT_BASE}
 
 FOR THIS PROCEDURAL REQUIREMENT:
@@ -490,6 +501,7 @@ export async function generateDraft(
 // =============================================================================
 function validateRequirementType(type: string): RequirementType {
   const validTypes: RequirementType[] = [
+    "CONTEXTUAL",
     "PROCEDURAL",
     "DECLARATIVE",
     "DESCRIPTIVE",

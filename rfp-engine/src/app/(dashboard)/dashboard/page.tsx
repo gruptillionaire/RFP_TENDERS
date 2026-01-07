@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getQuotaStatus } from "@/lib/quota";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { ProjectCard } from "@/components/ProjectCard";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -150,54 +150,7 @@ export default async function DashboardPage() {
               const completedProjects = projectsWithStats.filter(p => p.stats.percentage === 100 && p.status !== "PROCESSING" && p.status !== "FAILED");
 
               const renderProjectCard = (project: typeof projectsWithStats[0]) => (
-                <Link key={project.id} href={`/projects/${project.id}`}>
-                  <Card className={`hover:border-blue-300 transition-colors cursor-pointer ${project.stats.percentage === 100 ? "border-green-200 bg-green-50/30" : ""}`}>
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">{project.name}</CardTitle>
-                          <CardDescription>{project.fileName}</CardDescription>
-                        </div>
-                        <Badge
-                          variant={
-                            project.stats.percentage === 100
-                              ? "default"
-                              : project.status === "FAILED"
-                              ? "destructive"
-                              : project.status === "READY"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {project.stats.percentage === 100 ? "completed" : project.status.toLowerCase()}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-6 text-sm text-gray-600">
-                        <div>
-                          <span className="font-medium">{project.stats.total}</span> requirements
-                        </div>
-                        <div>
-                          <span className="font-medium text-green-600">{project.stats.answered}</span> answered
-                        </div>
-                        <div>
-                          <span className="font-medium text-yellow-600">{project.stats.partial}</span> partial
-                        </div>
-                        <div className="ml-auto">
-                          <span className="font-medium">{project.stats.percentage}%</span> complete
-                        </div>
-                      </div>
-                      {/* Progress bar */}
-                      <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-500 transition-all"
-                          style={{ width: `${project.stats.percentage}%` }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <ProjectCard key={project.id} project={project} />
               );
 
               return (

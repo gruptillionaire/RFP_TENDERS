@@ -13,6 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -21,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type RequirementType = "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
+type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
 
 interface Requirement {
@@ -42,12 +48,16 @@ interface ComplianceMatrixProps {
   onStatusChange: (id: string, status: Requirement["status"]) => void;
   onDraftChange: (id: string, draft: string) => void;
   onGenerateDraft: (id: string) => void;
+  onTypeChange: (id: string, type: RequirementType) => void;
+  onDomainChange: (id: string, domain: DomainContext) => void;
   generatingIds: Set<string>;
 }
 
 // Helper functions for requirement types
 const getTextareaRows = (type: RequirementType): number => {
   switch (type) {
+    case "CONTEXTUAL":
+      return 0; // No response needed
     case "PROCEDURAL":
       return 2; // Small for simple confirmations
     case "DECLARATIVE":
@@ -63,6 +73,8 @@ const getTextareaRows = (type: RequirementType): number => {
 
 const getPlaceholder = (type: RequirementType): string => {
   switch (type) {
+    case "CONTEXTUAL":
+      return "No response required - this is background context.";
     case "PROCEDURAL":
       return "Confirm compliance briefly (1-2 sentences)...";
     case "DECLARATIVE":
@@ -78,6 +90,8 @@ const getPlaceholder = (type: RequirementType): string => {
 
 const getTypeBadgeColor = (type: RequirementType): string => {
   switch (type) {
+    case "CONTEXTUAL":
+      return "bg-gray-100 text-gray-600 border-gray-300";
     case "PROCEDURAL":
       return "bg-blue-100 text-blue-800 border-blue-200";
     case "DECLARATIVE":
@@ -93,6 +107,8 @@ const getTypeBadgeColor = (type: RequirementType): string => {
 
 const formatTypeName = (type: RequirementType): string => {
   switch (type) {
+    case "CONTEXTUAL":
+      return "Context";
     case "PROCEDURAL":
       return "Procedural";
     case "DECLARATIVE":
@@ -138,6 +154,8 @@ export function ComplianceMatrix({
   onStatusChange,
   onDraftChange,
   onGenerateDraft,
+  onTypeChange,
+  onDomainChange,
   generatingIds,
 }: ComplianceMatrixProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -266,14 +284,14 @@ export function ComplianceMatrix({
                   <TableCell className="font-medium">{index + 1}</TableCell>
                   <TableCell>
                     <div className="max-w-xl">
-                      <p className="line-clamp-2">{req.text}</p>
-                      {req.text.length > 120 && (
+                      <p className="line-clamp-2 text-ellipsis overflow-hidden">{req.text}</p>
+                      {req.text.length > 100 && (
                         <span className="text-xs text-blue-500 mt-1 inline-block">
-                          ... (click to expand)
+                          (click to expand)
                         </span>
                       )}
                       {req.section && (
-                        <span className="text-xs text-gray-400 mt-1 block">{req.section}</span>
+                        <span className="text-xs text-gray-400 mt-1 block truncate">{req.section}</span>
                       )}
                     </div>
                   </TableCell>
@@ -285,18 +303,50 @@ export function ComplianceMatrix({
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border ${getTypeBadgeColor(req.type)}`}>
-                        {formatTypeName(req.type)}
-                      </span>
-                      {req.domainContext && (
-                        <span
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold border ${getDomainBadgeColor(req.domainContext)}`}
-                          title={`Domain: ${req.domainContext}`}
-                        >
-                          {getDomainIcon(req.domainContext)}
-                        </span>
-                      )}
+                    <div
+                      className="flex items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <Select
+                        value={req.type}
+                        onValueChange={(v) => onTypeChange(req.id, v as RequirementType)}
+                      >
+                        <SelectTrigger className={`h-7 w-[105px] text-xs font-medium border ${getTypeBadgeColor(req.type)}`}>
+                          <SelectValue>{formatTypeName(req.type)}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CONTEXTUAL">Context</SelectItem>
+                          <SelectItem value="PROCEDURAL">Procedural</SelectItem>
+                          <SelectItem value="DECLARATIVE">Declarative</SelectItem>
+                          <SelectItem value="DESCRIPTIVE">Descriptive</SelectItem>
+                          <SelectItem value="EVIDENCE_BASED">Evidence</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className={`h-7 w-9 text-xs font-semibold border rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 ${getDomainBadgeColor(req.domainContext || "FEATURE")}`}
+                            title={`Domain: ${req.domainContext || "FEATURE"}`}
+                          >
+                            {getDomainIcon(req.domainContext || "FEATURE")}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => onDomainChange(req.id, "FEATURE")}>
+                            <span className="w-5 h-5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 flex items-center justify-center text-xs font-semibold mr-2">F</span>
+                            Feature
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDomainChange(req.id, "PROCESS")}>
+                            <span className="w-5 h-5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center text-xs font-semibold mr-2">P</span>
+                            Process
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDomainChange(req.id, "LEGAL")}>
+                            <span className="w-5 h-5 rounded-full bg-red-50 text-red-700 border border-red-200 flex items-center justify-center text-xs font-semibold mr-2">L</span>
+                            Legal
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {req.requiresReview && (
                         <span
                           className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-yellow-100 text-yellow-700 text-[10px]"
@@ -345,58 +395,66 @@ export function ComplianceMatrix({
                             {req.text}
                           </p>
                         </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium">Draft Response</h4>
-                              <span className={`text-xs px-2 py-0.5 rounded ${getTypeBadgeColor(req.type)}`}>
-                                {formatTypeName(req.type)}
-                              </span>
-                              {req.domainContext && (
-                                <span className={`text-xs px-2 py-0.5 rounded border ${getDomainBadgeColor(req.domainContext)}`}>
-                                  {req.domainContext === "FEATURE" ? "Feature" : req.domainContext === "PROCESS" ? "Process" : "Legal"}
-                                </span>
-                              )}
-                              {req.requiresReview && (
-                                <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
-                                  Review Required
-                                </span>
-                              )}
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onGenerateDraft(req.id)}
-                              disabled={generatingIds.has(req.id)}
-                            >
-                              {generatingIds.has(req.id) ? (
-                                <>
-                                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  Generating...
-                                </>
-                              ) : req.draftAnswer ? (
-                                "Regenerate"
-                              ) : (
-                                "Generate Draft"
-                              )}
-                            </Button>
-                          </div>
-                          <Textarea
-                            placeholder={getPlaceholder(req.type)}
-                            value={req.draftAnswer || ""}
-                            onChange={(e) => onDraftChange(req.id, e.target.value)}
-                            rows={getTextareaRows(req.type)}
-                            className="bg-white"
-                          />
-                          {req.type === "PROCEDURAL" && (
-                            <p className="text-xs text-gray-400 mt-1">
-                              Tip: Keep procedural responses brief (1-2 sentences).
+                        {req.type === "CONTEXTUAL" ? (
+                          <div className="bg-gray-100 p-4 rounded border border-gray-200 text-center">
+                            <p className="text-gray-500 italic">
+                              This is background context information. No response is required.
                             </p>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex justify-between items-center mb-2">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">Draft Response</h4>
+                                <span className={`text-xs px-2 py-0.5 rounded ${getTypeBadgeColor(req.type)}`}>
+                                  {formatTypeName(req.type)}
+                                </span>
+                                {req.domainContext && (
+                                  <span className={`text-xs px-2 py-0.5 rounded border ${getDomainBadgeColor(req.domainContext)}`}>
+                                    {req.domainContext === "FEATURE" ? "Feature" : req.domainContext === "PROCESS" ? "Process" : "Legal"}
+                                  </span>
+                                )}
+                                {req.requiresReview && (
+                                  <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
+                                    Review Required
+                                  </span>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onGenerateDraft(req.id)}
+                                disabled={generatingIds.has(req.id)}
+                              >
+                                {generatingIds.has(req.id) ? (
+                                  <>
+                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Generating...
+                                  </>
+                                ) : req.draftAnswer ? (
+                                  "Regenerate"
+                                ) : (
+                                  "Generate Draft"
+                                )}
+                              </Button>
+                            </div>
+                            <Textarea
+                              placeholder={getPlaceholder(req.type)}
+                              value={req.draftAnswer || ""}
+                              onChange={(e) => onDraftChange(req.id, e.target.value)}
+                              rows={getTextareaRows(req.type)}
+                              className="bg-white"
+                            />
+                            {req.type === "PROCEDURAL" && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Tip: Keep procedural responses brief (1-2 sentences).
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

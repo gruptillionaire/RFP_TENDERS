@@ -123,6 +123,7 @@ enum RequirementType {
   DECLARATIVE
   DESCRIPTIVE
   EVIDENCE_BASED
+  CONTEXTUAL
 }
 
 enum DomainContext {

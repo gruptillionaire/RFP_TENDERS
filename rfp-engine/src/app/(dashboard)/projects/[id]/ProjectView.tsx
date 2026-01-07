@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComplianceMatrix } from "@/components/ComplianceMatrix";
 
-type RequirementType = "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
+type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
 
 interface Requirement {
   id: string;
@@ -17,6 +17,8 @@ interface Requirement {
   draftAnswer: string | null;
   status: "UNANSWERED" | "PARTIAL" | "ANSWERED";
   type: RequirementType;
+  domainContext?: "FEATURE" | "PROCESS" | "LEGAL";
+  requiresReview?: boolean;
   order: number;
 }
 
@@ -121,6 +123,34 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
         return next;
       });
     }
+  }, []);
+
+  const handleTypeChange = useCallback(async (id: string, type: RequirementType) => {
+    // Optimistic update
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, type } : r))
+    );
+
+    // Save to server
+    await fetch("/api/requirements", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, type }),
+    });
+  }, []);
+
+  const handleDomainChange = useCallback(async (id: string, domainContext: "FEATURE" | "PROCESS" | "LEGAL") => {
+    // Optimistic update - also set requiresReview for LEGAL
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, domainContext, requiresReview: domainContext === "LEGAL" } : r))
+    );
+
+    // Save to server
+    await fetch("/api/requirements", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, domainContext }),
+    });
   }, []);
 
   const handleDeleteProject = useCallback(async () => {
@@ -410,6 +440,8 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             onStatusChange={handleStatusChange}
             onDraftChange={handleDraftChange}
             onGenerateDraft={handleGenerateDraft}
+            onTypeChange={handleTypeChange}
+            onDomainChange={handleDomainChange}
             generatingIds={generatingIds}
           />
         )}
