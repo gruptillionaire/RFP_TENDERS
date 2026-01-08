@@ -8,15 +8,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+interface BillingInfo {
+  plan: string;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  hasStripeAccount: boolean;
+  usage: {
+    extractionsUsed: number;
+    extractionsLimit: number;
+  };
+}
+
 interface SettingsClientProps {
   userEmail: string;
   userName: string | null;
   initialCcpaOptOut: boolean;
+  billingInfo: BillingInfo;
 }
 
-export function SettingsClient({ userEmail, userName, initialCcpaOptOut }: SettingsClientProps) {
+export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billingInfo }: SettingsClientProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -93,6 +107,63 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut }: Setti
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManageBilling = async () => {
+    setPortalLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch("/api/billing/portal", {
+        method: "POST",
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        setMessage({ type: "error", text: data.error || "Failed to open billing portal." });
+        setPortalLoading(false);
+      }
+    } catch {
+      setMessage({ type: "error", text: "An error occurred." });
+      setPortalLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const getPlanName = (plan: string) => {
+    const names: Record<string, string> = {
+      FREE: "Free",
+      SOLO: "Solo",
+      PRO: "Pro",
+      TEAM: "Team",
+    };
+    return names[plan] || plan;
+  };
+
+  const getStatusBadge = (status: string | null) => {
+    if (!status) return null;
+    const colors: Record<string, string> = {
+      ACTIVE: "bg-green-100 text-green-800",
+      PAST_DUE: "bg-yellow-100 text-yellow-800",
+      CANCELED: "bg-gray-100 text-gray-800",
+      TRIALING: "bg-blue-100 text-blue-800",
+    };
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || "bg-gray-100 text-gray-800"}`}>
+        {status.replace("_", " ")}
+      </span>
+    );
   };
 
   const handleCCPAOptOut = async (optOut: boolean) => {
@@ -173,6 +244,104 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut }: Setti
               <Label>Name</Label>
               <p className="text-gray-700">{userName || "Not set"}</p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Billing & Subscription */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Billing & Subscription</CardTitle>
+            <CardDescription>Manage your subscription and payment methods</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Current Plan */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium">Current Plan</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-2xl font-bold text-gray-900">
+                    {getPlanName(billingInfo.plan)}
+                  </span>
+                  {billingInfo.subscriptionStatus && getStatusBadge(billingInfo.subscriptionStatus)}
+                </div>
+                {billingInfo.cancelAtPeriodEnd && (
+                  <p className="text-sm text-amber-600 mt-1">
+                    Your subscription will end on {formatDate(billingInfo.currentPeriodEnd)}
+                  </p>
+                )}
+              </div>
+              {billingInfo.plan === "FREE" ? (
+                <Link href="/pricing">
+                  <Button>Upgrade Plan</Button>
+                </Link>
+              ) : (
+                <Button
+                  onClick={handleManageBilling}
+                  disabled={portalLoading}
+                  variant="outline"
+                >
+                  {portalLoading ? "Loading..." : "Manage Subscription"}
+                </Button>
+              )}
+            </div>
+
+            {/* Usage */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium mb-3">Usage This Month</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">Document Extractions</span>
+                    <span className="font-medium">
+                      {billingInfo.usage.extractionsUsed} / {billingInfo.usage.extractionsLimit === 999999 ? "Unlimited" : billingInfo.usage.extractionsLimit}
+                    </span>
+                  </div>
+                  {billingInfo.usage.extractionsLimit !== 999999 && (
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          billingInfo.usage.extractionsUsed >= billingInfo.usage.extractionsLimit
+                            ? "bg-red-500"
+                            : billingInfo.usage.extractionsUsed >= billingInfo.usage.extractionsLimit * 0.8
+                            ? "bg-yellow-500"
+                            : "bg-blue-500"
+                        }`}
+                        style={{
+                          width: `${Math.min(100, (billingInfo.usage.extractionsUsed / billingInfo.usage.extractionsLimit) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Billing Period */}
+            {billingInfo.currentPeriodEnd && !billingInfo.cancelAtPeriodEnd && (
+              <div className="border-t pt-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Next billing date</span>
+                  <span className="font-medium">{formatDate(billingInfo.currentPeriodEnd)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Upgrade prompt for free users */}
+            {billingInfo.plan === "FREE" && (
+              <div className="border-t pt-4">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900">Need more extractions?</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Upgrade to Solo for 5 extractions/month, or Pro for 15 extractions/month.
+                  </p>
+                  <Link href="/pricing" className="inline-block mt-3">
+                    <Button size="sm" variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                      View Plans
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

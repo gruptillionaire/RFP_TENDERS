@@ -37,8 +37,9 @@ function verifyOrigin(request: Request): boolean {
 }
 
 export default auth((req) => {
-  // CSRF protection for API routes
-  if (req.nextUrl.pathname.startsWith("/api/")) {
+  // CSRF protection for API routes (skip webhooks which use signature verification)
+  if (req.nextUrl.pathname.startsWith("/api/") &&
+      !req.nextUrl.pathname.startsWith("/api/billing/webhook")) {
     if (!verifyOrigin(req)) {
       return NextResponse.json(
         { error: "Invalid request origin" },
@@ -49,7 +50,9 @@ export default auth((req) => {
 
   const isLoggedIn = !!req.auth;
   const isAuthPage = req.nextUrl.pathname.startsWith("/login") ||
-                     req.nextUrl.pathname.startsWith("/signup");
+                     req.nextUrl.pathname.startsWith("/signup") ||
+                     req.nextUrl.pathname.startsWith("/forgot-password") ||
+                     req.nextUrl.pathname.startsWith("/reset-password");
   const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard") ||
                           req.nextUrl.pathname.startsWith("/projects") ||
                           req.nextUrl.pathname.startsWith("/settings");
@@ -74,6 +77,8 @@ export const config = {
     "/settings/:path*",
     "/login",
     "/signup",
+    "/forgot-password",
+    "/reset-password",
     "/api/:path*", // Include API routes for CSRF protection
   ],
 };

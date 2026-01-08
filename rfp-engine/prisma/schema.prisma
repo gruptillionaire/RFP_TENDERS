@@ -52,7 +52,11 @@ model User {
   image                   String?
   passwordHash            String?
   plan                    Plan           @default(FREE)
-  stripeCustomerId        String?
+  stripeCustomerId        String?        @unique
+  stripeSubscriptionId    String?        @unique
+  subscriptionStatus      SubscriptionStatus?
+  currentPeriodEnd        DateTime?      // When current billing period ends
+  cancelAtPeriodEnd       Boolean        @default(false) // User cancelled but access until period end
   monthlyExtractionsUsed  Int            @default(0)
   monthlyExtractionsLimit Int            @default(2)
   lastUsageReset          DateTime       @default(now())
@@ -84,24 +88,37 @@ model User {
 
 enum Plan {
   FREE
+  SOLO
   PRO
+  TEAM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  TRIALING
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
 }
 
 model Project {
-  id           String        @id @default(cuid())
+  id           String          @id @default(cuid())
   name         String
   companyName  String?
   fileName     String
   fileUrl      String?
-  rawText      String        @db.Text
-  deadline     DateTime?     // Extracted submission deadline
-  deadlineText String?       // Original deadline text from RFP
+  rawText      String          @db.Text
+  deadline     DateTime?       // Extracted submission deadline
+  deadlineText String?         // Original deadline text from RFP
   userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   requirements Requirement[]
-  status       ProjectStatus @default(PROCESSING)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  exports      ProjectExport[] // Cached document exports
+  status       ProjectStatus   @default(PROCESSING)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   @@index([userId])
 }
@@ -156,13 +173,15 @@ enum DomainContext {
 }
 
 model PastResponse {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  content   String   @db.Text
-  tags      String[]
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  content    String   @db.Text
+  tags       String[]
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([userId])
 }
@@ -219,4 +238,42 @@ model DataExportRequest {
 
   @@index([userId])
   @@index([status])
+}
+
+// =============================================================================
+// PASSWORD RESET
+// =============================================================================
+
+// Secure password reset tokens
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime? // Set when token is used to prevent reuse
+
+  @@index([email])
+  @@index([token])
+}
+
+// =============================================================================
+// DOCUMENT EXPORT
+// =============================================================================
+
+// Cached document exports for re-download without regeneration
+model ProjectExport {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  format    String   // "docx" or "pdf"
+  template  String   // "compliance-matrix" or "qa-format"
+  isDraft   Boolean  @default(false) // If exported with unresolved placeholders (watermarked)
+  fileName  String   // Generated filename
+  fileData  Bytes    // Stored file content
+  fileSize  Int      // Size in bytes
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([projectId, format, template])
 }

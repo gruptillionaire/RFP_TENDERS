@@ -10,13 +10,20 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  // Fetch user's CCPA status
+  // Fetch user's CCPA status and billing info
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
       email: true,
       name: true,
       doNotSellData: true,
+      plan: true,
+      subscriptionStatus: true,
+      currentPeriodEnd: true,
+      cancelAtPeriodEnd: true,
+      stripeCustomerId: true,
+      monthlyExtractionsUsed: true,
+      monthlyExtractionsLimit: true,
     },
   });
 
@@ -25,6 +32,17 @@ export default async function SettingsPage() {
       userEmail={user?.email || session.user.email || ""}
       userName={user?.name || session.user.name || null}
       initialCcpaOptOut={user?.doNotSellData || false}
+      billingInfo={{
+        plan: user?.plan || "FREE",
+        subscriptionStatus: user?.subscriptionStatus || null,
+        currentPeriodEnd: user?.currentPeriodEnd?.toISOString() || null,
+        cancelAtPeriodEnd: user?.cancelAtPeriodEnd || false,
+        hasStripeAccount: !!user?.stripeCustomerId,
+        usage: {
+          extractionsUsed: user?.monthlyExtractionsUsed || 0,
+          extractionsLimit: user?.monthlyExtractionsLimit || 2,
+        },
+      }}
     />
   );
 }

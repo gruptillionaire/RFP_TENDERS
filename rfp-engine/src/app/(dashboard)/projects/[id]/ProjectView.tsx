@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComplianceMatrix } from "@/components/ComplianceMatrix";
+import { ExportDialog } from "@/components/ExportDialog";
+import { SaveToLibraryDialog } from "@/components/SaveToLibraryDialog";
+import { InsertFromLibraryModal } from "@/components/InsertFromLibraryModal";
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
 
@@ -64,6 +67,15 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   const [companyName, setCompanyName] = useState(initialProject.companyName || "");
   const [isCompanyNameSaving, setIsCompanyNameSaving] = useState(false);
   const [showCompanyNameSaved, setShowCompanyNameSaved] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // Library dialog state
+  const [showSaveLibraryDialog, setShowSaveLibraryDialog] = useState(false);
+  const [showInsertLibraryModal, setShowInsertLibraryModal] = useState(false);
+  const [libraryTargetReqId, setLibraryTargetReqId] = useState<string | null>(null);
+  const [libraryContent, setLibraryContent] = useState("");
+  const [librarySuggestedTitle, setLibrarySuggestedTitle] = useState("");
+  const [librarySuggestedTags, setLibrarySuggestedTags] = useState<string[]>([]);
 
   // Poll for updates if processing
   useEffect(() => {
@@ -271,6 +283,40 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
     }
   }, [companyName, project.id, project.companyName]);
 
+  // Library handlers
+  const handleSaveToLibrary = useCallback((id: string, content: string, requirement: Requirement) => {
+    setLibraryTargetReqId(id);
+    setLibraryContent(content);
+    // Generate suggested title from requirement text (first 50 chars)
+    const titleBase = requirement.text.slice(0, 50).replace(/[\n\r]+/g, " ").trim();
+    setLibrarySuggestedTitle(titleBase.length < requirement.text.length ? titleBase + "..." : titleBase);
+    // Generate tags from section and domain
+    const tags: string[] = [];
+    if (requirement.section) {
+      tags.push(requirement.section.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+    }
+    if (requirement.domainContext) {
+      tags.push(requirement.domainContext.toLowerCase());
+    }
+    if (requirement.type) {
+      tags.push(requirement.type.toLowerCase().replace(/_/g, "-"));
+    }
+    setLibrarySuggestedTags(tags.filter(Boolean));
+    setShowSaveLibraryDialog(true);
+  }, []);
+
+  const handleInsertFromLibrary = useCallback((id: string) => {
+    setLibraryTargetReqId(id);
+    setShowInsertLibraryModal(true);
+  }, []);
+
+  const handleLibraryInsert = useCallback((content: string) => {
+    if (libraryTargetReqId) {
+      // Update the draft answer with library content
+      handleDraftChange(libraryTargetReqId, content);
+    }
+  }, [libraryTargetReqId, handleDraftChange]);
+
   const getStatusBadgeVariant = (status: Project["status"]) => {
     switch (status) {
       case "COMPLETED":
@@ -379,6 +425,14 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                 )}
                 {project.status.toLowerCase()}
               </Badge>
+              {project.status === "READY" && (
+                <Button variant="outline" size="sm" onClick={() => setShowExportDialog(true)}>
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>
                 Back to Dashboard
               </Button>
@@ -386,6 +440,14 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
           </div>
         </div>
       </header>
+
+      {/* Export Dialog */}
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        projectId={project.id}
+        projectName={project.name}
+      />
 
       {/* Company Name Input */}
       {project.status === "READY" && (
@@ -502,9 +564,35 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             onDomainChange={handleDomainChange}
             onInternalNotesChange={handleInternalNotesChange}
             generatingIds={generatingIds}
+            onSaveToLibrary={handleSaveToLibrary}
+            onInsertFromLibrary={handleInsertFromLibrary}
           />
         )}
       </main>
+
+      {/* Library Dialogs */}
+      <SaveToLibraryDialog
+        isOpen={showSaveLibraryDialog}
+        onClose={() => {
+          setShowSaveLibraryDialog(false);
+          setLibraryTargetReqId(null);
+        }}
+        onSaved={() => {
+          // Could show a toast notification here
+        }}
+        content={libraryContent}
+        suggestedTitle={librarySuggestedTitle}
+        suggestedTags={librarySuggestedTags}
+      />
+
+      <InsertFromLibraryModal
+        isOpen={showInsertLibraryModal}
+        onClose={() => {
+          setShowInsertLibraryModal(false);
+          setLibraryTargetReqId(null);
+        }}
+        onInsert={handleLibraryInsert}
+      />
     </div>
   );
 }

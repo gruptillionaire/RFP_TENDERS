@@ -10,6 +10,11 @@ export const AuditAction = {
   USER_SIGNUP: "user.signup",
   USER_PASSWORD_CHANGE: "user.password_change",
 
+  // Password reset
+  PASSWORD_RESET_REQUESTED: "password.reset_requested",
+  PASSWORD_RESET_COMPLETED: "password.reset_completed",
+  PASSWORD_RESET_FAILED: "password.reset_failed",
+
   // User data rights
   USER_EXPORT_REQUESTED: "user.export_requested",
   USER_EXPORT_COMPLETED: "user.export_completed",
@@ -33,7 +38,25 @@ export const AuditAction = {
   // CCPA
   CCPA_OPTOUT: "ccpa.optout",
   CCPA_OPTIN: "ccpa.optin",
+
+  // Billing
+  BILLING_CHECKOUT_CREATED: "billing.checkout.created",
+  BILLING_CHECKOUT_COMPLETED: "billing.checkout.completed",
+  BILLING_SUBSCRIPTION_UPDATED: "billing.subscription.updated",
+  BILLING_SUBSCRIPTION_CANCELLED: "billing.subscription.cancelled",
+  BILLING_PAYMENT_SUCCEEDED: "billing.payment.succeeded",
+  BILLING_PAYMENT_FAILED: "billing.payment.failed",
+  BILLING_PORTAL_ACCESSED: "billing.portal.accessed",
+
+  // Library (Past Responses)
+  LIBRARY_RESPONSE_CREATE: "library.response.create",
+  LIBRARY_RESPONSE_UPDATE: "library.response.update",
+  LIBRARY_RESPONSE_DELETE: "library.response.delete",
+  LIBRARY_RESPONSE_USED: "library.response.used",
 } as const;
+
+// Alias for easier imports
+export const AuditActions = AuditAction;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];
 
@@ -43,6 +66,9 @@ export const AuditResource = {
   PROJECT: "project",
   REQUIREMENT: "requirement",
   CONSENT: "consent",
+  SUBSCRIPTION: "subscription",
+  INVOICE: "invoice",
+  LIBRARY: "library",
 } as const;
 
 export type AuditResourceType =
