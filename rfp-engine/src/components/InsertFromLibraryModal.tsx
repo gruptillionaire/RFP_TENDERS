@@ -34,6 +34,7 @@ export function InsertFromLibraryModal({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedResponse, setSelectedResponse] = useState<PastResponse | null>(null);
   const [inserting, setInserting] = useState(false);
+  const [inserted, setInserted] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -84,6 +85,7 @@ export function InsertFromLibraryModal({
       setDebouncedSearch("");
       setSelectedTags([]);
       setSelectedResponse(null);
+      setInserted(false);
     }
   }, [isOpen]);
 
@@ -100,22 +102,28 @@ export function InsertFromLibraryModal({
 
     setInserting(true);
     try {
-      // Track usage
-      await fetch(`/api/library/${selectedResponse.id}`, {
+      // Track usage (fire-and-forget for performance)
+      fetch(`/api/library/${selectedResponse.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "use" }),
-      });
+      }).catch(err => console.error("Failed to track usage:", err));
 
       onInsert(selectedResponse.content, selectedResponse.id);
-      onClose();
+
+      // Show success feedback
+      setInserted(true);
+      setInserting(false);
+
+      // Close after brief delay to show success
+      setTimeout(() => {
+        onClose();
+      }, 600);
     } catch (err) {
-      console.error("Failed to track usage:", err);
-      // Still insert even if tracking fails
+      console.error("Insert error:", err);
+      // Still insert even if something fails
       onInsert(selectedResponse.content, selectedResponse.id);
       onClose();
-    } finally {
-      setInserting(false);
     }
   };
 
@@ -296,9 +304,21 @@ export function InsertFromLibraryModal({
           </Button>
           <Button
             onClick={handleInsert}
-            disabled={!selectedResponse || inserting}
+            disabled={!selectedResponse || inserting || inserted}
+            className={inserted ? "bg-green-600 hover:bg-green-600" : ""}
           >
-            {inserting ? "Inserting..." : "Insert Response"}
+            {inserted ? (
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Loaded!
+              </span>
+            ) : inserting ? (
+              "Inserting..."
+            ) : (
+              "Insert Response"
+            )}
           </Button>
         </div>
       </div>

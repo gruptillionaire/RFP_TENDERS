@@ -293,7 +293,8 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
     // Generate tags from section and domain
     const tags: string[] = [];
     if (requirement.section) {
-      tags.push(requirement.section.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+      // Remove apostrophes first (possessives like "District's" → "Districts"), then replace other non-alphanumeric with dashes
+      tags.push(requirement.section.toLowerCase().replace(/['']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
     }
     if (requirement.domainContext) {
       tags.push(requirement.domainContext.toLowerCase());
@@ -354,7 +355,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                         setEditedName(project.name);
                       }
                     }}
-                    className="px-2 py-1 border rounded text-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-80 px-3 py-2 border rounded text-gray-700 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                     autoFocus
                     disabled={isRenamingSaving}
                   />

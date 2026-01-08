@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get("sortOrder") || "desc";
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
     const offset = parseInt(searchParams.get("offset") || "0");
+    const includeTags = searchParams.get("includeTags") !== "false"; // Allow opting out of tag fetch
 
     // Parse tags filter
     const filterTags = tagsParam
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     const orderField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
     const orderDirection = sortOrder === "asc" ? "asc" : "desc";
 
-    // Fetch responses
+    // Fetch responses and count in parallel
     const [responses, totalCount] = await Promise.all([
       prisma.pastResponse.findMany({
         where,
@@ -119,15 +120,25 @@ export async function GET(request: NextRequest) {
       prisma.pastResponse.count({ where }),
     ]);
 
-    // Get all unique tags for the user (for filter suggestions)
-    const allTags = await prisma.pastResponse.findMany({
-      where: { userId: session.user.id },
-      select: { tags: true },
-    });
-    const uniqueTags = [...new Set(allTags.flatMap((r) => r.tags))].sort();
+    // Truncate content server-side to reduce payload size
+    const truncatedResponses = responses.map((r) => ({
+      ...r,
+      content: r.content.length > 300 ? r.content.slice(0, 300) + "..." : r.content,
+      fullContentLength: r.content.length,
+    }));
+
+    // Only fetch tags if needed (skip for subsequent searches to save a query)
+    let uniqueTags: string[] = [];
+    if (includeTags) {
+      const allTags = await prisma.pastResponse.findMany({
+        where: { userId: session.user.id },
+        select: { tags: true },
+      });
+      uniqueTags = [...new Set(allTags.flatMap((r) => r.tags))].sort();
+    }
 
     return NextResponse.json({
-      responses,
+      responses: truncatedResponses,
       totalCount,
       availableTags: uniqueTags,
     });
@@ -232,8 +243,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Audit log
-    await logAudit({
+    // Audit log (fire-and-forget for performance)
+    logAudit({
       userId: session.user.id,
       action: AuditAction.LIBRARY_RESPONSE_CREATE,
       resource: AuditResource.LIBRARY,
@@ -243,7 +254,7 @@ export async function POST(request: NextRequest) {
         tagCount: uniqueTags.length,
       },
       request,
-    });
+    }).catch((err) => console.error("Audit log failed:", err));
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {

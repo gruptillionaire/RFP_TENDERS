@@ -15,7 +15,15 @@
       "Bash(npm run dev:*)",
       "Bash(xargs:*)",
       "Bash(cat:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: RFP Engine SaaS with AI-powered requirement extraction\n\nCore Features:\n- PDF and DOCX document parsing for RFP extraction\n- AI-powered requirement extraction using GPT-4o-mini\n- AI draft response generation using GPT-3.5-turbo\n- User authentication with NextAuth.js \\(credentials provider\\)\n- Project management dashboard\n\nRequirement Classification System:\n- Layer 1 \\(RequirementType\\): PROCEDURAL, DECLARATIVE, DESCRIPTIVE, EVIDENCE_BASED\n  - Controls response formatting, textarea size, and placeholder text\n- Layer 2 \\(DomainContext\\): FEATURE, PROCESS, LEGAL\n  - Controls tone, guardrails, and allowed language\n  - LEGAL domain requires manual review flag\n\nAI Response Quality:\n- Canonical template system \\(17 pre-defined templates\\) to reduce AI costs\n- Anti-overclaiming guardrails with hedged language enforcement\n- Fluff removal post-processing\n- Domain-specific rules \\(Process: timeframe ranges, Legal: restrained/precise\\)\n- [DRAFT] tag appended to all generated responses\n\nUI Components:\n- Compliance matrix with expandable requirements\n- Visual matrix overview with clickable requirement blocks\n- Requirement type badges with color coding\n- Domain context indicators \\(F/P/L circles with review flags\\)\n- Company name replacement in draft responses\n- Filter by status \\(all/unanswered/partial/answered\\)\n\nTech Stack:\n- Next.js 16 with App Router\n- TypeScript\n- Prisma ORM with PostgreSQL\n- Tailwind CSS with shadcn/ui components\n- OpenAI API integration\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(dir /b \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\")",
+      "WebSearch",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(npx prisma db push:*)"
     ]
   }
 }

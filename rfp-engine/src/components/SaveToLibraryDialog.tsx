@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -24,14 +24,20 @@ export function SaveToLibraryDialog({
   const [title, setTitle] = useState(suggestedTitle);
   const [tagsInput, setTagsInput] = useState(suggestedTags.join(", "));
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasInitialized = useRef(false);
 
-  // Reset form when dialog opens with new content
+  // Reset form only on fresh open, not on every prop change
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasInitialized.current) {
       setTitle(suggestedTitle);
       setTagsInput(suggestedTags.join(", "));
       setError(null);
+      setSaved(false);
+      hasInitialized.current = true;
+    } else if (!isOpen) {
+      hasInitialized.current = false;
     }
   }, [isOpen, suggestedTitle, suggestedTags]);
 
@@ -67,11 +73,16 @@ export function SaveToLibraryDialog({
         throw new Error(data.error || "Failed to save response");
       }
 
+      // Show success feedback
+      setSaved(true);
       onSaved();
-      onClose();
+
+      // Close after brief delay to show success
+      setTimeout(() => {
+        onClose();
+      }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
       setSaving(false);
     }
   };
@@ -160,8 +171,19 @@ export function SaveToLibraryDialog({
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || !title.trim()}>
-            {saving ? (
+          <Button
+            onClick={handleSave}
+            disabled={saving || saved || !title.trim()}
+            className={saved ? "bg-green-600 hover:bg-green-600" : ""}
+          >
+            {saved ? (
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Saved!
+              </span>
+            ) : saving ? (
               <span className="flex items-center gap-2">
                 <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                   <circle

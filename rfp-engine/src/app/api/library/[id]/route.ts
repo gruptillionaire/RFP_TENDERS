@@ -193,8 +193,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     });
 
-    // Audit log
-    await logAudit({
+    // Audit log (fire-and-forget for performance)
+    logAudit({
       userId: session.user.id,
       action: AuditAction.LIBRARY_RESPONSE_UPDATE,
       resource: AuditResource.LIBRARY,
@@ -203,7 +203,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         updatedFields: Object.keys(updateData),
       },
       request,
-    });
+    }).catch((err) => console.error("Audit log failed:", err));
 
     return NextResponse.json(updated);
   } catch (error) {
@@ -248,8 +248,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       where: { id },
     });
 
-    // Audit log
-    await logAudit({
+    // Audit log (fire-and-forget for performance)
+    logAudit({
       userId: session.user.id,
       action: AuditAction.LIBRARY_RESPONSE_DELETE,
       resource: AuditResource.LIBRARY,
@@ -258,7 +258,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         title: existing.title,
       },
       request,
-    });
+    }).catch((err) => console.error("Audit log failed:", err));
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -327,8 +327,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    // Audit log
-    await logAudit({
+    // Audit log (fire-and-forget for performance)
+    logAudit({
       userId: session.user.id,
       action: AuditAction.LIBRARY_RESPONSE_USED,
       resource: AuditResource.LIBRARY,
@@ -338,7 +338,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         newUsageCount: updated.usageCount,
       },
       request,
-    });
+    }).catch((err) => console.error("Audit log failed:", err));
 
     return NextResponse.json(updated);
   } catch (error) {

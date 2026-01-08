@@ -103,23 +103,36 @@ export function LibraryClient() {
 
     setSaving(true);
     try {
+      const newTags = editTags.split(",").map((t) => t.trim()).filter(Boolean);
       const res = await fetch(`/api/library/${editingResponse.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: editTitle,
           content: editContent,
-          tags: editTags.split(",").map((t) => t.trim()).filter(Boolean),
+          tags: newTags,
         }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update");
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to update");
       }
 
+      const updated = await res.json();
+
+      // Update local state optimistically (no full refetch)
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          responses: prev.responses.map((r) =>
+            r.id === updated.id ? updated : r
+          ),
+        };
+      });
+
       setEditingResponse(null);
-      fetchLibrary();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update");
     } finally {
@@ -138,12 +151,21 @@ export function LibraryClient() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete");
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete");
       }
 
+      // Update local state optimistically (no full refetch)
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          responses: prev.responses.filter((r) => r.id !== deletingId),
+          totalCount: prev.totalCount - 1,
+        };
+      });
+
       setDeletingId(null);
-      fetchLibrary();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete");
     } finally {

@@ -2,6 +2,8 @@ Software Design Document – AI RFP / Tender Response Engine
 Objective: Define the minimum viable but commercially viable system required to launch an
 AI-powered RFP / Tender Response Engine with SME-focused positioning.
 
+> **Note:** Security features and implementation details are documented separately in [`rfp-engine/security-features.md`](rfp-engine/security-features.md).
+
 1. Product Overview
 The AI RFP / Tender Response Engine is a web-based SaaS product designed to help SMEs,
 agencies, and consultants respond to RFPs and tenders faster and with higher compliance. The
@@ -387,26 +389,18 @@ AI Response Regeneration Options
 - ✅ Event delegation for matrix cell clicks
 - ✅ Sticky table headers for scroll UX
 
-17.3 Security Enhancements (COMPLETED)
-- ✅ Rate limiting on API endpoints (auth, signup)
-- ✅ Input sanitization for LLM prompts
-- ✅ File upload validation with magic bytes
-- ✅ CSRF protection via origin/referer verification
-- ✅ Password strength validation
-- ✅ User enumeration prevention
-- ✅ Session maxAge configuration
-- ✅ Security headers (CSP, HSTS, X-Frame-Options)
+17.3 Security & Compliance (COMPLETED)
+For comprehensive security documentation, see `rfp-engine/security-features.md`.
 
-17.4 Legal Compliance (COMPLETED)
-- ✅ GDPR compliance (Articles 7, 13-17, 20, 30)
-- ✅ CCPA compliance (Do Not Sell, data deletion)
-- ✅ Cookie consent banner with granular controls
-- ✅ Privacy Policy, Terms of Service, Cookie Policy pages
-- ✅ Data Processing Agreement (DPA) for enterprise
-- ✅ Audit logging for compliance verification
-- ✅ Data export API (JSON format)
-- ✅ Account deletion with soft delete option
-- ✅ Consent checkboxes on signup
+Summary of implemented security features:
+- Authentication and session management (JWT, rate limiting, brute force protection)
+- CSRF protection and security headers (CSP, HSTS, X-Frame-Options)
+- Input validation and LLM prompt sanitization
+- File upload security with magic bytes validation
+- Password security (bcrypt, strength requirements)
+- GDPR and CCPA compliance
+- Audit logging for all significant actions
+- Stripe webhook signature verification
 
 ---
 
