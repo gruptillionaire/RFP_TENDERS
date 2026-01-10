@@ -143,9 +143,8 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
-      // Security: Generic error to prevent user enumeration
       return NextResponse.json(
-        { error: "Unable to create account. Please check your details or try logging in." },
+        { error: "An account with this email already exists. Please sign in or use a different email." },
         { status: 400 }
       );
     }
@@ -206,9 +205,44 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Signup error:", error);
-    // Generic error message to avoid leaking information
+
+    // Handle specific error types with user-friendly messages
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: "Invalid request data. Please refresh and try again." },
+        { status: 400 }
+      );
+    }
+
+    // Prisma unique constraint violation (email already exists)
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "An account with this email already exists. Please sign in or use a different email." },
+        { status: 400 }
+      );
+    }
+
+    // Database connection issues
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "P1001" || error.code === "P1002")
+    ) {
+      return NextResponse.json(
+        { error: "Service temporarily unavailable. Please try again in a few moments." },
+        { status: 503 }
+      );
+    }
+
+    // Generic fallback - avoid leaking sensitive information
     return NextResponse.json(
-      { error: "An error occurred. Please try again." },
+      { error: "Unable to create account. Please check all fields and try again." },
       { status: 500 }
     );
   }

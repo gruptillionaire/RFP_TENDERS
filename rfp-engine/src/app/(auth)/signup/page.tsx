@@ -14,8 +14,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [acceptTermsAndPrivacy, setAcceptTermsAndPrivacy] = useState(false);
   const [acceptMarketing, setAcceptMarketing] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,8 +23,8 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
 
-    // Validate consent checkboxes
-    if (!acceptTerms || !acceptPrivacy) {
+    // Validate consent checkbox
+    if (!acceptTermsAndPrivacy) {
       setError("You must accept the Terms of Service and Privacy Policy to create an account.");
       return;
     }
@@ -41,8 +40,8 @@ export default function SignupPage() {
           name,
           email,
           password,
-          acceptTerms,
-          acceptPrivacy,
+          acceptTerms: acceptTermsAndPrivacy,
+          acceptPrivacy: acceptTermsAndPrivacy,
           acceptMarketing,
         }),
       });
@@ -67,8 +66,13 @@ export default function SignupPage() {
         router.push("/dashboard");
         router.refresh();
       }
-    } catch {
-      setError("Something went wrong");
+    } catch (err) {
+      // Network or unexpected errors
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        setError("Unable to connect. Please check your internet connection.");
+      } else {
+        setError("Unable to create account. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -128,36 +132,22 @@ export default function SignupPage() {
             </div>
 
             {/* Consent Checkboxes */}
-            <div className="space-y-3 pt-2 border-t">
+            <div className="space-y-3 pt-4 mt-2 border-t">
               <div className="flex items-start space-x-2">
                 <input
                   type="checkbox"
-                  id="acceptTerms"
-                  checked={acceptTerms}
-                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  id="acceptTermsAndPrivacy"
+                  checked={acceptTermsAndPrivacy}
+                  onChange={(e) => setAcceptTermsAndPrivacy(e.target.checked)}
                   className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   required
                 />
-                <label htmlFor="acceptTerms" className="text-sm text-gray-700">
+                <label htmlFor="acceptTermsAndPrivacy" className="text-sm text-gray-700">
                   I agree to the{" "}
                   <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">
                     Terms of Service
                   </Link>{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <input
-                  type="checkbox"
-                  id="acceptPrivacy"
-                  checked={acceptPrivacy}
-                  onChange={(e) => setAcceptPrivacy(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  required
-                />
-                <label htmlFor="acceptPrivacy" className="text-sm text-gray-700">
-                  I agree to the{" "}
+                  and{" "}
                   <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline">
                     Privacy Policy
                   </Link>{" "}
@@ -174,12 +164,12 @@ export default function SignupPage() {
                   className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="acceptMarketing" className="text-sm text-gray-700">
-                  I would like to receive product updates and marketing emails (optional)
+                  I would like to receive product updates and marketing emails
                 </label>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+          <CardFooter className="flex flex-col space-y-4 pt-6">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating account..." : "Create account"}
             </Button>
