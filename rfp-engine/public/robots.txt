@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /projects/
+Disallow: /library/
+Disallow: /settings/
+Disallow: /api/
+
+Sitemap: https://rfpengine.com/sitemap.xml

@@ -31,6 +31,12 @@ export function TwoFactorSettings() {
   const [disableCode, setDisableCode] = useState("");
   const [disabling, setDisabling] = useState(false);
 
+  // Regenerate state
+  const [regenerateMode, setRegenerateMode] = useState(false);
+  const [regenerateCode, setRegenerateCode] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [showingRegeneratedCodes, setShowingRegeneratedCodes] = useState(false);
+
   useEffect(() => {
     fetchStatus();
   }, []);
@@ -142,9 +148,45 @@ export function TwoFactorSettings() {
     }
   };
 
+  const regenerateBackupCodes = async () => {
+    if (!regenerateCode.trim()) {
+      setError("Please enter your authenticator code");
+      return;
+    }
+
+    try {
+      setRegenerating(true);
+      setError(null);
+
+      const res = await fetch("/api/auth/2fa/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: regenerateCode }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBackupCodes(data.backupCodes);
+        setShowingRegeneratedCodes(true);
+        setRegenerateMode(false);
+        setRegenerateCode("");
+        await fetchStatus();
+      } else {
+        const errData = await res.json();
+        setError(errData.error || "Failed to regenerate backup codes");
+      }
+    } catch {
+      setError("Failed to regenerate backup codes");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   const closeBackupCodes = () => {
     setBackupCodes(null);
     setSetupMode(false);
+    setRegenerateMode(false);
+    setShowingRegeneratedCodes(false);
   };
 
   if (loading) {
@@ -158,14 +200,18 @@ export function TwoFactorSettings() {
     );
   }
 
-  // Show backup codes after successful setup
+  // Show backup codes after successful setup or regeneration
   if (backupCodes) {
     return (
       <Card className="border-green-200">
         <CardHeader>
-          <CardTitle className="text-green-700">2FA Enabled Successfully!</CardTitle>
+          <CardTitle className="text-green-700">
+            {showingRegeneratedCodes ? "Backup Codes Regenerated!" : "2FA Enabled Successfully!"}
+          </CardTitle>
           <CardDescription>
-            Save these backup codes in a secure location. Each code can only be used once.
+            {showingRegeneratedCodes
+              ? "Your old backup codes are now invalid. Save these new codes in a secure location."
+              : "Save these backup codes in a secure location. Each code can only be used once."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -220,15 +266,63 @@ export function TwoFactorSettings() {
               </div>
             </div>
 
-            {!disableMode ? (
-              <Button
-                variant="outline"
-                onClick={() => setDisableMode(true)}
-                className="text-red-600 hover:text-red-700 hover:border-red-300"
-              >
-                Disable 2FA
-              </Button>
-            ) : (
+            {/* Regenerate backup codes */}
+            {!regenerateMode && !disableMode && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setRegenerateMode(true)}
+                >
+                  Regenerate Backup Codes
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setDisableMode(true)}
+                  className="text-red-600 hover:text-red-700 hover:border-red-300"
+                >
+                  Disable 2FA
+                </Button>
+              </div>
+            )}
+
+            {/* Regenerate mode */}
+            {regenerateMode && (
+              <div className="space-y-3 p-4 border rounded-lg">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800">
+                    <strong>Warning:</strong> Regenerating backup codes will invalidate all your existing backup codes.
+                  </p>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Enter your authenticator code to regenerate backup codes:
+                </p>
+                <Input
+                  value={regenerateCode}
+                  onChange={(e) => setRegenerateCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  className="text-center font-mono text-lg tracking-widest"
+                  maxLength={6}
+                />
+                <div className="flex gap-2">
+                  <Button onClick={regenerateBackupCodes} disabled={regenerating || regenerateCode.length !== 6}>
+                    {regenerating ? "Regenerating..." : "Regenerate Codes"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setRegenerateMode(false);
+                      setRegenerateCode("");
+                      setError(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Disable mode */}
+            {disableMode && (
               <div className="space-y-3 p-4 border rounded-lg">
                 <p className="text-sm text-gray-600">
                   Enter your authenticator code or a backup code to disable 2FA:

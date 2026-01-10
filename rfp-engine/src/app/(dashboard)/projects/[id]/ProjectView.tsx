@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { ComplianceMatrix } from "@/components/ComplianceMatrix";
 import { ExportDialog } from "@/components/ExportDialog";
 import { SaveToLibraryDialog } from "@/components/SaveToLibraryDialog";
 import { InsertFromLibraryModal } from "@/components/InsertFromLibraryModal";
+import { ComplianceScoreCard } from "@/components/ComplianceScoreCard";
+import { SubmissionChecklist } from "@/components/SubmissionChecklist";
+import { calculateComplianceScore, type RequirementForScoring } from "@/lib/compliance-scoring";
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
 
@@ -331,6 +334,40 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
     }
   };
 
+  // Calculate compliance score
+  const complianceScore = useMemo(() => {
+    if (requirements.length === 0) return null;
+
+    const reqsForScoring: RequirementForScoring[] = requirements.map(r => ({
+      id: r.id,
+      status: r.status,
+      isMandatory: r.isMandatory,
+      domainContext: r.domainContext || "FEATURE",
+      requiresReview: r.requiresReview || false,
+      section: r.section,
+      draftAnswer: r.draftAnswer,
+      wordLimit: r.wordLimit,
+      characterLimit: r.characterLimit,
+    }));
+
+    return calculateComplianceScore(reqsForScoring, project.companyName);
+  }, [requirements, project.companyName]);
+
+  // Handle clicking on issues in the checklist to scroll to requirements
+  const handleIssueClick = useCallback((requirementIds: string[]) => {
+    if (requirementIds.length > 0) {
+      // Find the first requirement element and scroll to it
+      const element = document.getElementById(`requirement-${requirementIds[0]}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
+        setTimeout(() => {
+          element.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+        }, 2000);
+      }
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -556,7 +593,19 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             </Button>
           </div>
         ) : (
-          <ComplianceMatrix
+          <>
+            {/* Compliance Score Dashboard */}
+            {complianceScore && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <ComplianceScoreCard score={complianceScore} />
+                <SubmissionChecklist
+                  readiness={complianceScore.readiness}
+                  onIssueClick={handleIssueClick}
+                />
+              </div>
+            )}
+
+            <ComplianceMatrix
             requirements={requirements}
             onStatusChange={handleStatusChange}
             onDraftChange={handleDraftChange}
@@ -568,6 +617,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             onSaveToLibrary={handleSaveToLibrary}
             onInsertFromLibrary={handleInsertFromLibrary}
           />
+          </>
         )}
       </main>
 

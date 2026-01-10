@@ -1,9 +1,21 @@
 import Link from "next/link";
+import { Metadata } from "next";
 import { Button } from "@/components/ui/button";
+import { JsonLd, organizationSchema, softwareApplicationSchema } from "@/components/JsonLd";
+
+export const metadata: Metadata = {
+  title: "AI-Powered RFP & Tender Response Software",
+  description: "Upload RFP documents and get a structured compliance matrix with AI-generated draft responses in minutes. Track requirements, manage deadlines, and win more bids.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <JsonLd data={organizationSchema} />
+      <JsonLd data={softwareApplicationSchema} />
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -45,7 +57,9 @@ export default function Home() {
         </div>
 
         {/* Features */}
-        <div id="features" className="mt-32 grid md:grid-cols-3 gap-8">
+        <section id="features" className="mt-32">
+          <h2 className="text-3xl font-bold text-center mb-12">How RFP Engine Works</h2>
+          <div className="grid md:grid-cols-3 gap-8">
           <div className="p-6 rounded-xl border bg-white">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
               <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,7 +95,8 @@ export default function Home() {
               AI generates first-draft responses for each requirement. Edit and refine to perfection.
             </p>
           </div>
-        </div>
+          </div>
+        </section>
 
         {/* Pricing */}
         <div className="mt-32 text-center">
@@ -127,9 +142,43 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t mt-32 py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center text-gray-500 text-sm">
-          © 2025 RFP Engine. All rights reserved.
+      <footer className="border-t mt-32 py-12 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <div className="font-bold text-lg mb-4">RFP Engine</div>
+              <p className="text-gray-600 text-sm">
+                AI-powered RFP and tender response management software.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Product</h3>
+              <ul className="space-y-2 text-sm">
+                <li><Link href="/#features" className="text-gray-600 hover:text-gray-900">Features</Link></li>
+                <li><Link href="/pricing" className="text-gray-600 hover:text-gray-900">Pricing</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Account</h3>
+              <ul className="space-y-2 text-sm">
+                <li><Link href="/login" className="text-gray-600 hover:text-gray-900">Sign In</Link></li>
+                <li><Link href="/signup" className="text-gray-600 hover:text-gray-900">Create Account</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Legal</h3>
+              <ul className="space-y-2 text-sm">
+                <li><Link href="/privacy" className="text-gray-600 hover:text-gray-900">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="text-gray-600 hover:text-gray-900">Terms of Service</Link></li>
+                <li><Link href="/cookies" className="text-gray-600 hover:text-gray-900">Cookie Policy</Link></li>
+                <li><Link href="/ccpa" className="text-gray-600 hover:text-gray-900">CCPA Notice</Link></li>
+                <li><Link href="/dpa" className="text-gray-600 hover:text-gray-900">Data Processing Agreement</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t pt-8 text-center text-gray-500 text-sm">
+            © {new Date().getFullYear()} RFP Engine. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>

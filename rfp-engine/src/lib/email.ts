@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { deadlineReminderEmail } from "./email-templates";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@rfpengine.com";
 const APP_NAME = "RFP Engine";
@@ -123,5 +124,33 @@ ${APP_NAME}
     subject: `Reset your ${APP_NAME} password`,
     html,
     text,
+  });
+}
+
+export interface DeadlineReminderParams {
+  email: string;
+  projectName: string;
+  daysRemaining: number;
+  deadlineDate: string;
+  completionPercentage: number;
+  mandatoryCompletionPercentage: number;
+  projectUrl: string;
+}
+
+export async function sendDeadlineReminderEmail(params: DeadlineReminderParams) {
+  const template = deadlineReminderEmail({
+    projectName: params.projectName,
+    daysRemaining: params.daysRemaining,
+    deadlineDate: params.deadlineDate,
+    completionPercentage: params.completionPercentage,
+    mandatoryCompletionPercentage: params.mandatoryCompletionPercentage,
+    projectUrl: params.projectUrl,
+  });
+
+  return sendEmail({
+    to: params.email,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
 }

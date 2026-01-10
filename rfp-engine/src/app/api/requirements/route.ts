@@ -5,6 +5,7 @@ import { generateDraft } from "@/lib/openai";
 import { RequirementType } from "@/lib/constants";
 import { DomainContext } from "@/lib/domain-context";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
+import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 
 // Security constants
 const MAX_DRAFT_LENGTH = 50000; // 50KB
@@ -18,6 +19,15 @@ export async function PATCH(request: Request) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting
+    const rateLimit = rateLimiters.requirements(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
     }
 
     const { id, status, draftAnswer, type, domainContext, internalNotes } = await request.json();
@@ -63,16 +73,37 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Update requirement
-    const updated = await prisma.requirement.update({
-      where: { id },
-      data: {
-        ...(status && { status }),
-        ...(draftAnswer !== undefined && { draftAnswer }),
-        ...(type && { type }),
-        ...(domainContext && { domainContext }),
-        ...(internalNotes !== undefined && { internalNotes }),
-      },
+    // Create version entry if draftAnswer is changing and there was an existing value
+    const shouldCreateVersion = draftAnswer !== undefined &&
+                                requirement.draftAnswer !== null &&
+                                requirement.draftAnswer !== draftAnswer;
+
+    // Update requirement and create version in transaction if needed
+    const updated = await prisma.$transaction(async (tx) => {
+      // Create version entry for the previous state before updating
+      if (shouldCreateVersion) {
+        await tx.requirementVersion.create({
+          data: {
+            requirementId: id,
+            draftAnswer: requirement.draftAnswer!,
+            status: requirement.status,
+            editedById: session.user.id,
+            changeSource: "manual",
+          },
+        });
+      }
+
+      // Update the requirement
+      return tx.requirement.update({
+        where: { id },
+        data: {
+          ...(status && { status }),
+          ...(draftAnswer !== undefined && { draftAnswer }),
+          ...(type && { type }),
+          ...(domainContext && { domainContext }),
+          ...(internalNotes !== undefined && { internalNotes }),
+        },
+      });
     });
 
     // Log the update
@@ -111,6 +142,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Rate limiting
+    const rateLimit = rateLimiters.requirements(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
+    }
+
     const { id, action } = await request.json();
 
     if (!id || action !== "generate-draft") {
@@ -140,14 +180,30 @@ export async function POST(request: Request) {
       finalDraft = draft.replace(/\[COMPANY NAME\]/g, requirement.project.companyName);
     }
 
-    // Update requirement with draft and review status
-    const updated = await prisma.requirement.update({
-      where: { id },
-      data: {
-        draftAnswer: finalDraft,
-        status: "PARTIAL",
-        requiresReview,
-      },
+    // Update requirement with draft and create version in transaction
+    const updated = await prisma.$transaction(async (tx) => {
+      // Create version entry for the previous state if there was a draft
+      if (requirement.draftAnswer !== null) {
+        await tx.requirementVersion.create({
+          data: {
+            requirementId: id,
+            draftAnswer: requirement.draftAnswer,
+            status: requirement.status,
+            editedById: session.user.id,
+            changeSource: "ai_generated",
+          },
+        });
+      }
+
+      // Update the requirement
+      return tx.requirement.update({
+        where: { id },
+        data: {
+          draftAnswer: finalDraft,
+          status: "PARTIAL",
+          requiresReview,
+        },
+      });
     });
 
     // Log the draft generation

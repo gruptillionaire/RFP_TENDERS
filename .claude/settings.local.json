@@ -23,7 +23,9 @@
       "WebSearch",
       "Bash(find:*)",
       "Bash(ls:*)",
-      "Bash(npx prisma db push:*)"
+      "Bash(npx prisma db push:*)",
+      "Bash(git push:*)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\\\\rfp-engine\\\\src\")"
     ]
   }
 }

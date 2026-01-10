@@ -87,6 +87,7 @@ model User {
   consentLogs             ConsentLog[]
   auditLogs               AuditLog[]
   dataExportRequests      DataExportRequest[]
+  requirementVersions     RequirementVersion[]
 
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
@@ -110,23 +111,27 @@ enum SubscriptionStatus {
 }
 
 model Project {
-  id           String          @id @default(cuid())
-  name         String
-  companyName  String?
-  fileName     String
-  fileUrl      String?
-  rawText      String          @db.Text
-  deadline     DateTime?       // Extracted submission deadline
-  deadlineText String?         // Original deadline text from RFP
-  userId       String
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  requirements Requirement[]
-  exports      ProjectExport[] // Cached document exports
-  status       ProjectStatus   @default(PROCESSING)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id               String          @id @default(cuid())
+  name             String
+  companyName      String?
+  fileName         String
+  fileUrl          String?
+  rawText          String          @db.Text
+  deadline         DateTime?       // Extracted submission deadline
+  deadlineText     String?         // Original deadline text from RFP
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requirements     Requirement[]
+  exports          ProjectExport[] // Cached document exports
+  status           ProjectStatus   @default(PROCESSING)
+  // Deadline reminder tracking
+  lastReminderSent DateTime?       // When last reminder was sent
+  lastReminderType String?         // "7d", "3d", "1d", "overdue"
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([userId])
+  @@index([deadline])
 }
 
 enum ProjectStatus {
@@ -137,25 +142,43 @@ enum ProjectStatus {
 }
 
 model Requirement {
-  id             String            @id @default(cuid())
+  id             String               @id @default(cuid())
   projectId      String
-  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  text           String            @db.Text
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  text           String               @db.Text
   section        String?
-  isMandatory    Boolean           @default(false)
-  draftAnswer    String?           @db.Text
-  internalNotes  String?           @db.Text  // Private notes, not exported
-  wordLimit      Int?              // Max words extracted from RFP
-  characterLimit Int?              // Max characters extracted from RFP
-  status         RequirementStatus @default(UNANSWERED)
-  type           RequirementType   @default(DECLARATIVE)
-  domainContext  DomainContext     @default(FEATURE)
-  requiresReview Boolean           @default(false)
+  isMandatory    Boolean              @default(false)
+  draftAnswer    String?              @db.Text
+  internalNotes  String?              @db.Text  // Private notes, not exported
+  wordLimit      Int?                 // Max words extracted from RFP
+  characterLimit Int?                 // Max characters extracted from RFP
+  status         RequirementStatus    @default(UNANSWERED)
+  type           RequirementType      @default(DECLARATIVE)
+  domainContext  DomainContext        @default(FEATURE)
+  requiresReview Boolean              @default(false)
   order          Int
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  versions       RequirementVersion[] // Version history for draft answers
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   @@index([projectId])
+}
+
+// Version history for requirement draft answers
+model RequirementVersion {
+  id            String            @id @default(cuid())
+  requirementId String
+  requirement   Requirement       @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  draftAnswer   String            @db.Text
+  status        RequirementStatus
+  editedById    String
+  editedBy      User              @relation(fields: [editedById], references: [id])
+  changeSource  String?           // "manual", "ai_generated", "library_insert", "restored"
+  createdAt     DateTime          @default(now())
+
+  @@index([requirementId])
+  @@index([editedById])
+  @@index([requirementId, createdAt(sort: Desc)])
 }
 
 enum RequirementStatus {

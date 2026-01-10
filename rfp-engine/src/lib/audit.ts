@@ -53,6 +53,11 @@ export const AuditAction = {
   LIBRARY_RESPONSE_UPDATE: "library.response.update",
   LIBRARY_RESPONSE_DELETE: "library.response.delete",
   LIBRARY_RESPONSE_USED: "library.response.used",
+
+  // Two-Factor Authentication
+  USER_2FA_ENABLED: "user.2fa.enabled",
+  USER_2FA_DISABLED: "user.2fa.disabled",
+  USER_2FA_BACKUP_CODES_REGENERATED: "user.2fa.backup_codes_regenerated",
 } as const;
 
 // Alias for easier imports

@@ -7,6 +7,7 @@ import { extractRequirements } from "@/lib/openai";
 import { checkAndIncrementQuota } from "@/lib/quota";
 import fileType from "file-type";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
+import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 
 // Security constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -21,6 +22,15 @@ export async function POST(request: Request) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting
+    const rateLimit = rateLimiters.projects(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
     }
 
     // Quota check - re-enabled for security

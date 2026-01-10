@@ -5,6 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MatrixOverview } from "@/components/MatrixOverview";
+import { VersionHistoryModal } from "@/components/VersionHistoryModal";
+import {
+  RequirementFilters,
+  FilterState,
+  defaultFilters,
+  applyFilters,
+  calculateFilterCounts,
+} from "@/components/RequirementFilters";
 import {
   Select,
   SelectContent,
@@ -178,6 +186,7 @@ interface RequirementRowProps {
   onCopy: (text: string, id: string) => void;
   onSaveToLibrary?: (id: string, content: string, requirement: Requirement) => void;
   onInsertFromLibrary?: (id: string) => void;
+  onShowHistory: (id: string) => void;
   isGenerating: boolean;
   isCopied: boolean;
 }
@@ -196,6 +205,7 @@ const RequirementRow = React.memo(function RequirementRow({
   onCopy,
   onSaveToLibrary,
   onInsertFromLibrary,
+  onShowHistory,
   isGenerating,
   isCopied,
 }: RequirementRowProps) {
@@ -379,6 +389,18 @@ const RequirementRow = React.memo(function RequirementRow({
                         )}
                         {req.draftAnswer && (
                           <>
+                            {/* Version history button */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onShowHistory(req.id)}
+                              title="View version history"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              History
+                            </Button>
                             {/* Save to library button - only when draft exists */}
                             {onSaveToLibrary && (
                               <Button
@@ -520,11 +542,15 @@ export function ComplianceMatrix({
   onInsertFromLibrary,
 }: ComplianceMatrixProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "unanswered" | "partial" | "answered">("all");
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [sortBy, setSortBy] = useState<SortOption>("order");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Version history state
+  const [historyReqId, setHistoryReqId] = useState<string | null>(null);
+  const historyReq = historyReqId ? requirements.find(r => r.id === historyReqId) : null;
 
   // Get unique sections - MEMOIZED
   const sections = useMemo(() =>
@@ -561,9 +587,21 @@ export function ComplianceMatrix({
     setExpandedId(prev => prev === id ? null : id);
   }, []);
 
+  // Handler to show version history
+  const handleShowHistory = useCallback((id: string) => {
+    setHistoryReqId(id);
+  }, []);
+
+  // Handler for version restore
+  const handleVersionRestore = useCallback((draftAnswer: string) => {
+    if (historyReqId) {
+      onDraftChange(historyReqId, draftAnswer);
+    }
+  }, [historyReqId, onDraftChange]);
+
   const handleMatrixClick = useCallback((id: string) => {
     // Clear filters to ensure the requirement is visible
-    setFilter("all");
+    setFilters(defaultFilters);
     setActiveSection(null);
     // Expand the requirement
     setExpandedId(id);
@@ -579,17 +617,25 @@ export function ComplianceMatrix({
     }, 100);
   }, []);
 
-  // Filter and sort requirements - MEMOIZED
-  const sortedRequirements = useMemo(() => {
-    // Filter by status and section
-    const filtered = requirements.filter((req) => {
-      if (filter !== "all" && req.status.toLowerCase() !== filter) return false;
-      if (activeSection && req.section !== activeSection) return false;
-      return true;
-    });
+  // Apply advanced filters - MEMOIZED
+  const filteredRequirements = useMemo(() => {
+    // First apply section filter if active
+    const sectionFiltered = activeSection
+      ? requirements.filter(req => req.section === activeSection)
+      : requirements;
 
-    // Sort
-    return [...filtered].sort((a, b) => {
+    // Then apply all other filters
+    return applyFilters(sectionFiltered, filters);
+  }, [requirements, filters, activeSection]);
+
+  // Calculate filter counts for UI - MEMOIZED
+  const filterCounts = useMemo(() => {
+    return calculateFilterCounts(requirements, filteredRequirements);
+  }, [requirements, filteredRequirements]);
+
+  // Sort filtered requirements - MEMOIZED
+  const sortedRequirements = useMemo(() => {
+    return [...filteredRequirements].sort((a, b) => {
       switch (sortBy) {
         case "mandatory":
           return (b.isMandatory ? 1 : 0) - (a.isMandatory ? 1 : 0) || a.order - b.order;
@@ -603,7 +649,7 @@ export function ComplianceMatrix({
           return a.order - b.order;
       }
     });
-  }, [requirements, filter, activeSection, sortBy]);
+  }, [filteredRequirements, sortBy]);
 
   // Stats - MEMOIZED with single-pass computation for efficiency
   const stats = useMemo(() => {
@@ -668,38 +714,29 @@ export function ComplianceMatrix({
             <span className="text-gray-500 ml-2">Unanswered</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Sort:</span>
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="order">Default</SelectItem>
-                <SelectItem value="mandatory">Mandatory First</SelectItem>
-                <SelectItem value="status">By Status</SelectItem>
-                <SelectItem value="section">By Section</SelectItem>
-                <SelectItem value="type">By Type</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Filter:</span>
-            <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="unanswered">Unanswered</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="answered">Answered</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">Sort:</span>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="order">Default</SelectItem>
+              <SelectItem value="mandatory">Mandatory First</SelectItem>
+              <SelectItem value="status">By Status</SelectItem>
+              <SelectItem value="section">By Section</SelectItem>
+              <SelectItem value="type">By Type</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
+
+      {/* Advanced Filters */}
+      <RequirementFilters
+        filters={filters}
+        onChange={setFilters}
+        requirementCounts={filterCounts}
+      />
 
       {/* Section tabs */}
       {sections.length > 0 && (
@@ -805,6 +842,7 @@ export function ComplianceMatrix({
                   onCopy={handleCopy}
                   onSaveToLibrary={onSaveToLibrary}
                   onInsertFromLibrary={onInsertFromLibrary}
+                  onShowHistory={handleShowHistory}
                   isGenerating={generatingIds.has(req.id)}
                   isCopied={copiedId === req.id}
                 />
@@ -813,6 +851,15 @@ export function ComplianceMatrix({
           </Table>
         </div>
       </div>
+
+      {/* Version History Modal */}
+      <VersionHistoryModal
+        isOpen={historyReqId !== null}
+        onClose={() => setHistoryReqId(null)}
+        requirementId={historyReqId || ""}
+        currentDraft={historyReq?.draftAnswer || null}
+        onRestore={handleVersionRestore}
+      />
     </div>
   );
 }

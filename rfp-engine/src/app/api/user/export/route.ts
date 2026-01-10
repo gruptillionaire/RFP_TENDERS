@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit, AuditAction, AuditResource, getAuditLogsForUser, getConsentHistory } from "@/lib/audit";
+import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting (3 per hour)
+    const rateLimit = rateLimiters.export(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many export requests. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
     }
 
     const userId = session.user.id;

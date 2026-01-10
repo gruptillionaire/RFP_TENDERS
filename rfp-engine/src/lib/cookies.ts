@@ -135,8 +135,9 @@ export function clearCookieConsent(): void {
  */
 export function initializeAnalyticsIfConsented(): void {
   if (isCookieCategoryAllowed("analytics")) {
-    // Initialize Google Analytics or other analytics
-    // This is a placeholder - implement actual analytics initialization
-    console.log("Analytics cookies allowed - initialize analytics here");
+    // Dynamically import PostHog to avoid loading it unnecessarily
+    import("@/lib/posthog").then(({ initPostHog }) => {
+      initPostHog();
+    });
   }
 }
