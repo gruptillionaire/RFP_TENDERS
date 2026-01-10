@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Security headers
@@ -34,7 +35,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'", // Tailwind requires inline styles
               "img-src 'self' data: https:",
               "font-src 'self'",
-              "connect-src 'self' https://api.openai.com",
+              "connect-src 'self' https://api.openai.com https://*.sentry.io https://*.ingest.sentry.io",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -46,4 +47,28 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry configuration options
+const sentryWebpackPluginOptions = {
+  // Suppresses source map uploading logs during build
+  silent: true,
+
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Only upload source maps in production
+  disableServerWebpackPlugin: process.env.NODE_ENV !== "production",
+  disableClientWebpackPlugin: process.env.NODE_ENV !== "production",
+
+  // Upload source maps for better stack traces
+  widenClientFileUpload: true,
+
+  // Hide source maps from generated client bundles
+  hideSourceMaps: true,
+
+  // Webpack-specific options
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+  },
+};
+
+export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);

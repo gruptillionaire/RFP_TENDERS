@@ -21,9 +21,12 @@ interface LibraryData {
   availableTags: string[];
 }
 
+const PAGE_SIZE = 20;
+
 export function LibraryClient() {
   const [data, setData] = useState<LibraryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Search and filter state
@@ -52,7 +55,7 @@ export function LibraryClient() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch library data
+  // Fetch library data (initial load or filter change)
   const fetchLibrary = useCallback(async () => {
     try {
       setLoading(true);
@@ -63,6 +66,8 @@ export function LibraryClient() {
       if (selectedTags.length > 0) params.set("tags", selectedTags.join(","));
       params.set("sortBy", sortBy);
       params.set("sortOrder", sortOrder);
+      params.set("limit", PAGE_SIZE.toString());
+      params.set("offset", "0");
 
       const res = await fetch(`/api/library?${params}`);
       if (!res.ok) {
@@ -78,9 +83,49 @@ export function LibraryClient() {
     }
   }, [debouncedSearch, selectedTags, sortBy, sortOrder]);
 
+  // Load more responses (pagination)
+  const loadMore = useCallback(async () => {
+    if (!data || loadingMore) return;
+
+    try {
+      setLoadingMore(true);
+
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (selectedTags.length > 0) params.set("tags", selectedTags.join(","));
+      params.set("sortBy", sortBy);
+      params.set("sortOrder", sortOrder);
+      params.set("limit", PAGE_SIZE.toString());
+      params.set("offset", data.responses.length.toString());
+      params.set("includeTags", "false"); // Skip tags on subsequent loads
+
+      const res = await fetch(`/api/library?${params}`);
+      if (!res.ok) {
+        throw new Error("Failed to load more");
+      }
+
+      const result = await res.json();
+      setData((prev) => {
+        if (!prev) return result;
+        return {
+          ...prev,
+          responses: [...prev.responses, ...result.responses],
+          totalCount: result.totalCount,
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [data, debouncedSearch, selectedTags, sortBy, sortOrder, loadingMore]);
+
   useEffect(() => {
     fetchLibrary();
   }, [fetchLibrary]);
+
+  // Check if there are more items to load
+  const hasMore = data ? data.responses.length < data.totalCount : false;
 
   // Toggle tag selection
   const toggleTag = (tag: string) => {
@@ -359,62 +404,91 @@ export function LibraryClient() {
 
         {/* Response cards */}
         {!loading && !error && sortedResponses.length > 0 && (
-          <div className="grid gap-4">
-            {sortedResponses.map((response) => (
-              <div
-                key={response.id}
-                className="bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">{response.title}</h3>
-                    <p className="mt-1 text-sm text-gray-600 line-clamp-2">
-                      {truncateContent(response.content)}
-                    </p>
+          <>
+            <div className="grid gap-4">
+              {sortedResponses.map((response) => (
+                <div
+                  key={response.id}
+                  className="bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-900 truncate">{response.title}</h3>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                        {truncateContent(response.content)}
+                      </p>
 
-                    {/* Tags */}
-                    {response.tags.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {response.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                      {/* Tags */}
+                      {response.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {response.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Meta info */}
+                      <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
+                        <span>Created {formatDate(response.createdAt)}</span>
+                        <span>Used {response.usageCount} time{response.usageCount !== 1 ? "s" : ""}</span>
                       </div>
-                    )}
+                    </div>
 
-                    {/* Meta info */}
-                    <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
-                      <span>Created {formatDate(response.createdAt)}</span>
-                      <span>Used {response.usageCount} time{response.usageCount !== 1 ? "s" : ""}</span>
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEdit(response)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeletingId(response.id)}
+                        className="text-red-600 hover:text-red-700 hover:border-red-300"
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEdit(response)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setDeletingId(response.id)}
-                      className="text-red-600 hover:text-red-700 hover:border-red-300"
-                    >
-                      Delete
-                    </Button>
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            {/* Load More / Pagination info */}
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <p className="text-sm text-gray-500">
+                Showing {sortedResponses.length} of {data?.totalCount || 0} responses
+              </p>
+              {hasMore && (
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="min-w-[140px]"
+                >
+                  {loadingMore ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Loading...
+                    </>
+                  ) : (
+                    "Load More"
+                  )}
+                </Button>
+              )}
+            </div>
+          </>
         )}
       </main>
 

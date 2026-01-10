@@ -73,6 +73,12 @@ model User {
   // Soft delete for audit trail
   deletedAt               DateTime?
 
+  // Two-Factor Authentication (2FA)
+  twoFactorEnabled        Boolean        @default(false)
+  twoFactorSecret         String?        // Encrypted TOTP secret
+  twoFactorBackupCodes    String[]       // Hashed backup codes
+  twoFactorVerifiedAt     DateTime?      // When 2FA was successfully set up
+
   // Relations
   accounts                Account[]
   sessions                Session[]
@@ -184,6 +190,9 @@ model PastResponse {
   updatedAt  DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, usageCount(sort: Desc)])
 }
 
 // =============================================================================
