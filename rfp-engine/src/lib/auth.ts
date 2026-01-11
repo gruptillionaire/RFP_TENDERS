@@ -65,6 +65,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        rememberMe: { label: "Remember Me", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -74,6 +75,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Normalize email
         const email = (credentials.email as string).toLowerCase().trim();
         const password = credentials.password as string;
+        const rememberMe = credentials.rememberMe === "true";
 
         // Check rate limit
         const rateLimit = checkLoginRateLimit(email);
@@ -107,6 +109,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name,
+          rememberMe,
         };
       },
     }),
@@ -115,6 +118,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        // Set extended expiry for "Remember Me" sessions (30 days vs 24 hours)
+        if ((user as { rememberMe?: boolean }).rememberMe) {
+          token.rememberMe = true;
+          // Extend token expiry to 30 days
+          const thirtyDays = 30 * 24 * 60 * 60;
+          token.exp = Math.floor(Date.now() / 1000) + thirtyDays;
+        }
       }
       return token;
     },

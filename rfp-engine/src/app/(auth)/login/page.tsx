@@ -13,6 +13,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -103,6 +104,7 @@ export default function LoginPage() {
     const result = await signIn("credentials", {
       email,
       password,
+      rememberMe: rememberMe.toString(),
       redirect: false,
     });
 
@@ -223,6 +225,18 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <Label htmlFor="rememberMe" className="text-sm font-normal text-gray-600 cursor-pointer">
+                Remember me for 30 days
+              </Label>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 pt-6">
