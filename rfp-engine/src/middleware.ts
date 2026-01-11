@@ -55,7 +55,8 @@ export default auth((req) => {
                      req.nextUrl.pathname.startsWith("/reset-password");
   const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard") ||
                           req.nextUrl.pathname.startsWith("/projects") ||
-                          req.nextUrl.pathname.startsWith("/settings");
+                          req.nextUrl.pathname.startsWith("/settings") ||
+                          req.nextUrl.pathname.startsWith("/library");
 
   // Redirect logged in users away from auth pages
   if (isAuthPage && isLoggedIn) {
@@ -75,6 +76,7 @@ export const config = {
     "/dashboard/:path*",
     "/projects/:path*",
     "/settings/:path*",
+    "/library/:path*",
     "/login",
     "/signup",
     "/forgot-password",
