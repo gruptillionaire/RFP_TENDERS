@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getMajorCategory } from "@/lib/compliance-scoring";
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
@@ -707,11 +708,19 @@ export function ComplianceMatrix({
   const [historyReqId, setHistoryReqId] = useState<string | null>(null);
   const historyReq = historyReqId ? requirements.find(r => r.id === historyReqId) : null;
 
-  // Get unique sections - MEMOIZED
-  const sections = useMemo(() =>
-    [...new Set(requirements.map(r => r.section).filter(Boolean))] as string[],
-    [requirements]
-  );
+  // Get unique major categories - MEMOIZED
+  const sections = useMemo(() => {
+    const categories = requirements
+      .map(r => getMajorCategory(r.section))
+      .filter(cat => cat !== "Uncategorized");
+    return [...new Set(categories)].sort((a, b) => {
+      // Sort numerically if both are numbers, otherwise alphabetically
+      const aNum = parseInt(a);
+      const bNum = parseInt(b);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      return a.localeCompare(b);
+    });
+  }, [requirements]);
 
   // Copy to clipboard handler
   const handleCopy = useCallback(async (text: string, id: string) => {
@@ -722,16 +731,17 @@ export function ComplianceMatrix({
     setTimeout(() => setCopiedId(null), 2000);
   }, []);
 
-  // Calculate section stats - MEMOIZED
+  // Calculate section stats by major category - MEMOIZED
   const sectionStats = useMemo(() =>
-    sections.map(section => {
-      const sectionReqs = requirements.filter(r => r.section === section);
-      const answered = sectionReqs.filter(r => r.status === "ANSWERED").length;
+    sections.map(category => {
+      // Filter requirements that belong to this major category
+      const categoryReqs = requirements.filter(r => getMajorCategory(r.section) === category);
+      const answered = categoryReqs.filter(r => r.status === "ANSWERED").length;
       return {
-        name: section,
-        total: sectionReqs.length,
+        name: category,
+        total: categoryReqs.length,
         answered,
-        percentage: sectionReqs.length > 0 ? Math.round((answered / sectionReqs.length) * 100) : 0,
+        percentage: categoryReqs.length > 0 ? Math.round((answered / categoryReqs.length) * 100) : 0,
       };
     }),
     [sections, requirements]
@@ -774,9 +784,9 @@ export function ComplianceMatrix({
 
   // Apply advanced filters - MEMOIZED
   const filteredRequirements = useMemo(() => {
-    // First apply section filter if active
+    // First apply section filter by major category if active
     const sectionFiltered = activeSection
-      ? requirements.filter(req => req.section === activeSection)
+      ? requirements.filter(req => getMajorCategory(req.section) === activeSection)
       : requirements;
 
     // Then apply all other filters
@@ -829,12 +839,13 @@ export function ComplianceMatrix({
     [requirements]
   );
 
-  // Section counts - MEMOIZED for section tabs
+  // Section counts by major category - MEMOIZED for section tabs
   const sectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const req of requirements) {
-      if (req.section) {
-        counts[req.section] = (counts[req.section] || 0) + 1;
+      const category = getMajorCategory(req.section);
+      if (category !== "Uncategorized") {
+        counts[category] = (counts[category] || 0) + 1;
       }
     }
     return counts;

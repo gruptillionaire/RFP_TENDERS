@@ -5,6 +5,53 @@
 
 import { RequirementStatus, DomainContext } from "@prisma/client";
 
+/**
+ * Extract the major category from a section string.
+ * Examples:
+ *   "2.1.1" → "2"
+ *   "Section 2.1.1" → "Section 2"
+ *   "A.1.2" → "A"
+ *   "Part III, Section 2.1" → "Part III"
+ *   "General Requirements" → "General Requirements"
+ */
+export function getMajorCategory(section: string | null | undefined): string {
+  if (!section) return "Uncategorized";
+
+  const trimmed = section.trim();
+
+  // Pattern 1: "Section X.Y.Z" or "Part X.Y.Z" - extract "Section X" or "Part X"
+  const prefixMatch = trimmed.match(/^(Section|Part|Chapter|Article)\s+(\d+|[A-Z]+|[IVX]+)/i);
+  if (prefixMatch) {
+    return `${prefixMatch[1]} ${prefixMatch[2]}`;
+  }
+
+  // Pattern 2: "X.Y.Z" where X is numeric or letter - extract "X"
+  const numericMatch = trimmed.match(/^(\d+)\./);
+  if (numericMatch) {
+    return numericMatch[1];
+  }
+
+  // Pattern 3: "A.1.2" or "B.2.3" - extract the letter
+  const letterMatch = trimmed.match(/^([A-Z])\./i);
+  if (letterMatch) {
+    return letterMatch[1].toUpperCase();
+  }
+
+  // Pattern 4: Roman numerals "III.2.1" - extract the numeral
+  const romanMatch = trimmed.match(/^([IVX]+)\./i);
+  if (romanMatch) {
+    return romanMatch[1].toUpperCase();
+  }
+
+  // Pattern 5: Contains comma separation like "Part III, Section 2.1" - take first part
+  if (trimmed.includes(",")) {
+    return trimmed.split(",")[0].trim();
+  }
+
+  // Fallback: return the original section (it's likely already a major category)
+  return trimmed;
+}
+
 // Weight multipliers for scoring
 const WEIGHTS = {
   mandatory: 2.0,    // Mandatory requirements count double
@@ -141,13 +188,14 @@ function calculateMandatoryScore(requirements: RequirementForScoring[]): number 
 }
 
 /**
- * Calculate score by section
+ * Calculate score by section (grouped by major category)
  */
 function calculateSectionScores(requirements: RequirementForScoring[]): Record<string, number> {
   const bySection: Record<string, { totalWeight: number; earnedWeight: number }> = {};
 
   for (const req of requirements) {
-    const section = req.section || "Uncategorized";
+    // Group by major category instead of full section path
+    const section = getMajorCategory(req.section);
 
     if (!bySection[section]) {
       bySection[section] = { totalWeight: 0, earnedWeight: 0 };
