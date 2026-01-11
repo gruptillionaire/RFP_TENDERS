@@ -347,7 +347,7 @@ export function ExportDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="docx">Microsoft Word (.docx)</SelectItem>
-                    <SelectItem value="pdf" disabled>PDF (.pdf) - Coming Soon</SelectItem>
+                    <SelectItem value="pdf">PDF (.pdf)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

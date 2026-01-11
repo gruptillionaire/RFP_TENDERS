@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 import {
   scanForPlaceholders,
   generateDocx,
+  generatePdf,
   generateExportFilename,
   getDocxMimeType,
+  getPdfMimeType,
   type ExportTemplate,
   type RequirementForExport,
 } from "@/lib/export";
@@ -103,13 +105,6 @@ export async function POST(request: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Invalid template." }, { status: 400 });
     }
 
-    // PDF not yet implemented
-    if (format === "pdf") {
-      return NextResponse.json(
-        { error: "PDF export is not yet available. Please use Word format." },
-        { status: 400 }
-      );
-    }
 
     const project = await prisma.project.findUnique({
       where: { id },
@@ -175,7 +170,18 @@ export async function POST(request: NextRequest, { params }: Props) {
       deadline: project.deadline,
     };
 
-    const buffer = await generateDocx(requirements, options);
+    // Generate document based on format
+    let buffer: Buffer;
+    let mimeType: string;
+
+    if (format === "pdf") {
+      buffer = await generatePdf(requirements, options);
+      mimeType = getPdfMimeType();
+    } else {
+      buffer = await generateDocx(requirements, options);
+      mimeType = getDocxMimeType();
+    }
+
     const fileName = generateExportFilename(project.name, template as ExportTemplate, format);
 
     // Save to database for re-download
@@ -197,7 +203,7 @@ export async function POST(request: NextRequest, { params }: Props) {
     return new NextResponse(fileData, {
       status: 200,
       headers: {
-        "Content-Type": getDocxMimeType(),
+        "Content-Type": mimeType,
         "Content-Disposition": `attachment; filename="${fileName}"`,
         "X-Export-Id": exportRecord.id,
       },

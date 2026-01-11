@@ -6,3 +6,4 @@
 
 export * from "./placeholders";
 export * from "./docx-generator";
+export * from "./pdf-generator";
