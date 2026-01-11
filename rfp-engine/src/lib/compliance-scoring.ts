@@ -6,13 +6,11 @@
 import { RequirementStatus, DomainContext } from "@prisma/client";
 
 /**
- * Extract the major category from a section string.
+ * Extract the major category KEY from a section string (for grouping).
  * Examples:
- *   "2.1.1" → "2"
+ *   "2.1.1 Something" → "2"
  *   "Section 2.1.1" → "Section 2"
  *   "A.1.2" → "A"
- *   "Part III, Section 2.1" → "Part III"
- *   "General Requirements" → "General Requirements"
  */
 export function getMajorCategory(section: string | null | undefined): string {
   if (!section) return "Uncategorized";
@@ -25,31 +23,101 @@ export function getMajorCategory(section: string | null | undefined): string {
     return `${prefixMatch[1]} ${prefixMatch[2]}`;
   }
 
-  // Pattern 2: "X.Y.Z" where X is numeric or letter - extract "X"
-  const numericMatch = trimmed.match(/^(\d+)\./);
+  // Pattern 2: "X.Y.Z" or "X. Title" where X is numeric - extract "X"
+  const numericMatch = trimmed.match(/^(\d+)[.\s]/);
   if (numericMatch) {
     return numericMatch[1];
   }
 
-  // Pattern 3: "A.1.2" or "B.2.3" - extract the letter
+  // Pattern 3: Just a number at the start
+  const justNumber = trimmed.match(/^(\d+)$/);
+  if (justNumber) {
+    return justNumber[1];
+  }
+
+  // Pattern 4: "A.1.2" or "B.2.3" - extract the letter
   const letterMatch = trimmed.match(/^([A-Z])\./i);
   if (letterMatch) {
     return letterMatch[1].toUpperCase();
   }
 
-  // Pattern 4: Roman numerals "III.2.1" - extract the numeral
+  // Pattern 5: Roman numerals "III.2.1" - extract the numeral
   const romanMatch = trimmed.match(/^([IVX]+)\./i);
   if (romanMatch) {
     return romanMatch[1].toUpperCase();
   }
 
-  // Pattern 5: Contains comma separation like "Part III, Section 2.1" - take first part
+  // Pattern 6: Contains comma separation like "Part III, Section 2.1" - take first part
   if (trimmed.includes(",")) {
     return trimmed.split(",")[0].trim();
   }
 
   // Fallback: return the original section (it's likely already a major category)
   return trimmed;
+}
+
+/**
+ * Extract the major category with its TITLE from a section string (for display).
+ * Examples:
+ *   "2. Special Conditions of RFP" → "2: Special Conditions of RFP"
+ *   "2.1.1 Something" → "2" (no title available from subsection)
+ *   "Section 5: Specification" → "Section 5: Specification"
+ */
+export function getMajorCategoryTitle(section: string | null | undefined): { key: string; title: string | null } {
+  if (!section) return { key: "Uncategorized", title: null };
+
+  const trimmed = section.trim();
+  const key = getMajorCategory(trimmed);
+
+  // Try to extract title from patterns like "2. Title" or "2: Title" or "2 - Title"
+  // Only if this is a top-level section (not a subsection like 2.1.1)
+
+  // Pattern: "X. Title" or "X: Title" or "X - Title" where X matches the key
+  const titleMatch = trimmed.match(/^(\d+)[.\s:\-]+\s*([A-Za-z].+)$/);
+  if (titleMatch && titleMatch[1] === key) {
+    return { key, title: titleMatch[2].trim() };
+  }
+
+  // Pattern: "Section X: Title" or "Section X. Title"
+  const sectionTitleMatch = trimmed.match(/^(Section|Part|Chapter|Article)\s+(\d+|[A-Z]+|[IVX]+)[.\s:\-]+\s*([A-Za-z].+)$/i);
+  if (sectionTitleMatch) {
+    const matchKey = `${sectionTitleMatch[1]} ${sectionTitleMatch[2]}`;
+    if (matchKey.toLowerCase() === key.toLowerCase()) {
+      return { key, title: sectionTitleMatch[3].trim() };
+    }
+  }
+
+  return { key, title: null };
+}
+
+/**
+ * Build a map of major category keys to their display titles.
+ * Scans all sections to find the best title for each major category.
+ */
+export function buildCategoryTitleMap(sections: (string | null | undefined)[]): Map<string, string> {
+  const titleMap = new Map<string, string>();
+
+  for (const section of sections) {
+    if (!section) continue;
+
+    const { key, title } = getMajorCategoryTitle(section);
+
+    // If we found a title and don't have one for this key yet, use it
+    if (title && !titleMap.has(key)) {
+      titleMap.set(key, `${key}: ${title}`);
+    }
+  }
+
+  // For any keys without titles, just use the key itself
+  for (const section of sections) {
+    if (!section) continue;
+    const key = getMajorCategory(section);
+    if (!titleMap.has(key)) {
+      titleMap.set(key, key);
+    }
+  }
+
+  return titleMap;
 }
 
 // Weight multipliers for scoring

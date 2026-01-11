@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getMajorCategory } from "@/lib/compliance-scoring";
+import { getMajorCategory, buildCategoryTitleMap } from "@/lib/compliance-scoring";
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
@@ -722,6 +722,11 @@ export function ComplianceMatrix({
     });
   }, [requirements]);
 
+  // Build category title map for display - MEMOIZED
+  const categoryTitleMap = useMemo(() => {
+    return buildCategoryTitleMap(requirements.map(r => r.section));
+  }, [requirements]);
+
   // Copy to clipboard handler
   const handleCopy = useCallback(async (text: string, id: string) => {
     // Strip [DRAFT] tag when copying
@@ -942,7 +947,7 @@ export function ComplianceMatrix({
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {section} ({sectionCounts[section] || 0})
+              {categoryTitleMap.get(section) || section} ({sectionCounts[section] || 0})
             </button>
           ))}
         </div>
@@ -964,7 +969,7 @@ export function ComplianceMatrix({
                 }`}
               >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium truncate">{section.name}</span>
+                  <span className="text-sm font-medium truncate">{categoryTitleMap.get(section.name) || section.name}</span>
                   <span className="text-xs text-gray-500">{section.answered}/{section.total}</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
