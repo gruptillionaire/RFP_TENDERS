@@ -11,22 +11,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { decryptTOTPSecret } from "@/lib/crypto";
 import * as OTPAuth from "otpauth";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { verifyPendingSession, clearPendingSession } from "@/app/api/auth/pre-login/route";
-
-const ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || "fallback-key-change-in-production";
-
-function decrypt(encryptedText: string): string {
-  const [ivHex, encrypted] = encryptedText.split(":");
-  const iv = Buffer.from(ivHex, "hex");
-  const key = crypto.scryptSync(ENCRYPTION_KEY, "salt", 32);
-  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-  let decrypted = decipher.update(encrypted, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
-}
 
 // Rate limiting for 2FA attempts
 const challengeAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -67,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the pending session from pre-login
-    const pendingSession = verifyPendingSession(pendingToken);
+    const pendingSession = await verifyPendingSession(pendingToken);
     if (!pendingSession.valid || !pendingSession.userId) {
       return NextResponse.json(
         { error: "Session expired. Please log in again." },
@@ -111,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     // Try TOTP verification first
     try {
-      const secret = decrypt(user.twoFactorSecret);
+      const secret = decryptTOTPSecret(user.twoFactorSecret);
 
       const totp = new OTPAuth.TOTP({
         issuer: "RFP Engine",
@@ -163,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Clear rate limit and pending session on success
     clearRateLimit(pendingUserId);
-    clearPendingSession(pendingToken);
+    await clearPendingSession(pendingToken);
 
     return NextResponse.json({
       success: true,

@@ -13,7 +13,9 @@ export const TOKEN_LIMITS = {
 
 export const QUOTA_LIMITS = {
   FREE: 2,
+  SOLO: 10,
   PRO: -1, // -1 means unlimited
+  TEAM: -1, // -1 means unlimited
 } as const;
 
 export type RequirementType = keyof typeof TOKEN_LIMITS;

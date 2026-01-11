@@ -290,6 +290,34 @@ model PasswordResetToken {
 }
 
 // =============================================================================
+// 2FA PENDING SESSIONS
+// =============================================================================
+
+// Stores pending 2FA login sessions (replaces in-memory Map)
+model Pending2FASession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// =============================================================================
+// WEBHOOK IDEMPOTENCY
+// =============================================================================
+
+// Tracks processed Stripe webhook events to prevent duplicate processing
+model ProcessedWebhookEvent {
+  id        String   @id // Use Stripe event ID
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// =============================================================================
 // DOCUMENT EXPORT
 // =============================================================================
 

@@ -24,8 +24,41 @@ import type Stripe from "stripe";
 // Disable body parsing to get raw body for signature verification
 export const dynamic = "force-dynamic";
 
-// Track processed events to prevent duplicates (in production, use Redis)
-const processedEvents = new Set<string>();
+/**
+ * Check if event has already been processed (database-backed idempotency)
+ * This is critical for serverless environments where in-memory state is lost
+ */
+async function isEventProcessed(eventId: string): Promise<boolean> {
+  const existing = await prisma.processedWebhookEvent.findUnique({
+    where: { id: eventId },
+  });
+  return !!existing;
+}
+
+/**
+ * Mark event as processed in database
+ */
+async function markEventProcessed(eventId: string): Promise<void> {
+  await prisma.processedWebhookEvent.create({
+    data: { id: eventId },
+  }).catch((err) => {
+    // Ignore unique constraint violation (concurrent processing)
+    if (err.code !== "P2002") throw err;
+  });
+}
+
+/**
+ * Clean up old processed events (run periodically)
+ * Keeps events from the last 7 days
+ */
+async function cleanupOldEvents(): Promise<void> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await prisma.processedWebhookEvent.deleteMany({
+    where: { createdAt: { lt: sevenDaysAgo } },
+  }).catch(() => {
+    // Ignore cleanup errors
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,23 +86,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Idempotency check
-    if (processedEvents.has(event.id)) {
+    // Database-backed idempotency check
+    if (await isEventProcessed(event.id)) {
       console.log(`Event ${event.id} already processed, skipping`);
       return NextResponse.json({ received: true });
     }
 
-    // Mark as processing (add to set before processing)
-    processedEvents.add(event.id);
+    // Mark as processed before processing (prevents concurrent duplicates)
+    await markEventProcessed(event.id);
 
-    // Clean up old events (keep last 1000)
-    if (processedEvents.size > 1000) {
-      const iterator = processedEvents.values();
-      for (let i = 0; i < 100; i++) {
-        const first = iterator.next();
-        if (first.value) processedEvents.delete(first.value);
-      }
-    }
+    // Clean up old events periodically (run in background)
+    cleanupOldEvents();
 
     console.log(`Processing webhook event: ${event.type}`);
 

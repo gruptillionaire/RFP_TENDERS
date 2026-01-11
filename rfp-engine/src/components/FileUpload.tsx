@@ -3,6 +3,60 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 
+// File validation constants
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/msword", // .doc
+];
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc"];
+
+interface FileValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+function validateFile(file: File): FileValidationResult {
+  // Check file size
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+    };
+  }
+
+  // Check file size minimum (empty files)
+  if (file.size === 0) {
+    return {
+      valid: false,
+      error: "File appears to be empty.",
+    };
+  }
+
+  // Check MIME type
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // Fallback to extension check for browsers that don't set MIME type correctly
+    const extension = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+      return {
+        valid: false,
+        error: "Invalid file type. Please upload a PDF or Word document (.pdf, .docx, .doc).",
+      };
+    }
+  }
+
+  // Check for suspicious filenames (prevent path traversal)
+  if (file.name.includes("..") || file.name.includes("/") || file.name.includes("\\")) {
+    return {
+      valid: false,
+      error: "Invalid filename.",
+    };
+  }
+
+  return { valid: true };
+}
+
 interface FileUploadProps {
   onUpload: (file: File) => void;
   isUploading?: boolean;
@@ -12,6 +66,18 @@ interface FileUploadProps {
 export function FileUpload({ onUpload, isUploading = false, accept = ".pdf,.docx,.doc" }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const handleFileSelect = useCallback((file: File) => {
+    setValidationError(null);
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      setValidationError(validation.error || "Invalid file");
+      setSelectedFile(null);
+      return;
+    }
+    setSelectedFile(file);
+  }, []);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -29,14 +95,13 @@ export function FileUpload({ onUpload, isUploading = false, accept = ".pdf,.docx
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
+      handleFileSelect(e.dataTransfer.files[0]);
     }
-  }, []);
+  }, [handleFileSelect]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      handleFileSelect(e.target.files[0]);
     }
   };
 
@@ -116,6 +181,11 @@ export function FileUpload({ onUpload, isUploading = false, accept = ".pdf,.docx
               </p>
               <p className="text-sm text-gray-500">or click to browse</p>
             </div>
+            {validationError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-600">{validationError}</p>
+              </div>
+            )}
             <input
               type="file"
               accept={accept}
@@ -129,7 +199,7 @@ export function FileUpload({ onUpload, isUploading = false, accept = ".pdf,.docx
               </Button>
             </label>
             <p className="text-xs text-gray-400">
-              Supported formats: PDF, Word (.docx, .doc)
+              Supported formats: PDF, Word (.docx, .doc) &middot; Max 20MB
             </p>
           </div>
         )}

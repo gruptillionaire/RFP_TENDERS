@@ -12,21 +12,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptTOTPSecret } from "@/lib/crypto";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
-import crypto from "crypto";
-
-// Encryption for storing TOTP secrets
-const ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || "fallback-key-change-in-production";
-
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const key = crypto.scryptSync(ENCRYPTION_KEY, "salt", 32);
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(text, "utf8", "hex");
-  encrypted += cipher.final("hex");
-  return iv.toString("hex") + ":" + encrypted;
-}
 
 export async function POST() {
   try {
@@ -73,7 +61,7 @@ export async function POST() {
     const qrCode = await QRCode.toDataURL(otpauthUrl);
 
     // Store encrypted secret temporarily (not enabled yet until verified)
-    const encryptedSecret = encrypt(secret.base32);
+    const encryptedSecret = encryptTOTPSecret(secret.base32);
 
     await prisma.user.update({
       where: { id: session.user.id },

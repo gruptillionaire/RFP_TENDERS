@@ -108,6 +108,9 @@ export async function PATCH(request: Request, { params }: Props) {
 
       const newCompanyName = companyName.trim();
 
+      // Collect all updates to batch them
+      const updates: { id: string; draftAnswer: string }[] = [];
+
       // Replace [COMPANY NAME] and optionally old company name in all existing drafts
       for (const req of requirements) {
         if (req.draftAnswer) {
@@ -125,14 +128,23 @@ export async function PATCH(request: Request, { params }: Props) {
             newDraft = newDraft.replace(oldNameRegex, newCompanyName);
           }
 
-          // Only update if draft changed
+          // Only queue update if draft changed
           if (newDraft !== req.draftAnswer) {
-            await prisma.requirement.update({
-              where: { id: req.id },
-              data: { draftAnswer: newDraft },
-            });
+            updates.push({ id: req.id, draftAnswer: newDraft });
           }
         }
+      }
+
+      // Batch update all requirements in a single transaction
+      if (updates.length > 0) {
+        await prisma.$transaction(
+          updates.map((update) =>
+            prisma.requirement.update({
+              where: { id: update.id },
+              data: { draftAnswer: update.draftAnswer },
+            })
+          )
+        );
       }
     }
 

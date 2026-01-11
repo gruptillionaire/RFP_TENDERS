@@ -51,7 +51,7 @@ export function sanitizeForLLM(text: string): string {
  * Validates that a requirement type is a valid enum value
  */
 export function isValidRequirementType(type: string): boolean {
-  const validTypes = ["PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED"];
+  const validTypes = ["CONTEXTUAL", "PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED"];
   return validTypes.includes(type);
 }
 
@@ -59,7 +59,7 @@ export function isValidRequirementType(type: string): boolean {
  * Sanitizes user-provided requirement type to prevent enum injection
  */
 export function sanitizeRequirementType(type: string): string {
-  const validTypes = ["PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED"];
+  const validTypes = ["CONTEXTUAL", "PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED"];
   const upperType = type?.toUpperCase?.() || "";
   return validTypes.includes(upperType) ? upperType : "DECLARATIVE";
 }

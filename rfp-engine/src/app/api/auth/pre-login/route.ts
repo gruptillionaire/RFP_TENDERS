@@ -24,13 +24,6 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
-// Pending 2FA sessions (temporary storage for verified password state)
-const pending2FASessions = new Map<string, {
-  pendingToken: string;
-  userId: string;
-  expiresAt: number
-}>();
-
 function checkLoginRateLimit(email: string): { allowed: boolean; message?: string } {
   const now = Date.now();
   const key = email.toLowerCase().trim();
@@ -117,21 +110,23 @@ export async function POST(request: NextRequest) {
     if (user.twoFactorEnabled) {
       // Generate a pending token for this 2FA session
       const pendingToken = crypto.randomBytes(32).toString("hex");
-      const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-      // Store the pending session
-      pending2FASessions.set(pendingToken, {
-        pendingToken,
-        userId: user.id,
-        expiresAt,
+      // Store the pending session in database
+      await prisma.pending2FASession.create({
+        data: {
+          token: pendingToken,
+          userId: user.id,
+          expiresAt,
+        },
       });
 
-      // Clean up expired sessions periodically
-      for (const [token, session] of pending2FASessions) {
-        if (session.expiresAt < Date.now()) {
-          pending2FASessions.delete(token);
-        }
-      }
+      // Clean up expired sessions (run in background, don't await)
+      prisma.pending2FASession.deleteMany({
+        where: { expiresAt: { lt: new Date() } },
+      }).catch(() => {
+        // Ignore cleanup errors
+      });
 
       return NextResponse.json({
         success: true,
@@ -156,21 +151,30 @@ export async function POST(request: NextRequest) {
 }
 
 // Export for use by 2FA challenge endpoint
-export function verifyPendingSession(pendingToken: string): { valid: boolean; userId?: string } {
-  const session = pending2FASessions.get(pendingToken);
+export async function verifyPendingSession(pendingToken: string): Promise<{ valid: boolean; userId?: string }> {
+  const session = await prisma.pending2FASession.findUnique({
+    where: { token: pendingToken },
+  });
 
   if (!session) {
     return { valid: false };
   }
 
-  if (session.expiresAt < Date.now()) {
-    pending2FASessions.delete(pendingToken);
+  if (session.expiresAt < new Date()) {
+    // Delete expired session
+    await prisma.pending2FASession.delete({
+      where: { token: pendingToken },
+    }).catch(() => {});
     return { valid: false };
   }
 
   return { valid: true, userId: session.userId };
 }
 
-export function clearPendingSession(pendingToken: string): void {
-  pending2FASessions.delete(pendingToken);
+export async function clearPendingSession(pendingToken: string): Promise<void> {
+  await prisma.pending2FASession.delete({
+    where: { token: pendingToken },
+  }).catch(() => {
+    // Ignore if already deleted
+  });
 }
