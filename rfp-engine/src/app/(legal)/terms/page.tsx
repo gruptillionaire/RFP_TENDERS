@@ -127,16 +127,18 @@ export default function TermsOfServicePage() {
       <section>
         <h2>7. Subscription and Payment</h2>
 
-        <h3>7.1 Free Tier</h3>
+        <h3>7.1 Paid Subscriptions</h3>
         <p>
-          We offer a limited free tier with restricted features and usage limits.
-          Free tier terms may change at our discretion.
+          RFP Engine is a paid service. Access to core features requires an active subscription.
+          Subscriptions are billed in advance on a monthly or annual basis.
+          Prices are subject to change with notice.
         </p>
 
-        <h3>7.2 Paid Subscriptions</h3>
+        <h3>7.2 Free Tools</h3>
         <p>
-          Paid subscriptions are billed in advance on a monthly or annual basis.
-          Prices are subject to change with notice.
+          We may offer certain free tools (such as template libraries or matrix builders)
+          that do not require a subscription. These free tools are provided as-is and
+          their availability may change at our discretion.
         </p>
 
         <h3>7.3 Refunds</h3>
@@ -148,7 +150,8 @@ export default function TermsOfServicePage() {
         <h3>7.4 Cancellation</h3>
         <p>
           You may cancel your subscription at any time. Your access will continue until
-          the end of your current billing period.
+          the end of your current billing period. Upon cancellation, you will lose access
+          to subscription features but may retain access to any free tools.
         </p>
       </section>
 

@@ -45,7 +45,7 @@ export default function Home() {
           <div className="flex gap-4 justify-center">
             <Link href="/signup">
               <Button size="lg" className="text-lg px-8">
-                Start Free Trial
+                Get Started
               </Button>
             </Link>
             <Link href="#features">
@@ -101,10 +101,10 @@ export default function Home() {
         {/* Pricing */}
         <div className="mt-32 text-center">
           <h2 className="text-3xl font-bold mb-4">Simple Pricing</h2>
-          <p className="text-gray-600 mb-12">Start free, upgrade when you need more</p>
+          <p className="text-gray-600 mb-12">Plans for every team size</p>
 
           <div className="max-w-sm mx-auto p-8 rounded-2xl border-2 border-blue-600 bg-white">
-            <div className="text-sm font-medium text-blue-600 mb-2">PRO PLAN</div>
+            <div className="text-sm font-medium text-blue-600 mb-2">MOST POPULAR</div>
             <div className="text-4xl font-bold mb-2">
               £99<span className="text-lg font-normal text-gray-500">/month</span>
             </div>
@@ -134,8 +134,8 @@ export default function Home() {
                 Past response reuse
               </li>
             </ul>
-            <Link href="/signup">
-              <Button className="w-full" size="lg">Start Free Trial</Button>
+            <Link href="/pricing">
+              <Button className="w-full" size="lg">View All Plans</Button>
             </Link>
           </div>
         </div>

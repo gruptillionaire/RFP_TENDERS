@@ -32,7 +32,7 @@ export default function LegalLayout({
 
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-12">
-        <article className="prose prose-gray max-w-none">
+        <article className="legal-content max-w-none [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mt-8 [&_h2]:mb-4 [&_h3]:text-lg [&_h3]:font-medium [&_h3]:mt-6 [&_h3]:mb-2 [&_p]:mb-4 [&_p]:text-gray-700 [&_p]:leading-relaxed [&_section]:mb-8 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_ul]:space-y-2 [&_li]:text-gray-700 [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-800 [&_strong]:font-semibold">
           {children}
         </article>
       </main>

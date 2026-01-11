@@ -3,7 +3,7 @@ import { JsonLd, faqSchema } from "@/components/JsonLd";
 
 export const metadata: Metadata = {
   title: "Pricing Plans",
-  description: "Choose from Free, Solo, Pro, or Team plans. Start free with 2 RFP extractions per month, upgrade for unlimited access and advanced features.",
+  description: "Choose from Solo, Pro, or Team plans. AI-powered RFP extraction and drafting to help you respond faster and win more contracts.",
   alternates: {
     canonical: "/pricing",
   },

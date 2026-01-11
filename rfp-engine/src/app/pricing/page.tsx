@@ -8,26 +8,6 @@ import { useSession } from "next-auth/react";
 
 const plans = [
   {
-    id: "FREE",
-    name: "Free",
-    price: 0,
-    period: "",
-    description: "Try it out with limited features",
-    features: [
-      "2 extractions per month",
-      "2 active projects",
-      "20 drafts per month",
-      "Basic templates (5)",
-      "10 stored responses",
-    ],
-    limitations: [
-      "No custom branding",
-      "No priority support",
-    ],
-    cta: "Current Plan",
-    popular: false,
-  },
-  {
     id: "SOLO",
     name: "Solo",
     price: 39,
@@ -42,7 +22,7 @@ const plans = [
       "Email support",
     ],
     limitations: [],
-    cta: "Subscribe",
+    cta: "Get Started",
     popular: false,
   },
   {
@@ -61,7 +41,7 @@ const plans = [
       "Priority email support",
     ],
     limitations: [],
-    cta: "Subscribe",
+    cta: "Get Started",
     popular: true,
   },
   {
@@ -81,7 +61,7 @@ const plans = [
       "Custom onboarding",
     ],
     limitations: [],
-    cta: "Subscribe",
+    cta: "Get Started",
     popular: false,
   },
 ];
@@ -96,8 +76,6 @@ function PricingContent() {
   const cancelled = searchParams.get("subscription") === "cancelled";
 
   async function handleSubscribe(planId: string) {
-    if (planId === "FREE") return;
-
     if (!session) {
       // Redirect to login with return URL
       router.push(`/login?callbackUrl=/pricing`);
@@ -186,7 +164,7 @@ function PricingContent() {
         )}
 
         {/* Pricing cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           {plans.map((plan) => (
             <div
               key={plan.id}
@@ -255,37 +233,23 @@ function PricingContent() {
               </ul>
 
               <div className="mt-8">
-                {plan.id === "FREE" ? (
-                  session ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      Current Plan
-                    </Button>
+                <Button
+                  className={`w-full ${plan.popular ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                  onClick={() => handleSubscribe(plan.id)}
+                  disabled={loading === plan.id}
+                >
+                  {loading === plan.id ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
                   ) : (
-                    <Link href="/signup" className="block">
-                      <Button variant="outline" className="w-full">
-                        Get Started
-                      </Button>
-                    </Link>
-                  )
-                ) : (
-                  <Button
-                    className={`w-full ${plan.popular ? "bg-blue-600 hover:bg-blue-700" : ""}`}
-                    onClick={() => handleSubscribe(plan.id)}
-                    disabled={loading === plan.id}
-                  >
-                    {loading === plan.id ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing...
-                      </span>
-                    ) : (
-                      plan.cta
-                    )}
-                  </Button>
-                )}
+                    plan.cta
+                  )}
+                </Button>
               </div>
             </div>
           ))}
@@ -330,12 +294,12 @@ function PricingContent() {
             Ready to respond to RFPs faster?
           </h2>
           <p className="mt-4 text-gray-600 max-w-xl mx-auto">
-            Start with our free plan and upgrade when you're ready. No credit card required.
+            Join businesses saving hours on every RFP response with AI-powered extraction and drafting.
           </p>
           <div className="mt-8">
             <Link href="/signup">
               <Button size="lg" className="px-8">
-                Start Free Trial
+                Get Started
               </Button>
             </Link>
           </div>

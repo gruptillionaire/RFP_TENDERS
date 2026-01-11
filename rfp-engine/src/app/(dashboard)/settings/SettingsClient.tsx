@@ -144,7 +144,7 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
 
   const getPlanName = (plan: string) => {
     const names: Record<string, string> = {
-      FREE: "Free",
+      FREE: "No Active Subscription",
       SOLO: "Solo",
       PRO: "Pro",
       TEAM: "Team",
@@ -332,16 +332,16 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
               </div>
             )}
 
-            {/* Upgrade prompt for free users */}
+            {/* Subscribe prompt for users without subscription */}
             {billingInfo.plan === "FREE" && (
               <div className="border-t pt-4">
                 <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900">Need more extractions?</h4>
+                  <h4 className="font-medium text-blue-900">Subscribe to unlock RFP Engine</h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    Upgrade to Solo for 5 extractions/month, or Pro for 15 extractions/month.
+                    Choose a plan to start extracting requirements and generating draft responses.
                   </p>
                   <Link href="/pricing" className="inline-block mt-3">
-                    <Button size="sm" variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                       View Plans
                     </Button>
                   </Link>

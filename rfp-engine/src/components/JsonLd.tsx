@@ -28,10 +28,11 @@ export const softwareApplicationSchema = {
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "offers": {
-    "@type": "Offer",
-    "price": "0",
+    "@type": "AggregateOffer",
+    "lowPrice": "39",
+    "highPrice": "249",
     "priceCurrency": "GBP",
-    "description": "Free tier with 2 RFP extractions per month",
+    "offerCount": "3",
   },
   "description": "AI-powered RFP management software that helps teams respond to RFPs and tenders 10x faster with automated requirement extraction and draft generation.",
   "featureList": [

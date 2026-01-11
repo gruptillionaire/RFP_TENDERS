@@ -43,7 +43,7 @@ export async function GET() {
 
     return NextResponse.json({
       plan: user.plan,
-      planName: planConfig?.name || "Free",
+      planName: planConfig?.name || "No Subscription",
       subscriptionStatus: user.subscriptionStatus,
       currentPeriodEnd: user.currentPeriodEnd?.toISOString() || null,
       cancelAtPeriodEnd: user.cancelAtPeriodEnd,
@@ -53,10 +53,7 @@ export async function GET() {
       },
       hasStripeAccount: !!user.stripeCustomerId,
       features: planConfig?.features || [
-        "2 extractions per month",
-        "2 active projects",
-        "20 drafts per month",
-        "Basic templates",
+        "Subscribe to unlock features",
       ],
     });
   } catch (error) {
