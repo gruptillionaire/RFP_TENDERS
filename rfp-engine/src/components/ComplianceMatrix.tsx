@@ -35,7 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
+type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
 type SortOption = "order" | "mandatory" | "status" | "section" | "type";
 
@@ -81,6 +81,12 @@ const getTextareaRows = (type: RequirementType): number => {
       return 4; // Medium-large for documentation references
     case "DESCRIPTIVE":
       return 6; // Large for detailed explanations
+    case "QUANTITATIVE":
+      return 5; // Medium-large for pricing/metrics tables
+    case "REFERENCE_BASED":
+      return 6; // Large for multiple references
+    case "STAFFING":
+      return 5; // Medium-large for team details
     default:
       return 4;
   }
@@ -98,6 +104,12 @@ const getPlaceholder = (type: RequirementType): string => {
       return "Provide detailed explanation of your approach...";
     case "EVIDENCE_BASED":
       return "Reference specific documents, certifications, or evidence...";
+    case "QUANTITATIVE":
+      return "Provide pricing, metrics, or numerical data in structured format...";
+    case "REFERENCE_BASED":
+      return "List references with client name, project, dates, and contact info...";
+    case "STAFFING":
+      return "Identify team members with roles, qualifications, and experience...";
     default:
       return "Enter your response...";
   }
@@ -115,6 +127,12 @@ const getTypeBadgeColor = (type: RequirementType): string => {
       return "bg-orange-100 text-orange-800 border-orange-200";
     case "EVIDENCE_BASED":
       return "bg-green-100 text-green-800 border-green-200";
+    case "QUANTITATIVE":
+      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "REFERENCE_BASED":
+      return "bg-cyan-100 text-cyan-800 border-cyan-200";
+    case "STAFFING":
+      return "bg-amber-100 text-amber-800 border-amber-200";
     default:
       return "bg-gray-100 text-gray-800 border-gray-200";
   }
@@ -132,6 +150,12 @@ const formatTypeName = (type: RequirementType): string => {
       return "Descriptive";
     case "EVIDENCE_BASED":
       return "Evidence";
+    case "QUANTITATIVE":
+      return "Quantitative";
+    case "REFERENCE_BASED":
+      return "Reference";
+    case "STAFFING":
+      return "Staffing";
     default:
       return type;
   }

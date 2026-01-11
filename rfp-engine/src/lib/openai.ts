@@ -64,17 +64,47 @@ REQUIREMENT TYPES:
   • "Outline your proposed solution..."
   • Any requirement listing multiple features/capabilities to address
 
-- EVIDENCE_BASED: Requirements needing references to specific documents, certifications, or proof
-  Examples: "Provide evidence of insurance", "Attach relevant certifications", "Reference three similar projects", "Include case studies..."
+- EVIDENCE_BASED: Requirements asking for attachments, samples, copies, or documentation
+  STRONG INDICATORS - classify as EVIDENCE_BASED if ANY:
+  • Contains: "sample", "example", "specimen", "mock-up", "template"
+  • Contains: "attach", "include", "submit", "upload", "enclose", "provide copy"
+  • Contains: "certificate", "certification", "license", "insurance", "bond"
+  • Contains: "evidence", "proof", "documentation of"
+  • The response CANNOT be written - requires a FILE/ATTACHMENT
+  Examples: "Include a sample of the monthly report", "Attach proof of insurance", "Submit evidence of compliance"
 
-CLASSIFICATION PRIORITY (use this order):
-1. If NO action/response is required, just background info → CONTEXTUAL
-2. If the requirement contains 3+ comma-separated features/capabilities → DESCRIPTIVE
-3. If it asks to "provide information on" platform/system capabilities → DESCRIPTIVE
-4. If it explicitly asks for certificates/evidence/documentation → EVIDENCE_BASED
-5. If it's a yes/no compliance question with brief justification → DECLARATIVE
-6. If it's administrative/deadline/submission related → PROCEDURAL
-7. When uncertain, prefer DESCRIPTIVE over DECLARATIVE for longer requirements
+- QUANTITATIVE: Requirements asking for pricing, costs, metrics, SLAs, or numerical data
+  INDICATORS:
+  • Contains: "pricing", "cost", "price", "fee", "rate", "budget", "TCO", "ROI"
+  • Contains: "SLA", "uptime", "percentage", "capacity", "volume", "quantity", "metrics"
+  • Asks for numerical data, tables, or calculations
+  Examples: "Provide detailed pricing breakdown", "List your SLA commitments", "What is your system capacity?"
+
+- REFERENCE_BASED: Requirements asking for past performance, references, or client contacts
+  INDICATORS:
+  • Contains: "reference", "past performance", "similar project", "experience with"
+  • Contains: "client", "customer", "contact information", "project example"
+  • Asks for specific number of references
+  Examples: "Provide 3 client references", "Describe similar projects completed", "List relevant experience"
+
+- STAFFING: Requirements about team composition, personnel, or qualifications
+  INDICATORS:
+  • Contains: "personnel", "staff", "team", "resource", "FTE", "resume", "CV", "qualifications"
+  • Contains: "project manager", "key personnel", "roles", "responsibilities", "org chart"
+  • Asks for specific positions or skill requirements
+  Examples: "Identify key personnel", "Provide team qualifications", "Describe your project team"
+
+CLASSIFICATION PRIORITY (FIRST MATCH WINS):
+1. If NO action/response required, just background info → CONTEXTUAL
+2. If asks to attach/include/submit/upload a sample, copy, or document → EVIDENCE_BASED
+3. If asks for certificates/evidence/proof/documentation → EVIDENCE_BASED
+4. If asks for pricing, costs, fees, SLAs, numerical data → QUANTITATIVE
+5. If asks for references, past performance, client contacts → REFERENCE_BASED
+6. If asks for team, personnel, staff, qualifications → STAFFING
+7. If contains 3+ comma-separated items OR asks for detailed explanation → DESCRIPTIVE
+8. If yes/no compliance question with brief justification → DECLARATIVE
+9. If administrative/deadline/submission → PROCEDURAL
+10. When uncertain → DESCRIPTIVE
 
 5. The DOMAIN CONTEXT - classify into ONE of these domains:
 
@@ -102,7 +132,7 @@ Return your response as a JSON object with this structure:
       "text": "The exact requirement or question text",
       "isMandatory": true/false,
       "section": "Section name if identifiable, or null",
-      "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED",
+      "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING",
       "domainContext": "FEATURE" | "PROCESS" | "LEGAL",
       "wordLimit": number or null,
       "characterLimit": number or null
@@ -116,7 +146,7 @@ CRITICAL INSTRUCTIONS:
 - Include direct questions, mandatory requirements, deliverables, timelines, compliance requirements, technical specifications, and pricing requirements
 - Do not summarize or paraphrase - extract the actual text from the document
 - Classify EVERY requirement with the most appropriate type
-- When uncertain between types, default to DECLARATIVE`;
+- When uncertain between types, default to DESCRIPTIVE`;
 
 // =============================================================================
 // DRAFT PROMPTS - Type-specific, RFP-focused (NOT email-style)
@@ -271,19 +301,95 @@ IP warming strategies are typically tailored to each client's specific needs. Ac
   EVIDENCE_BASED: `${DRAFT_PROMPT_BASE}
 
 FOR THIS EVIDENCE-BASED REQUIREMENT:
-- Reference specific documents, certifications, or evidence
-- Use clear referencing format: "Please refer to Appendix [X]", "As evidenced in [DOCUMENT]"
-- List specific certifications with dates/numbers where applicable
-- Mention attachments or supporting documentation
-- Keep to 3-5 sentences plus reference list
 
-CRITICAL: NEVER wrap your response in quotation marks (""). Output the response text directly.
+DETERMINE THE TYPE:
+1. SAMPLE/ATTACHMENT REQUEST - asks for: sample, copy, example, document, file
+2. CERTIFICATION REQUEST - asks for: certificate, certification, proof, references
 
-EXAMPLE FORMAT:
-[COMPANY NAME] provides the following evidence of [REQUIREMENT]:
+FOR SAMPLE/ATTACHMENT REQUESTS:
+- Start with: [ATTACH requested sample/document as Appendix X or upload as separate document]
+- Follow with 1 sentence confirming the attachment
+- Keep to 2 sentences MAXIMUM
+- Do NOT add narrative or explain capabilities
+
+EXAMPLE (sample):
+[ATTACH sample monthly account analysis report as Appendix X]
+A sample report has been included as a separate attachment.
+
+FOR CERTIFICATION REQUESTS:
+- Reference documents: "Please refer to Appendix [X]"
+- List certifications with dates/numbers
+- Keep to 3-5 sentences
+
+EXAMPLE (certification):
+[COMPANY NAME] provides the following evidence:
 - [Certification Name], Certificate #[NUMBER], valid until [DATE]
 - [Document Name] - attached as Appendix [X]
-- [Reference to specific project or case study]`,
+
+CRITICAL: NEVER wrap response in quotation marks. For samples, be CONCISE.`,
+
+  QUANTITATIVE: `${DRAFT_PROMPT_BASE}
+
+FOR THIS QUANTITATIVE REQUIREMENT:
+- Present data in structured table format where appropriate
+- Include clear headers and units
+- Add assumptions and disclaimers for estimates
+- Flag items requiring finance/pricing team review
+
+EXAMPLE FORMAT:
+[COMPANY NAME] provides the following [pricing/metrics]:
+
+| Item | Value | Notes |
+|------|-------|-------|
+| [ITEM] | [VALUE] | [NOTES] |
+
+Assumptions: [LIST KEY ASSUMPTIONS]
+[CONFIRM all figures with finance team before submission]
+
+CRITICAL: NEVER wrap response in quotation marks.`,
+
+  REFERENCE_BASED: `${DRAFT_PROMPT_BASE}
+
+FOR THIS REFERENCE REQUIREMENT:
+- Use structured format for each reference
+- Include: Client name, project scope, dates, relevance, contact info
+- Keep descriptions concise but specific
+- Note that contacts should be confirmed before submission
+
+EXAMPLE FORMAT:
+[COMPANY NAME] provides the following references:
+
+**Reference 1: [CLIENT NAME]**
+- Project: [TITLE]
+- Scope: [BRIEF DESCRIPTION]
+- Period: [DATES]
+- Relevance: [HOW THIS RELATES]
+- Contact: [NAME], [TITLE], [EMAIL/PHONE]
+
+[CONFIRM all references are willing to be contacted]
+
+CRITICAL: NEVER wrap response in quotation marks.`,
+
+  STAFFING: `${DRAFT_PROMPT_BASE}
+
+FOR THIS STAFFING REQUIREMENT:
+- List key personnel with roles and qualifications
+- Include relevant experience and certifications
+- Describe availability/dedication level
+- Mention backup/succession plans if relevant
+
+EXAMPLE FORMAT:
+[COMPANY NAME] proposes the following team:
+
+**[ROLE]: [NAME]**
+- Qualifications: [DEGREES, CERTIFICATIONS]
+- Experience: [X years in DOMAIN]
+- Role: [SPECIFIC RESPONSIBILITIES]
+- Availability: [PERCENTAGE] dedicated
+
+[ATTACH resumes as Appendix X]
+
+CRITICAL: NEVER wrap response in quotation marks.`,
 };
 
 // =============================================================================
@@ -408,11 +514,11 @@ function removeFluff(draft: string): string {
   for (const pattern of FLUFF_PATTERNS) {
     result = result.replace(pattern, '');
   }
-  // Clean up double spaces, leading/trailing spaces on lines
-  result = result.replace(/\s{2,}/g, ' ');
+  // Clean up multiple horizontal spaces (preserve newlines)
+  result = result.replace(/[^\S\n]+/g, ' ');
   result = result.replace(/^ +/gm, '');
   result = result.replace(/ +$/gm, '');
-  // Remove empty lines caused by removals
+  // Remove excessive newlines (3+ becomes 2)
   result = result.replace(/\n{3,}/g, '\n\n');
   return result.trim();
 }
@@ -449,8 +555,22 @@ function applyGuardrails(draft: string): string {
   for (const [pattern, replacement] of OVERCLAIM_REPLACEMENTS) {
     result = result.replace(pattern, replacement);
   }
-  // Clean up any double spaces from empty replacements
-  result = result.replace(/\s{2,}/g, ' ');
+  // Clean up multiple horizontal spaces (preserve newlines)
+  result = result.replace(/[^\S\n]+/g, ' ');
+  return result;
+}
+
+// =============================================================================
+// POST-PROCESSING: BULLET POINT FORMATTING
+// =============================================================================
+function normalizeBulletFormatting(draft: string): string {
+  let result = draft;
+  // Ensure newline before first bullet after non-bullet text
+  result = result.replace(/([^\n•\-\*])[ \t]*([•\-\*])/g, '$1\n\n$2');
+  // Ensure newline after last bullet line before new paragraph
+  result = result.replace(/([•\-\*][^\n]+\n)([A-Z])/g, '$1\n$2');
+  // Clean excessive newlines
+  result = result.replace(/\n{3,}/g, '\n\n');
   return result;
 }
 
@@ -517,6 +637,7 @@ export async function generateDraft(
   content = removeFluff(content);
   content = applyGuardrails(content);
   content = applyDomainRules(content, domainContext);
+  content = normalizeBulletFormatting(content);
 
   // Add [DRAFT] tag to indicate this needs review
   return {

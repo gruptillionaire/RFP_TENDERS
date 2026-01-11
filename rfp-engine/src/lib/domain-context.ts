@@ -192,8 +192,8 @@ export function applyDomainRules(draft: string, domain: DomainContext): string {
     }
   }
 
-  // Clean up any double spaces from removals
-  result = result.replace(/\s{2,}/g, ' ');
+  // Clean up multiple horizontal spaces (preserve newlines)
+  result = result.replace(/[^\S\n]+/g, ' ');
   result = result.replace(/\n{3,}/g, '\n\n');
 
   return result.trim();

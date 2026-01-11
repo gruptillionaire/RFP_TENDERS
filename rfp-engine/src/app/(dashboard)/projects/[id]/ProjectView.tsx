@@ -13,7 +13,7 @@ import { ComplianceScoreCard } from "@/components/ComplianceScoreCard";
 import { SubmissionChecklist } from "@/components/SubmissionChecklist";
 import { calculateComplianceScore, type RequirementForScoring } from "@/lib/compliance-scoring";
 
-type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
+type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 
 interface Requirement {
   id: string;

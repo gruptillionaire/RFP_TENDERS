@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 
 type RequirementStatus = "UNANSWERED" | "PARTIAL" | "ANSWERED";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
-type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED";
+type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 
 export interface FilterState {
   statuses: RequirementStatus[];
@@ -338,6 +338,27 @@ export function RequirementFilters({
                 onClick={() => toggleType("EVIDENCE_BASED")}
                 color="green"
               />
+              <FilterChip
+                label="Quantitative"
+                active={filters.types.includes("QUANTITATIVE")}
+                count={requirementCounts?.byType.QUANTITATIVE}
+                onClick={() => toggleType("QUANTITATIVE")}
+                color="yellow"
+              />
+              <FilterChip
+                label="Reference"
+                active={filters.types.includes("REFERENCE_BASED")}
+                count={requirementCounts?.byType.REFERENCE_BASED}
+                onClick={() => toggleType("REFERENCE_BASED")}
+                color="cyan"
+              />
+              <FilterChip
+                label="Staffing"
+                active={filters.types.includes("STAFFING")}
+                count={requirementCounts?.byType.STAFFING}
+                onClick={() => toggleType("STAFFING")}
+                color="amber"
+              />
             </div>
           </div>
 
@@ -488,7 +509,7 @@ export function calculateFilterCounts<T extends {
     filtered: filtered.length,
     byStatus: { UNANSWERED: 0, PARTIAL: 0, ANSWERED: 0 } as Record<RequirementStatus, number>,
     byDomain: { FEATURE: 0, PROCESS: 0, LEGAL: 0 } as Record<DomainContext, number>,
-    byType: { CONTEXTUAL: 0, PROCEDURAL: 0, DECLARATIVE: 0, DESCRIPTIVE: 0, EVIDENCE_BASED: 0 } as Record<RequirementType, number>,
+    byType: { CONTEXTUAL: 0, PROCEDURAL: 0, DECLARATIVE: 0, DESCRIPTIVE: 0, EVIDENCE_BASED: 0, QUANTITATIVE: 0, REFERENCE_BASED: 0, STAFFING: 0 } as Record<RequirementType, number>,
     mandatory: 0,
     needsReview: 0,
     overLimit: 0,

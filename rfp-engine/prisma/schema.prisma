@@ -193,6 +193,9 @@ enum RequirementType {
   DESCRIPTIVE
   EVIDENCE_BASED
   CONTEXTUAL
+  QUANTITATIVE
+  REFERENCE_BASED
+  STAFFING
 }
 
 enum DomainContext {
