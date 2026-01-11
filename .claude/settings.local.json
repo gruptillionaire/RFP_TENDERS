@@ -25,7 +25,15 @@
       "Bash(ls:*)",
       "Bash(npx prisma db push:*)",
       "Bash(git push:*)",
-      "Bash(dir /s /b \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\\\\rfp-engine\\\\src\")"
+      "Bash(dir /s /b \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\\\\rfp-engine\\\\src\")",
+      "Bash(dir \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\\\\rfp-engine\" /b)",
+      "Bash(findstr:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git rm:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(curl:*)",
+      "Bash(npx prisma migrate dev:*)"
     ]
   }
 }
