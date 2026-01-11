@@ -199,6 +199,11 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
     }, 1000);
   }, []);
 
+  const handleAddRequirement = useCallback((newRequirement: Requirement) => {
+    // Add the new requirement to the state
+    setRequirements((prev) => [...prev, newRequirement]);
+  }, []);
+
   const handleDeleteProject = useCallback(async () => {
     if (!confirm("Are you sure you want to delete this project?")) return;
 
@@ -606,17 +611,19 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             )}
 
             <ComplianceMatrix
-            requirements={requirements}
-            onStatusChange={handleStatusChange}
-            onDraftChange={handleDraftChange}
-            onGenerateDraft={handleGenerateDraft}
-            onTypeChange={handleTypeChange}
-            onDomainChange={handleDomainChange}
-            onInternalNotesChange={handleInternalNotesChange}
-            generatingIds={generatingIds}
-            onSaveToLibrary={handleSaveToLibrary}
-            onInsertFromLibrary={handleInsertFromLibrary}
-          />
+              requirements={requirements}
+              onStatusChange={handleStatusChange}
+              onDraftChange={handleDraftChange}
+              onGenerateDraft={handleGenerateDraft}
+              onTypeChange={handleTypeChange}
+              onDomainChange={handleDomainChange}
+              onInternalNotesChange={handleInternalNotesChange}
+              generatingIds={generatingIds}
+              onSaveToLibrary={handleSaveToLibrary}
+              onInsertFromLibrary={handleInsertFromLibrary}
+              onAddRequirement={handleAddRequirement}
+              projectId={project.id}
+            />
           </>
         )}
       </main>

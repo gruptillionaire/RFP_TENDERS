@@ -29,7 +29,12 @@ For each item extracted, identify:
    - Set isMandatory: true ONLY if the text contains explicit mandatory language: "must", "shall", "required", "mandatory", "essential", "critical"
    - Set isMandatory: false if the text contains optional language: "should", "may", "can", "could", "preferred", "desirable", "optional", "recommended", "if possible", "where applicable"
    - When unclear, default to isMandatory: false
-3. The section it belongs to (if identifiable)
+3. The FULL section reference (extract the complete identifier):
+   - Look for: "A1", "A25", "B2.4", "Section 3.1.2", "1.2.3", "Part II.A", "Q15", etc.
+   - Include the full alphanumeric reference (e.g., "A25" not just "A")
+   - Include sub-section numbers (e.g., "3.1.2" not just "3")
+   - Preserve exact format from document (e.g., "II.B.3", "Appendix A.2")
+   - If no section identifier, use descriptive name (e.g., "Introduction", "Technical Requirements")
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
 REQUIREMENT TYPES:
@@ -131,7 +136,7 @@ Return your response as a JSON object with this structure:
     {
       "text": "The exact requirement or question text",
       "isMandatory": true/false,
-      "section": "Section name if identifiable, or null",
+      "section": "Full section reference (e.g., 'A25', 'B2.4', 'Section 3.1.2') or descriptive name, or null",
       "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING",
       "domainContext": "FEATURE" | "PROCESS" | "LEGAL",
       "wordLimit": number or null,

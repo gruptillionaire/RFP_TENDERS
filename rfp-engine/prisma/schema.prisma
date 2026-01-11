@@ -155,9 +155,10 @@ model Requirement {
   status         RequirementStatus    @default(UNANSWERED)
   type           RequirementType      @default(DECLARATIVE)
   domainContext  DomainContext        @default(FEATURE)
-  requiresReview Boolean              @default(false)
-  order          Int
-  versions       RequirementVersion[] // Version history for draft answers
+  requiresReview   Boolean              @default(false)
+  isManuallyAdded  Boolean              @default(false) // User-created requirement
+  order            Int
+  versions         RequirementVersion[] // Version history for draft answers
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 

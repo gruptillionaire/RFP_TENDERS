@@ -13,6 +13,7 @@ import {
   applyFilters,
   calculateFilterCounts,
 } from "@/components/RequirementFilters";
+import { AddRequirementDialog } from "@/components/AddRequirementDialog";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,8 @@ interface ComplianceMatrixProps {
   generatingIds: Set<string>;
   onSaveToLibrary?: (id: string, content: string, requirement: Requirement) => void;
   onInsertFromLibrary?: (id: string) => void;
+  onAddRequirement?: (requirement: Requirement) => void;
+  projectId?: string;
 }
 
 // Helper functions for requirement types
@@ -564,6 +567,8 @@ export function ComplianceMatrix({
   generatingIds,
   onSaveToLibrary,
   onInsertFromLibrary,
+  onAddRequirement,
+  projectId,
 }: ComplianceMatrixProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
@@ -571,6 +576,9 @@ export function ComplianceMatrix({
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Add requirement dialog state
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   // Version history state
   const [historyReqId, setHistoryReqId] = useState<string | null>(null);
@@ -738,20 +746,35 @@ export function ComplianceMatrix({
             <span className="text-gray-500 ml-2">Unanswered</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">Sort:</span>
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="order">Default</SelectItem>
-              <SelectItem value="mandatory">Mandatory First</SelectItem>
-              <SelectItem value="status">By Status</SelectItem>
-              <SelectItem value="section">By Section</SelectItem>
-              <SelectItem value="type">By Type</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Sort:</span>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="order">Default</SelectItem>
+                <SelectItem value="mandatory">Mandatory First</SelectItem>
+                <SelectItem value="status">By Status</SelectItem>
+                <SelectItem value="section">By Section</SelectItem>
+                <SelectItem value="type">By Type</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {onAddRequirement && projectId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddDialog(true)}
+              className="flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Requirement
+            </Button>
+          )}
         </div>
       </div>
 
@@ -884,6 +907,19 @@ export function ComplianceMatrix({
         currentDraft={historyReq?.draftAnswer || null}
         onRestore={handleVersionRestore}
       />
+
+      {/* Add Requirement Dialog */}
+      {onAddRequirement && projectId && (
+        <AddRequirementDialog
+          isOpen={showAddDialog}
+          onClose={() => setShowAddDialog(false)}
+          onAdded={(req) => {
+            onAddRequirement(req);
+            setShowAddDialog(false);
+          }}
+          projectId={projectId}
+        />
+      )}
     </div>
   );
 }

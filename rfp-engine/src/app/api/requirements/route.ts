@@ -11,7 +11,7 @@ import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 const MAX_DRAFT_LENGTH = 50000; // 50KB
 const MAX_NOTES_LENGTH = 10000; // 10KB
 const VALID_STATUSES = ["UNANSWERED", "PARTIAL", "ANSWERED"];
-const VALID_TYPES = ["CONTEXTUAL", "PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED"];
+const VALID_TYPES = ["CONTEXTUAL", "PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED", "QUANTITATIVE", "REFERENCE_BASED", "STAFFING"];
 const VALID_DOMAINS = ["FEATURE", "PROCESS", "LEGAL"];
 
 export async function PATCH(request: Request) {
@@ -151,7 +151,76 @@ export async function POST(request: Request) {
       );
     }
 
-    const { id, action } = await request.json();
+    const body = await request.json();
+    const { action } = body;
+
+    // Handle manual requirement creation
+    if (action === "create-manual") {
+      const { projectId, text, section, isMandatory, type, domainContext } = body;
+
+      if (!projectId || !text?.trim()) {
+        return NextResponse.json({ error: "Project ID and requirement text are required" }, { status: 400 });
+      }
+
+      if (text.length > 5000) {
+        return NextResponse.json({ error: "Requirement text must not exceed 5000 characters" }, { status: 400 });
+      }
+
+      if (type && !VALID_TYPES.includes(type)) {
+        return NextResponse.json({ error: "Invalid type value" }, { status: 400 });
+      }
+
+      if (domainContext && !VALID_DOMAINS.includes(domainContext)) {
+        return NextResponse.json({ error: "Invalid domain context value" }, { status: 400 });
+      }
+
+      // Verify project ownership
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { userId: true, _count: { select: { requirements: true } } },
+      });
+
+      if (!project || project.userId !== session.user.id) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+
+      // Get the next order number
+      const nextOrder = project._count.requirements + 1;
+
+      // Create the requirement
+      const created = await prisma.requirement.create({
+        data: {
+          projectId,
+          text: text.trim(),
+          section: section?.trim() || null,
+          isMandatory: isMandatory ?? false,
+          type: type || "DESCRIPTIVE",
+          domainContext: domainContext || "FEATURE",
+          order: nextOrder,
+          status: "UNANSWERED",
+          isManuallyAdded: true,
+        },
+      });
+
+      // Log the creation
+      await logAudit({
+        userId: session.user.id,
+        action: AuditAction.REQUIREMENT_UPDATE,
+        resource: AuditResource.REQUIREMENT,
+        resourceId: created.id,
+        details: {
+          projectId,
+          action: "manual_create",
+          type: created.type,
+        },
+        request,
+      });
+
+      return NextResponse.json(created);
+    }
+
+    // Handle draft generation
+    const { id } = body;
 
     if (!id || action !== "generate-draft") {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
