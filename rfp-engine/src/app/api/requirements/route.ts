@@ -246,7 +246,7 @@ export async function POST(request: Request) {
     // Replace [COMPANY NAME] with actual company name if set
     let finalDraft = draft;
     if (requirement.project.companyName) {
-      finalDraft = draft.replace(/\[COMPANY NAME\]/g, requirement.project.companyName);
+      finalDraft = draft.replace(/\[COMPANY\s*NAME\]/gi, requirement.project.companyName);
     }
 
     // Update requirement with draft and create version in transaction

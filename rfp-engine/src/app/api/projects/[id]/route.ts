@@ -116,15 +116,13 @@ export async function PATCH(request: Request, { params }: Props) {
         if (req.draftAnswer) {
           let newDraft = req.draftAnswer;
 
-          // Always replace [COMPANY NAME] placeholder
-          if (newDraft.includes("[COMPANY NAME]")) {
-            newDraft = newDraft.replace(/\[COMPANY NAME\]/g, newCompanyName);
-          }
+          // Replace [COMPANY NAME] placeholder (case-insensitive, handle variations)
+          newDraft = newDraft.replace(/\[COMPANY\s*NAME\]/gi, newCompanyName);
 
           // If forceUpdate and there was an old company name, replace it too
           if (forceUpdate && oldCompanyName && oldCompanyName !== newCompanyName) {
             // Use word boundary to avoid partial matches
-            const oldNameRegex = new RegExp(oldCompanyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+            const oldNameRegex = new RegExp(oldCompanyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
             newDraft = newDraft.replace(oldNameRegex, newCompanyName);
           }
 
