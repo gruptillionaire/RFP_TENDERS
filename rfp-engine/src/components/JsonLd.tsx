@@ -38,10 +38,8 @@ export const softwareApplicationSchema = {
   "featureList": [
     "AI-powered requirement extraction",
     "Draft response generation",
-    "Compliance matrix tracking",
     "Response library management",
-    "Team collaboration",
-    "Document export (Word, PDF)",
+    "Export to Word",
   ],
 };
 
