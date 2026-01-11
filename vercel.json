@@ -1,6 +1,0 @@
-{
-  "buildCommand": "cd rfp-engine && npm run build",
-  "installCommand": "cd rfp-engine && npm install",
-  "framework": "nextjs",
-  "outputDirectory": "rfp-engine/.next"
-}
