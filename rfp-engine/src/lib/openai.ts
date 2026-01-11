@@ -256,7 +256,7 @@ HANDLING EXAMPLES IN REQUIREMENTS:
 - Do NOT claim to support specific examples as firm commitments
 
 STRUCTURE FOR QUESTION-BASED REQUIREMENTS:
-[COMPANY NAME] confirms comprehensive capability in [AREA]. Response details:
+[COMPANY NAME]'s [AREA] includes:
 
 • [EXPLAIN how your process for X works]
 • [DESCRIBE your success metrics for Y]
@@ -266,7 +266,7 @@ STRUCTURE FOR QUESTION-BASED REQUIREMENTS:
 [One sentence with soft qualification if claims could vary]
 
 STRUCTURE FOR LIST-BASED REQUIREMENTS:
-[COMPANY NAME] confirms comprehensive capability across the specified [CAPABILITY AREA]:
+[COMPANY NAME] supports the following [CAPABILITY AREA]:
 
 • [Item 1 from requirement - exact wording]
 • [Item 2 from requirement - exact wording]
@@ -286,6 +286,9 @@ BANNED PHRASES - NEVER USE:
 - "Aligning with the requirements..."
 - "In accordance with..."
 - "Our platform covers..." (too casual)
+- "confirms comprehensive capability" (fluffy opener)
+- "confirms a comprehensive capability" (fluffy opener)
+- "confirms capability" (fluffy opener)
 - Any email-style language
 
 EXAMPLE INPUT:
@@ -294,14 +297,14 @@ EXAMPLE INPUT:
 CRITICAL: NEVER wrap your response in quotation marks (""). Output the response text directly.
 
 EXAMPLE OUTPUT:
-[COMPANY NAME] confirms comprehensive capability in IP warming and transition management. Response details:
+[COMPANY NAME]'s IP warming and transition management includes:
 
 • [EXPLAIN how your IP warming process works, including warm-up methodology]
 • [DESCRIBE your success rate and metrics for IP warming campaigns]
 • [PROVIDE your average timeframe for completing an IP warming plan]
 • [OUTLINE your approach to managing a transition period with provider overlap]
 
-IP warming strategies are typically tailored to each client's specific needs. Actual timeframes may vary based on volume, sending frequency, and recipient engagement levels.`,
+Actual timeframes may vary based on volume, sending frequency, and recipient engagement levels.`,
 
   EVIDENCE_BASED: `${DRAFT_PROMPT_BASE}
 
@@ -505,6 +508,11 @@ const FLUFF_PATTERNS: RegExp[] = [
   /\bIt is essential to\s*/gi,
   /\bIn conclusion,?\s*/gi,
   /\bTo summarize,?\s*/gi,
+  // Fluffy capability confirmations
+  /\bconfirms a? ?comprehensive capability in\s*/gi,
+  /\bconfirms capability in\s*/gi,
+  /\bconfirms full capability in\s*/gi,
+  /\bResponse details:?\s*/gi,
   /\bTo conclude,?\s*/gi,
   /\bPlease do not hesitate to\s*/gi,
   /\bShould you have any questions,?\s*/gi,
