@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ProjectView } from "./ProjectView";
+import type { EvaluationCriterion } from "@/lib/compliance-scoring";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -47,5 +48,11 @@ export default async function ProjectPage({ params }: Props) {
     notFound();
   }
 
-  return <ProjectView project={project} />;
+  // Cast evaluationCriteria from Prisma's JsonValue to our typed array
+  const projectWithTypedCriteria = {
+    ...project,
+    evaluationCriteria: project.evaluationCriteria as EvaluationCriterion[] | null,
+  };
+
+  return <ProjectView project={projectWithTypedCriteria} />;
 }

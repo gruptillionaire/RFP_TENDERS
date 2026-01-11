@@ -3,7 +3,57 @@
  * Calculates weighted scores and submission readiness
  */
 
-import { RequirementStatus, DomainContext } from "@prisma/client";
+import { RequirementStatus, DomainContext, ComplianceStatus } from "@prisma/client";
+
+// =============================================================================
+// EVALUATION CRITERIA TYPES
+// =============================================================================
+
+/**
+ * Custom evaluation criterion from RFP (e.g., "Technical Approach: 40%")
+ */
+export interface EvaluationCriterion {
+  id: string;
+  name: string;              // e.g., "Technical Approach"
+  weight: number;            // Percentage (0-100), all should sum to 100
+  description?: string;      // Optional description from RFP
+  linkedSections: string[];  // Major category keys that count toward this criterion
+}
+
+/**
+ * Actionable insight for improving compliance score
+ */
+export interface ActionableInsight {
+  type: "focus_item" | "risk" | "over_limit" | "attestation_pending";
+  priority: "high" | "medium" | "low";
+  message: string;
+  requirementIds?: string[];
+  count?: number;
+}
+
+/**
+ * Focus item - high-impact requirement to complete
+ */
+export interface FocusItem {
+  requirementId: string;
+  text: string;           // Truncated requirement text
+  section: string | null;
+  isMandatory: boolean;
+  impactScore: number;    // How much completing this would improve overall score (percentage points)
+  reason: string;         // Why this is high priority
+}
+
+/**
+ * Score breakdown by evaluation criterion
+ */
+export interface CriterionScore {
+  criterionId: string;
+  name: string;
+  weight: number;
+  score: number;          // 0-100 completion percentage
+  requirementCount: number;
+  answeredCount: number;
+}
 
 /**
  * Extract the major category KEY from a section string (for grouping).
@@ -130,6 +180,7 @@ const WEIGHTS = {
 
 export interface RequirementForScoring {
   id: string;
+  text?: string;              // For display in focus items
   status: RequirementStatus;
   isMandatory: boolean;
   domainContext: DomainContext;
@@ -138,6 +189,8 @@ export interface RequirementForScoring {
   draftAnswer?: string | null;
   wordLimit?: number | null;
   characterLimit?: number | null;
+  isAttestation?: boolean;
+  complianceStatus?: ComplianceStatus;
 }
 
 export interface ComplianceScore {
@@ -150,6 +203,13 @@ export interface ComplianceScore {
   bySection: Record<string, number>;
   byDomain: Record<DomainContext, number>;
   readiness: SubmissionReadiness;
+  // New: evaluation criteria breakdown
+  criterionScores?: CriterionScore[];
+  // New: actionable insights
+  insights?: ActionableInsight[];
+  focusItems?: FocusItem[];
+  // New: potential improvement if all focus items completed
+  potentialImprovement?: number;
 }
 
 export interface SubmissionReadiness {
@@ -471,4 +531,307 @@ export function getScoreBgColor(score: number): string {
   if (score >= 60) return "bg-yellow-100";
   if (score >= 40) return "bg-orange-100";
   return "bg-red-100";
+}
+
+// =============================================================================
+// EVALUATION CRITERIA SCORING
+// =============================================================================
+
+/**
+ * Calculate the default score for a set of requirements (internal helper)
+ */
+function calculateDefaultScore(requirements: RequirementForScoring[]): number {
+  if (requirements.length === 0) return 100;
+
+  let totalWeight = 0;
+  let earnedWeight = 0;
+
+  for (const req of requirements) {
+    const weight = getWeight(req);
+    totalWeight += weight;
+    earnedWeight += weight * getScoreContribution(req.status);
+  }
+
+  return totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 100;
+}
+
+/**
+ * Calculate score breakdown by evaluation criteria
+ */
+export function calculateCriterionScores(
+  requirements: RequirementForScoring[],
+  evaluationCriteria: EvaluationCriterion[]
+): CriterionScore[] {
+  return evaluationCriteria.map(criterion => {
+    const criterionReqs = requirements.filter(r =>
+      criterion.linkedSections.includes(getMajorCategory(r.section))
+    );
+
+    const answered = criterionReqs.filter(r => r.status === "ANSWERED").length;
+
+    return {
+      criterionId: criterion.id,
+      name: criterion.name,
+      weight: criterion.weight,
+      score: calculateDefaultScore(criterionReqs),
+      requirementCount: criterionReqs.length,
+      answeredCount: answered,
+    };
+  });
+}
+
+/**
+ * Calculate overall score using custom evaluation criteria weights
+ */
+export function calculateOverallScoreWithCriteria(
+  requirements: RequirementForScoring[],
+  evaluationCriteria?: EvaluationCriterion[] | null
+): number {
+  // If no custom criteria, use default scoring
+  if (!evaluationCriteria || evaluationCriteria.length === 0) {
+    return calculateDefaultScore(requirements);
+  }
+
+  // Calculate score per criterion, then weighted average
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+
+  for (const criterion of evaluationCriteria) {
+    const criterionReqs = requirements.filter(r =>
+      criterion.linkedSections.includes(getMajorCategory(r.section))
+    );
+
+    if (criterionReqs.length === 0) continue;
+
+    const criterionScore = calculateDefaultScore(criterionReqs);
+    totalWeightedScore += criterionScore * criterion.weight;
+    totalWeight += criterion.weight;
+  }
+
+  // Handle requirements not linked to any criterion (use remaining weight)
+  const linkedSections = new Set(evaluationCriteria.flatMap(c => c.linkedSections));
+  const unlinkedReqs = requirements.filter(r =>
+    !linkedSections.has(getMajorCategory(r.section))
+  );
+
+  if (unlinkedReqs.length > 0 && totalWeight < 100) {
+    const remainingWeight = 100 - totalWeight;
+    const unlinkedScore = calculateDefaultScore(unlinkedReqs);
+    totalWeightedScore += unlinkedScore * remainingWeight;
+    totalWeight = 100;
+  }
+
+  return totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 100;
+}
+
+// =============================================================================
+// ACTIONABLE INSIGHTS
+// =============================================================================
+
+/**
+ * Calculate the impact score for completing a requirement
+ * Returns approximate percentage point improvement to overall score
+ */
+export function calculateImpactScore(
+  req: RequirementForScoring,
+  allRequirements: RequirementForScoring[],
+  evaluationCriteria?: EvaluationCriterion[] | null
+): number {
+  // Only incomplete requirements have impact
+  if (req.status === "ANSWERED") return 0;
+
+  const currentScore = calculateOverallScoreWithCriteria(allRequirements, evaluationCriteria);
+
+  // Simulate completing this requirement
+  const simulatedReqs = allRequirements.map(r =>
+    r.id === req.id ? { ...r, status: "ANSWERED" as RequirementStatus } : r
+  );
+  const newScore = calculateOverallScoreWithCriteria(simulatedReqs, evaluationCriteria);
+
+  return Math.max(0, newScore - currentScore);
+}
+
+/**
+ * Get the reason why a requirement is high priority
+ */
+function getImpactReason(
+  req: RequirementForScoring,
+  evaluationCriteria?: EvaluationCriterion[] | null
+): string {
+  const reasons: string[] = [];
+
+  if (req.isMandatory) {
+    reasons.push("Mandatory");
+  }
+
+  if (req.domainContext === "LEGAL") {
+    reasons.push("Legal requirement");
+  }
+
+  // Check if in high-weight criterion
+  if (evaluationCriteria && evaluationCriteria.length > 0) {
+    const section = getMajorCategory(req.section);
+    const criterion = evaluationCriteria.find(c =>
+      c.linkedSections.includes(section) && c.weight >= 30
+    );
+    if (criterion) {
+      reasons.push(`${criterion.name} (${criterion.weight}%)`);
+    }
+  }
+
+  return reasons.length > 0 ? reasons.join(", ") : "Standard weight";
+}
+
+/**
+ * Get top N requirements to focus on for maximum score improvement
+ */
+export function getTopFocusItems(
+  requirements: RequirementForScoring[],
+  evaluationCriteria?: EvaluationCriterion[] | null,
+  limit: number = 5
+): FocusItem[] {
+  // Only consider incomplete requirements
+  const incomplete = requirements.filter(r => r.status !== "ANSWERED");
+
+  if (incomplete.length === 0) return [];
+
+  // Calculate impact for each
+  const withImpact = incomplete.map(req => ({
+    req,
+    impact: calculateImpactScore(req, requirements, evaluationCriteria),
+  }));
+
+  // Sort by impact (highest first), then by mandatory, then by section order
+  withImpact.sort((a, b) => {
+    if (b.impact !== a.impact) return b.impact - a.impact;
+    if (b.req.isMandatory !== a.req.isMandatory) return b.req.isMandatory ? 1 : -1;
+    return 0;
+  });
+
+  // Take top N
+  return withImpact.slice(0, limit).map(({ req, impact }) => ({
+    requirementId: req.id,
+    text: req.text ? (req.text.length > 80 ? req.text.slice(0, 80) + "..." : req.text) : "",
+    section: req.section || null,
+    isMandatory: req.isMandatory,
+    impactScore: impact,
+    reason: getImpactReason(req, evaluationCriteria),
+  }));
+}
+
+/**
+ * Generate actionable insights for the current state
+ */
+export function generateInsights(
+  requirements: RequirementForScoring[],
+  evaluationCriteria?: EvaluationCriterion[] | null
+): ActionableInsight[] {
+  const insights: ActionableInsight[] = [];
+
+  // Check for high-weight sections with low completion
+  if (evaluationCriteria && evaluationCriteria.length > 0) {
+    for (const criterion of evaluationCriteria) {
+      if (criterion.weight < 20) continue; // Only warn for significant weights
+
+      const criterionReqs = requirements.filter(r =>
+        criterion.linkedSections.includes(getMajorCategory(r.section))
+      );
+
+      if (criterionReqs.length === 0) continue;
+
+      const answered = criterionReqs.filter(r => r.status === "ANSWERED").length;
+      const completion = Math.round((answered / criterionReqs.length) * 100);
+
+      if (completion < 50) {
+        insights.push({
+          type: "risk",
+          priority: "high",
+          message: `${criterion.name} (${criterion.weight}% weight) is only ${completion}% complete`,
+          count: criterionReqs.length - answered,
+          requirementIds: criterionReqs.filter(r => r.status !== "ANSWERED").map(r => r.id),
+        });
+      }
+    }
+  }
+
+  // Check for responses over limit
+  const overLimit = requirements.filter(isOverLimit);
+  if (overLimit.length > 0) {
+    insights.push({
+      type: "over_limit",
+      priority: "medium",
+      message: `${overLimit.length} response${overLimit.length === 1 ? "" : "s"} exceed${overLimit.length === 1 ? "s" : ""} word/character limit`,
+      count: overLimit.length,
+      requirementIds: overLimit.map(r => r.id),
+    });
+  }
+
+  // Check for pending attestations
+  const pendingAttestations = requirements.filter(
+    r => r.isAttestation && r.complianceStatus === "PENDING"
+  );
+  if (pendingAttestations.length > 0) {
+    insights.push({
+      type: "attestation_pending",
+      priority: "low",
+      message: `${pendingAttestations.length} attestation${pendingAttestations.length === 1 ? "" : "s"} awaiting your decision`,
+      count: pendingAttestations.length,
+      requirementIds: pendingAttestations.map(r => r.id),
+    });
+  }
+
+  // Sort by priority
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  insights.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+  return insights;
+}
+
+/**
+ * Calculate potential score improvement if all focus items are completed
+ */
+export function calculatePotentialImprovement(
+  requirements: RequirementForScoring[],
+  focusItems: FocusItem[]
+): number {
+  return focusItems.reduce((sum, item) => sum + item.impactScore, 0);
+}
+
+/**
+ * Calculate complete compliance score with enhanced features
+ */
+export function calculateComplianceScoreEnhanced(
+  requirements: RequirementForScoring[],
+  companyName?: string | null,
+  evaluationCriteria?: EvaluationCriterion[] | null
+): ComplianceScore {
+  const answered = requirements.filter(r => r.status === "ANSWERED").length;
+  const partial = requirements.filter(r => r.status === "PARTIAL").length;
+  const unanswered = requirements.filter(r => r.status === "UNANSWERED").length;
+
+  // Calculate focus items and insights
+  const focusItems = getTopFocusItems(requirements, evaluationCriteria, 5);
+  const insights = generateInsights(requirements, evaluationCriteria);
+  const potentialImprovement = calculatePotentialImprovement(requirements, focusItems);
+
+  // Calculate criterion scores if criteria provided
+  const criterionScores = evaluationCriteria && evaluationCriteria.length > 0
+    ? calculateCriterionScores(requirements, evaluationCriteria)
+    : undefined;
+
+  return {
+    overall: calculateOverallScoreWithCriteria(requirements, evaluationCriteria),
+    mandatory: calculateMandatoryScore(requirements),
+    answered,
+    partial,
+    unanswered,
+    total: requirements.length,
+    bySection: calculateSectionScores(requirements),
+    byDomain: calculateDomainScores(requirements),
+    readiness: calculateReadiness(requirements, companyName),
+    criterionScores,
+    insights,
+    focusItems,
+    potentialImprovement,
+  };
 }

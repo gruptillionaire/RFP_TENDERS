@@ -11,7 +11,14 @@ import { SaveToLibraryDialog } from "@/components/SaveToLibraryDialog";
 import { InsertFromLibraryModal } from "@/components/InsertFromLibraryModal";
 import { ComplianceScoreCard } from "@/components/ComplianceScoreCard";
 import { SubmissionChecklist } from "@/components/SubmissionChecklist";
-import { calculateComplianceScore, type RequirementForScoring } from "@/lib/compliance-scoring";
+import { EvaluationWeightsEditor } from "@/components/EvaluationWeightsEditor";
+import {
+  calculateComplianceScoreEnhanced,
+  getMajorCategory,
+  buildCategoryTitleMap,
+  type RequirementForScoring,
+  type EvaluationCriterion,
+} from "@/lib/compliance-scoring";
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 type ComplianceStatus = "PENDING" | "COMPLIANT" | "NON_COMPLIANT" | "NOT_APPLICABLE";
@@ -43,6 +50,7 @@ interface Project {
   deadlineText: string | null;
   status: "PROCESSING" | "READY" | "COMPLETED" | "FAILED";
   requirements: Requirement[];
+  evaluationCriteria: EvaluationCriterion[] | null;
   createdAt: Date;
 }
 
@@ -82,6 +90,13 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   const [libraryContent, setLibraryContent] = useState("");
   const [librarySuggestedTitle, setLibrarySuggestedTitle] = useState("");
   const [librarySuggestedTags, setLibrarySuggestedTags] = useState<string[]>([]);
+
+  // Evaluation weights editor state
+  const [showWeightsEditor, setShowWeightsEditor] = useState(false);
+  const [evaluationCriteria, setEvaluationCriteria] = useState<EvaluationCriterion[] | null>(
+    initialProject.evaluationCriteria
+  );
+  const [isWeightsSaving, setIsWeightsSaving] = useState(false);
 
   // Poll for updates if processing
   useEffect(() => {
@@ -384,12 +399,29 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
     }
   };
 
-  // Calculate compliance score
+  // Get unique major categories for weights editor - memoized
+  const sections = useMemo(() => {
+    const categories = requirements
+      .map(r => getMajorCategory(r.section))
+      .filter(cat => cat !== "Uncategorized");
+    const unique = [...new Set(categories)].sort((a, b) => {
+      const aNum = parseInt(a);
+      const bNum = parseInt(b);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      return a.localeCompare(b);
+    });
+    // Build title map for display
+    const titleMap = buildCategoryTitleMap(requirements.map(r => r.section));
+    return unique.map(key => titleMap.get(key) || key);
+  }, [requirements]);
+
+  // Calculate compliance score with enhanced features
   const complianceScore = useMemo(() => {
     if (requirements.length === 0) return null;
 
     const reqsForScoring: RequirementForScoring[] = requirements.map(r => ({
       id: r.id,
+      text: r.text,
       status: r.status,
       isMandatory: r.isMandatory,
       domainContext: r.domainContext || "FEATURE",
@@ -398,10 +430,33 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       draftAnswer: r.draftAnswer,
       wordLimit: r.wordLimit,
       characterLimit: r.characterLimit,
+      isAttestation: r.isAttestation,
+      complianceStatus: r.complianceStatus,
     }));
 
-    return calculateComplianceScore(reqsForScoring, project.companyName);
-  }, [requirements, project.companyName]);
+    return calculateComplianceScoreEnhanced(reqsForScoring, project.companyName, evaluationCriteria);
+  }, [requirements, project.companyName, evaluationCriteria]);
+
+  // Handler to save evaluation criteria
+  const handleSaveEvaluationCriteria = useCallback(async (criteria: EvaluationCriterion[] | null) => {
+    setIsWeightsSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evaluationCriteria: criteria }),
+      });
+
+      if (res.ok) {
+        setEvaluationCriteria(criteria);
+        setShowWeightsEditor(false);
+      }
+    } catch (error) {
+      console.error("Failed to save evaluation criteria:", error);
+    } finally {
+      setIsWeightsSaving(false);
+    }
+  }, [project.id]);
 
   // Handle clicking on issues in the checklist to scroll to requirements
   const handleIssueClick = useCallback((requirementIds: string[]) => {
@@ -647,7 +702,12 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             {/* Compliance Score Dashboard */}
             {complianceScore && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <ComplianceScoreCard score={complianceScore} />
+                <ComplianceScoreCard
+                  score={complianceScore}
+                  onEditWeights={() => setShowWeightsEditor(true)}
+                  hasCustomWeights={evaluationCriteria !== null && evaluationCriteria.length > 0}
+                  onRequirementClick={handleIssueClick ? (id) => handleIssueClick([id]) : undefined}
+                />
                 <SubmissionChecklist
                   readiness={complianceScore.readiness}
                   onIssueClick={handleIssueClick}
@@ -697,6 +757,16 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
           setLibraryTargetReqId(null);
         }}
         onInsert={handleLibraryInsert}
+      />
+
+      {/* Evaluation Weights Editor */}
+      <EvaluationWeightsEditor
+        isOpen={showWeightsEditor}
+        onClose={() => setShowWeightsEditor(false)}
+        sections={sections}
+        currentCriteria={evaluationCriteria}
+        onSave={handleSaveEvaluationCriteria}
+        isSaving={isWeightsSaving}
       />
     </div>
   );

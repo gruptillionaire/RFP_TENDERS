@@ -127,6 +127,10 @@ model Project {
   // Deadline reminder tracking
   lastReminderSent DateTime?       // When last reminder was sent
   lastReminderType String?         // "7d", "3d", "1d", "overdue"
+
+  // Custom evaluation criteria from RFP (array of {id, name, weight, linkedSections})
+  evaluationCriteria Json?
+
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
