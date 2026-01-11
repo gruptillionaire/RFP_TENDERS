@@ -30,6 +30,13 @@ interface ExistingExport {
   createdAt: string;
 }
 
+interface NonCompliantWarnings {
+  mandatory: { id: string; text: string }[];
+  optional: { id: string; text: string }[];
+  hasMandatoryNonCompliant: boolean;
+  totalNonCompliant: number;
+}
+
 interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +83,7 @@ export function ExportDialog({
   const [existingExports, setExistingExports] = useState<ExistingExport[]>([]);
   const [showBlockers, setShowBlockers] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [nonCompliantWarnings, setNonCompliantWarnings] = useState<NonCompliantWarnings | null>(null);
 
   // Check for blockers and list exports when dialog opens
   const checkForBlockers = useCallback(async () => {
@@ -86,6 +94,7 @@ export function ExportDialog({
         const data = await res.json();
         setScanResult(data.placeholders);
         setExistingExports(data.existingExports || []);
+        setNonCompliantWarnings(data.nonCompliantWarnings || null);
         if (data.hasBlockers) {
           setShowBlockers(true);
         }
@@ -382,6 +391,49 @@ export function ExportDialog({
                     >
                       View details
                     </button>
+                  </p>
+                </div>
+              )}
+
+              {/* Non-compliant mandatory items warning */}
+              {nonCompliantWarnings?.hasMandatoryNonCompliant && (
+                <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-red-800">Non-Compliant Mandatory Items</h4>
+                      <p className="text-sm text-red-700 mt-1">
+                        {nonCompliantWarnings.mandatory.length} mandatory requirement(s) marked as non-compliant. This may disqualify your proposal.
+                      </p>
+                      <ul className="text-sm text-red-600 mt-2 space-y-1 max-h-24 overflow-y-auto">
+                        {nonCompliantWarnings.mandatory.slice(0, 3).map((req) => (
+                          <li key={req.id} className="flex items-start gap-2">
+                            <span className="text-red-400">&bull;</span>
+                            <span className="line-clamp-1">{req.text}</span>
+                          </li>
+                        ))}
+                        {nonCompliantWarnings.mandatory.length > 3 && (
+                          <li className="text-red-500 italic">
+                            +{nonCompliantWarnings.mandatory.length - 3} more...
+                          </li>
+                        )}
+                      </ul>
+                      <p className="text-xs text-red-600 mt-2">
+                        You may proceed, but consider addressing these items.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Non-compliant optional items (softer warning) */}
+              {nonCompliantWarnings && nonCompliantWarnings.optional.length > 0 && !nonCompliantWarnings.hasMandatoryNonCompliant && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">
+                    <strong>{nonCompliantWarnings.optional.length}</strong> optional requirement(s) marked as non-compliant.
+                    These will be included in the export with non-compliance noted.
                   </p>
                 </div>
               )}

@@ -182,7 +182,7 @@ export async function POST(request: Request) {
           return;
         }
 
-        // SUCCESSFUL extraction - store requirements with type, domain context, and limits
+        // SUCCESSFUL extraction - store requirements with type, domain context, limits, and attestation
         await prisma.requirement.createMany({
           data: result.requirements.map((req, index) => ({
             projectId: project.id,
@@ -194,6 +194,7 @@ export async function POST(request: Request) {
             requiresReview: req.domainContext === "LEGAL",
             wordLimit: req.wordLimit,
             characterLimit: req.characterLimit,
+            isAttestation: req.isAttestation || false,
             status: "UNANSWERED",
             order: index,
           })),

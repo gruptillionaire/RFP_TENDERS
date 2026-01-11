@@ -128,6 +128,24 @@ DOMAIN CLASSIFICATION PRIORITY:
 - Extract numeric values for wordLimit and/or characterLimit
 - If no limit mentioned, set to null
 
+7. ATTESTATION CLASSIFICATION - Determine if the requirement is suitable for binary attestation (Compliant/Non-Compliant checkbox) vs requiring a written response:
+
+ATTESTATION ELIGIBLE (isAttestation: true):
+- Status/credential verification: "must hold", "must maintain", "must be certified", "must be licensed"
+- Procedural/timeline: "must submit by", "shall deliver to", "responses due", "due by"
+- Standard regulatory compliance: references specific statute, FAR clause, CFR, regulation
+- Simple yes/no compliance with no explanation requested
+- Standard insurance, licensing, bonding requirements
+
+NOT ATTESTATION (isAttestation: false):
+- Contains "describe", "explain", "detail", "demonstrate", "outline", "discuss"
+- Invites alternatives: "or equivalent", "if applicable", "may propose", "alternative"
+- Requests approach, methodology, or strategy
+- Compound requirements with multiple conditions needing explanation
+- Requires samples, attachments, or documentation
+
+When uncertain, default to NOT attestation (isAttestation: false) - this is the safer assumption.
+
 Return your response as a JSON object with this structure:
 {
   "deadline": "ISO 8601 date string (YYYY-MM-DDTHH:mm:ss) or null if no deadline found",
@@ -140,7 +158,8 @@ Return your response as a JSON object with this structure:
       "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING",
       "domainContext": "FEATURE" | "PROCESS" | "LEGAL",
       "wordLimit": number or null,
-      "characterLimit": number or null
+      "characterLimit": number or null,
+      "isAttestation": true/false (binary attestation eligible)
     }
   ]
 }
@@ -411,6 +430,7 @@ export interface ExtractedRequirement {
   domainContext: DomainContext;
   wordLimit: number | null;
   characterLimit: number | null;
+  isAttestation: boolean;
 }
 
 export interface ExtractionResult {
@@ -465,6 +485,7 @@ export async function extractRequirements(documentText: string): Promise<Extract
         domainContext: validateDomainContext(req.domainContext) || detectDomainContext(req.text),
         wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
         characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
+        isAttestation: req.isAttestation === true, // Default to false if not specified
       })),
     };
 
@@ -669,6 +690,9 @@ function validateRequirementType(type: string): RequirementType {
     "DECLARATIVE",
     "DESCRIPTIVE",
     "EVIDENCE_BASED",
+    "QUANTITATIVE",
+    "REFERENCE_BASED",
+    "STAFFING",
   ];
   if (validTypes.includes(type as RequirementType)) {
     return type as RequirementType;

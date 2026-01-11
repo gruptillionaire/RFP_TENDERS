@@ -13,6 +13,7 @@ const MAX_NOTES_LENGTH = 10000; // 10KB
 const VALID_STATUSES = ["UNANSWERED", "PARTIAL", "ANSWERED"];
 const VALID_TYPES = ["CONTEXTUAL", "PROCEDURAL", "DECLARATIVE", "DESCRIPTIVE", "EVIDENCE_BASED", "QUANTITATIVE", "REFERENCE_BASED", "STAFFING"];
 const VALID_DOMAINS = ["FEATURE", "PROCESS", "LEGAL"];
+const VALID_COMPLIANCE_STATUSES = ["PENDING", "COMPLIANT", "NON_COMPLIANT", "NOT_APPLICABLE"];
 
 export async function PATCH(request: Request) {
   try {
@@ -30,7 +31,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { id, status, draftAnswer, type, domainContext, internalNotes } = await request.json();
+    const { id, status, draftAnswer, type, domainContext, internalNotes, isAttestation, complianceStatus } = await request.json();
 
     if (!id || typeof id !== "string") {
       return NextResponse.json({ error: "Requirement ID is required" }, { status: 400 });
@@ -47,6 +48,10 @@ export async function PATCH(request: Request) {
 
     if (domainContext && !VALID_DOMAINS.includes(domainContext)) {
       return NextResponse.json({ error: "Invalid domain context value" }, { status: 400 });
+    }
+
+    if (complianceStatus && !VALID_COMPLIANCE_STATUSES.includes(complianceStatus)) {
+      return NextResponse.json({ error: "Invalid compliance status value" }, { status: 400 });
     }
 
     if (draftAnswer !== undefined && typeof draftAnswer === "string" && draftAnswer.length > MAX_DRAFT_LENGTH) {
@@ -102,6 +107,8 @@ export async function PATCH(request: Request) {
           ...(type && { type }),
           ...(domainContext && { domainContext }),
           ...(internalNotes !== undefined && { internalNotes }),
+          ...(isAttestation !== undefined && { isAttestation }),
+          ...(complianceStatus && { complianceStatus }),
         },
       });
     });
@@ -120,6 +127,8 @@ export async function PATCH(request: Request) {
           ...(type && { type }),
           ...(domainContext && { domainContext }),
           ...(internalNotes !== undefined && { internalNotes }),
+          ...(isAttestation !== undefined && { isAttestation }),
+          ...(complianceStatus && { complianceStatus }),
         }),
       },
       request,
@@ -156,7 +165,7 @@ export async function POST(request: Request) {
 
     // Handle manual requirement creation
     if (action === "create-manual") {
-      const { projectId, text, section, isMandatory, type, domainContext } = body;
+      const { projectId, text, section, isMandatory, type, domainContext, isAttestation } = body;
 
       if (!projectId || !text?.trim()) {
         return NextResponse.json({ error: "Project ID and requirement text are required" }, { status: 400 });
@@ -199,6 +208,7 @@ export async function POST(request: Request) {
           order: nextOrder,
           status: "UNANSWERED",
           isManuallyAdded: true,
+          isAttestation: isAttestation ?? false,
         },
       });
 

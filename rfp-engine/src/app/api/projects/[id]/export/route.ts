@@ -40,6 +40,9 @@ export async function GET(request: NextRequest, { params }: Props) {
             text: true,
             draftAnswer: true,
             order: true,
+            isMandatory: true,
+            isAttestation: true,
+            complianceStatus: true,
             // NOTE: internalNotes deliberately excluded
           },
         },
@@ -65,10 +68,30 @@ export async function GET(request: NextRequest, { params }: Props) {
     // Scan for placeholders
     const scanResult = scanForPlaceholders(project.requirements);
 
+    // Check for non-compliant items (non-blocking warnings)
+    const nonCompliantMandatory = project.requirements.filter(
+      (r) => r.isAttestation && r.complianceStatus === "NON_COMPLIANT" && r.isMandatory
+    );
+    const nonCompliantOptional = project.requirements.filter(
+      (r) => r.isAttestation && r.complianceStatus === "NON_COMPLIANT" && !r.isMandatory
+    );
+
     return NextResponse.json({
       hasBlockers: scanResult.hasBlockers,
       placeholders: scanResult,
       existingExports: project.exports,
+      nonCompliantWarnings: {
+        mandatory: nonCompliantMandatory.map((r) => ({
+          id: r.id,
+          text: r.text.slice(0, 100) + (r.text.length > 100 ? "..." : ""),
+        })),
+        optional: nonCompliantOptional.map((r) => ({
+          id: r.id,
+          text: r.text.slice(0, 100) + (r.text.length > 100 ? "..." : ""),
+        })),
+        hasMandatoryNonCompliant: nonCompliantMandatory.length > 0,
+        totalNonCompliant: nonCompliantMandatory.length + nonCompliantOptional.length,
+      },
     });
   } catch (error) {
     console.error("Export check error:", error);
@@ -120,6 +143,8 @@ export async function POST(request: NextRequest, { params }: Props) {
             status: true,
             type: true,
             order: true,
+            isAttestation: true,
+            complianceStatus: true,
             // NOTE: internalNotes deliberately excluded - NEVER export
           },
         },
@@ -160,6 +185,8 @@ export async function POST(request: NextRequest, { params }: Props) {
       status: r.status as "UNANSWERED" | "PARTIAL" | "ANSWERED",
       type: r.type,
       order: r.order,
+      isAttestation: r.isAttestation,
+      complianceStatus: r.complianceStatus as "PENDING" | "COMPLIANT" | "NON_COMPLIANT" | "NOT_APPLICABLE" | undefined,
     }));
 
     const options = {

@@ -10,9 +10,26 @@ import fontkit from "@pdf-lib/fontkit";
 import path from "path";
 import fs from "fs";
 import type { ExportTemplate, ExportOptions, RequirementForExport } from "./docx-generator";
+import { generateAttestationStatement } from "@/lib/attestation";
 
 // Re-export types for consistency
 export type { ExportTemplate, ExportOptions, RequirementForExport };
+
+/**
+ * Get the response text for a requirement (handles attestations)
+ */
+function getResponseText(
+  req: RequirementForExport,
+  companyName: string | null
+): string {
+  // For attestation items, generate statement based on compliance status
+  if (req.isAttestation) {
+    const status = req.complianceStatus || "PENDING";
+    return generateAttestationStatement(req.text, companyName, status);
+  }
+  // For regular items, use the draft answer
+  return req.draftAnswer || "";
+}
 
 // =============================================================================
 // CONFIGURATION
@@ -353,7 +370,7 @@ async function generateComplianceMatrixPdf(
   // Draw each requirement row
   for (let i = 0; i < sortedRequirements.length; i++) {
     const req = sortedRequirements[i];
-    const rowHeight = calculateRowHeight(req, tableColumns, fonts, cellPadding);
+    const rowHeight = calculateRowHeight(req, tableColumns, fonts, cellPadding, options.companyName);
 
     // Check if we need a new page
     if (pageManager.needsNewPage(rowHeight + 10)) {
@@ -361,7 +378,7 @@ async function generateComplianceMatrixPdf(
       drawTableHeader(pageManager, tableColumns, headerHeight);
     }
 
-    drawTableRow(pageManager, req, i + 1, tableColumns, rowHeight, cellPadding);
+    drawTableRow(pageManager, req, i + 1, tableColumns, rowHeight, cellPadding, options.companyName);
   }
 
   // Apply headers and footers to all pages
@@ -490,7 +507,8 @@ function calculateRowHeight(
   req: RequirementForExport,
   columns: TableColumn[],
   fonts: FontSet,
-  padding: number
+  padding: number,
+  companyName: string | null
 ): number {
   const reqLines = wrapText(
     req.text + (req.isMandatory ? " *" : ""),
@@ -500,7 +518,7 @@ function calculateRowHeight(
   );
 
   const answerLines = wrapText(
-    req.draftAnswer || "",
+    getResponseText(req, companyName),
     fonts.regular,
     PDF_CONFIG.FONT_SIZE_SMALL,
     columns[3].width - padding * 2
@@ -516,7 +534,8 @@ function drawTableRow(
   index: number,
   columns: TableColumn[],
   rowHeight: number,
-  padding: number
+  padding: number,
+  companyName: string | null
 ): void {
   const page = pageManager.getCurrentPage();
   const fonts = pageManager.getFonts();
@@ -539,7 +558,7 @@ function drawTableRow(
     String(index),
     req.section || "-",
     req.text + (req.isMandatory ? " *" : ""),
-    req.draftAnswer || "",
+    getResponseText(req, companyName),
     formatStatus(req.status),
   ];
 
@@ -615,13 +634,13 @@ async function generateQAFormatPdf(
 
     // Draw Q&A pairs
     for (const req of sectionReqs) {
-      const qaHeight = calculateQAHeight(req, pageManager.getContentWidth(), fonts);
+      const qaHeight = calculateQAHeight(req, pageManager.getContentWidth(), fonts, options.companyName);
 
       if (pageManager.needsNewPage(qaHeight)) {
         await pageManager.newPage();
       }
 
-      drawQAPair(pageManager, req, questionNumber);
+      drawQAPair(pageManager, req, questionNumber, options.companyName);
       questionNumber++;
     }
   }
@@ -663,7 +682,8 @@ function drawSectionHeader(pageManager: PDFPageManager, sectionName: string): vo
 function calculateQAHeight(
   req: RequirementForExport,
   contentWidth: number,
-  fonts: FontSet
+  fonts: FontSet,
+  companyName: string | null
 ): number {
   const questionLines = wrapText(
     req.text + (req.isMandatory ? " (Mandatory)" : ""),
@@ -672,8 +692,9 @@ function calculateQAHeight(
     contentWidth - 30
   );
 
+  const responseText = getResponseText(req, companyName);
   const answerLines = wrapText(
-    req.draftAnswer || "[No response provided]",
+    responseText || "[No response provided]",
     fonts.regular,
     PDF_CONFIG.FONT_SIZE_BODY,
     contentWidth - 30
@@ -685,7 +706,8 @@ function calculateQAHeight(
 function drawQAPair(
   pageManager: PDFPageManager,
   req: RequirementForExport,
-  questionNumber: number
+  questionNumber: number,
+  companyName: string | null
 ): void {
   const page = pageManager.getCurrentPage();
   const fonts = pageManager.getFonts();
@@ -729,8 +751,9 @@ function drawQAPair(
 
   // Answer
   const answerPrefix = `A${questionNumber}: `;
-  const answerText = req.draftAnswer || "[No response provided]";
-  const isPlaceholder = !req.draftAnswer;
+  const responseText = getResponseText(req, companyName);
+  const answerText = responseText || "[No response provided]";
+  const isPlaceholder = !responseText;
 
   page.drawText(answerPrefix, {
     x,

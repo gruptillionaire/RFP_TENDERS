@@ -21,6 +21,7 @@ import {
   PageNumber,
   NumberFormat,
 } from "docx";
+import { generateAttestationStatement, ComplianceStatus } from "@/lib/attestation";
 
 export type ExportTemplate = "compliance-matrix" | "qa-format";
 
@@ -41,7 +42,25 @@ export interface RequirementForExport {
   status: "UNANSWERED" | "PARTIAL" | "ANSWERED";
   type: string;
   order: number;
+  isAttestation?: boolean;
+  complianceStatus?: ComplianceStatus;
   // NOTE: internalNotes is deliberately excluded - NEVER export
+}
+
+/**
+ * Get the response text for a requirement (handles attestations)
+ */
+function getResponseText(
+  req: RequirementForExport,
+  companyName: string | null
+): string {
+  // For attestation items, generate statement based on compliance status
+  if (req.isAttestation) {
+    const status = req.complianceStatus || "PENDING";
+    return generateAttestationStatement(req.text, companyName, status);
+  }
+  // For regular items, use the draft answer
+  return req.draftAnswer || "";
 }
 
 /**
@@ -89,7 +108,7 @@ async function generateComplianceMatrixDocx(
         createDataCell(String(index + 1), 600),
         createDataCell(req.section || "-", 1200),
         createDataCell(req.text, 4000, req.isMandatory),
-        createDataCell(req.draftAnswer || "", 4000),
+        createDataCell(getResponseText(req, options.companyName), 4000),
         createStatusCell(req.status, 1200),
       ],
     })
@@ -346,7 +365,9 @@ async function generateQAFormatDocx(
       );
 
       // Answer
-      const answerText = req.draftAnswer || "[No response provided]";
+      const responseText = getResponseText(req, options.companyName);
+      const hasResponse = responseText.length > 0;
+      const answerText = hasResponse ? responseText : "[No response provided]";
       children.push(
         new Paragraph({
           children: [
@@ -359,8 +380,8 @@ async function generateQAFormatDocx(
             new TextRun({
               text: answerText,
               size: 22,
-              italics: !req.draftAnswer,
-              color: req.draftAnswer ? "000000" : "9CA3AF",
+              italics: !hasResponse,
+              color: hasResponse ? "000000" : "9CA3AF",
             }),
           ],
           spacing: { after: 200 },

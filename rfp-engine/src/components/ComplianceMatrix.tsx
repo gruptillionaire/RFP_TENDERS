@@ -38,6 +38,7 @@ import {
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
+type ComplianceStatus = "PENDING" | "COMPLIANT" | "NON_COMPLIANT" | "NOT_APPLICABLE";
 type SortOption = "order" | "mandatory" | "status" | "section" | "type";
 
 interface Requirement {
@@ -54,6 +55,8 @@ interface Requirement {
   domainContext?: DomainContext;
   requiresReview?: boolean;
   order: number;
+  isAttestation?: boolean;
+  complianceStatus?: ComplianceStatus;
 }
 
 interface ComplianceMatrixProps {
@@ -64,6 +67,8 @@ interface ComplianceMatrixProps {
   onTypeChange: (id: string, type: RequirementType) => void;
   onDomainChange: (id: string, domain: DomainContext) => void;
   onInternalNotesChange: (id: string, notes: string) => void;
+  onComplianceChange?: (id: string, status: ComplianceStatus) => void;
+  onAttestationToggle?: (id: string, isAttestation: boolean) => void;
   generatingIds: Set<string>;
   onSaveToLibrary?: (id: string, content: string, requirement: Requirement) => void;
   onInsertFromLibrary?: (id: string) => void;
@@ -214,6 +219,8 @@ interface RequirementRowProps {
   onSaveToLibrary?: (id: string, content: string, requirement: Requirement) => void;
   onInsertFromLibrary?: (id: string) => void;
   onShowHistory: (id: string) => void;
+  onComplianceChange?: (id: string, status: ComplianceStatus) => void;
+  onAttestationToggle?: (id: string, isAttestation: boolean) => void;
   isGenerating: boolean;
   isCopied: boolean;
 }
@@ -233,6 +240,8 @@ const RequirementRow = React.memo(function RequirementRow({
   onSaveToLibrary,
   onInsertFromLibrary,
   onShowHistory,
+  onComplianceChange,
+  onAttestationToggle,
   isGenerating,
   isCopied,
 }: RequirementRowProps) {
@@ -379,12 +388,124 @@ const RequirementRow = React.memo(function RequirementRow({
                     This is background context information. No response is required.
                   </p>
                 </div>
+              ) : req.isAttestation ? (
+                /* Attestation UI - Radio buttons for compliance status */
+                <div className="space-y-4">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-medium">
+                          Attestation Item
+                        </span>
+                        {req.isMandatory && (
+                          <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">
+                            Mandatory
+                          </span>
+                        )}
+                      </div>
+                      {onAttestationToggle && (
+                        <button
+                          onClick={() => onAttestationToggle(req.id, false)}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        >
+                          Switch to Written Response
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-600 mb-4">
+                      Select your compliance status for this requirement:
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`compliance-${req.id}`}
+                          checked={req.complianceStatus === "COMPLIANT"}
+                          onChange={() => onComplianceChange?.(req.id, "COMPLIANT")}
+                          className="w-4 h-4 text-green-600 focus:ring-green-500"
+                        />
+                        <span className="text-green-700 font-medium">Compliant</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`compliance-${req.id}`}
+                          checked={req.complianceStatus === "NON_COMPLIANT"}
+                          onChange={() => onComplianceChange?.(req.id, "NON_COMPLIANT")}
+                          className="w-4 h-4 text-red-600 focus:ring-red-500"
+                        />
+                        <span className="text-red-700 font-medium">Non-Compliant</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`compliance-${req.id}`}
+                          checked={req.complianceStatus === "NOT_APPLICABLE"}
+                          onChange={() => onComplianceChange?.(req.id, "NOT_APPLICABLE")}
+                          className="w-4 h-4 text-gray-600 focus:ring-gray-500"
+                        />
+                        <span className="text-gray-600 font-medium">N/A</span>
+                      </label>
+                    </div>
+
+                    {req.complianceStatus === "COMPLIANT" && (
+                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Attestation statement will be auto-generated in export.
+                      </p>
+                    )}
+
+                    {req.complianceStatus === "NON_COMPLIANT" && req.isMandatory && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <div className="flex items-start gap-2">
+                          <svg className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-medium text-red-800">Warning: Mandatory Requirement</p>
+                            <p className="text-xs text-red-700 mt-1">
+                              Non-compliance with this mandatory requirement may disqualify your proposal.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Internal Notes - also available for attestations */}
+                  <div>
+                    <h4 className="font-medium text-gray-600 mb-2 text-sm">Internal Notes</h4>
+                    <Textarea
+                      placeholder="Add private notes (not included in export)..."
+                      value={req.internalNotes || ""}
+                      onChange={(e) => onInternalNotesChange(req.id, e.target.value)}
+                      rows={2}
+                      className="bg-gray-100 border-gray-200 text-sm italic"
+                    />
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium">Draft Response</h4>
+                        {/* Toggle to attestation mode */}
+                        {onAttestationToggle && (
+                          <button
+                            onClick={() => onAttestationToggle(req.id, true)}
+                            className="text-xs text-gray-500 hover:text-blue-600 underline ml-2"
+                            title="Switch to attestation mode (checkbox compliance)"
+                          >
+                            [Attestation]
+                          </button>
+                        )}
                         <span className={`text-xs px-2 py-0.5 rounded ${getTypeBadgeColor(req.type)}`}>
                           {formatTypeName(req.type)}
                         </span>
@@ -564,6 +685,8 @@ export function ComplianceMatrix({
   onTypeChange,
   onDomainChange,
   onInternalNotesChange,
+  onComplianceChange,
+  onAttestationToggle,
   generatingIds,
   onSaveToLibrary,
   onInsertFromLibrary,
@@ -890,6 +1013,8 @@ export function ComplianceMatrix({
                   onSaveToLibrary={onSaveToLibrary}
                   onInsertFromLibrary={onInsertFromLibrary}
                   onShowHistory={handleShowHistory}
+                  onComplianceChange={onComplianceChange}
+                  onAttestationToggle={onAttestationToggle}
                   isGenerating={generatingIds.has(req.id)}
                   isCopied={copiedId === req.id}
                 />

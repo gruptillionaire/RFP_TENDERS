@@ -159,6 +159,10 @@ model Requirement {
   isManuallyAdded  Boolean              @default(false) // User-created requirement
   order            Int
   versions         RequirementVersion[] // Version history for draft answers
+
+  // Attestation system - binary compliance for standard requirements
+  isAttestation    Boolean              @default(false) // True = checkbox mode, False = written response
+  complianceStatus ComplianceStatus     @default(PENDING)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
@@ -203,6 +207,13 @@ enum DomainContext {
   FEATURE
   PROCESS
   LEGAL
+}
+
+enum ComplianceStatus {
+  PENDING        // Not yet assessed
+  COMPLIANT      // We comply with this requirement
+  NON_COMPLIANT  // We don't comply with this requirement
+  NOT_APPLICABLE // Requirement doesn't apply to us
 }
 
 model PastResponse {

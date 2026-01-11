@@ -14,6 +14,7 @@ import { SubmissionChecklist } from "@/components/SubmissionChecklist";
 import { calculateComplianceScore, type RequirementForScoring } from "@/lib/compliance-scoring";
 
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
+type ComplianceStatus = "PENDING" | "COMPLIANT" | "NON_COMPLIANT" | "NOT_APPLICABLE";
 
 interface Requirement {
   id: string;
@@ -29,6 +30,8 @@ interface Requirement {
   domainContext?: "FEATURE" | "PROCESS" | "LEGAL";
   requiresReview?: boolean;
   order: number;
+  isAttestation?: boolean;
+  complianceStatus?: ComplianceStatus;
 }
 
 interface Project {
@@ -202,6 +205,48 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   const handleAddRequirement = useCallback((newRequirement: Requirement) => {
     // Add the new requirement to the state
     setRequirements((prev) => [...prev, newRequirement]);
+  }, []);
+
+  const handleComplianceChange = useCallback(async (id: string, complianceStatus: ComplianceStatus) => {
+    // Map compliance status to requirement status
+    const newStatus: Requirement["status"] = complianceStatus === "PENDING" ? "UNANSWERED" : "ANSWERED";
+
+    // Optimistic update
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, complianceStatus, status: newStatus } : r))
+    );
+
+    // Save to server
+    await fetch("/api/requirements", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, complianceStatus, status: newStatus }),
+    });
+  }, []);
+
+  const handleAttestationToggle = useCallback(async (id: string, isAttestation: boolean) => {
+    // Optimistic update
+    setRequirements((prev) =>
+      prev.map((r) => (r.id === id ? {
+        ...r,
+        isAttestation,
+        // Reset compliance status when switching to attestation, preserve draft when switching away
+        complianceStatus: isAttestation ? "PENDING" : r.complianceStatus,
+        status: isAttestation ? "UNANSWERED" : r.status,
+      } : r))
+    );
+
+    // Save to server
+    await fetch("/api/requirements", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        isAttestation,
+        complianceStatus: isAttestation ? "PENDING" : undefined,
+        status: isAttestation ? "UNANSWERED" : undefined,
+      }),
+    });
   }, []);
 
   const handleDeleteProject = useCallback(async () => {
@@ -618,6 +663,8 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
               onTypeChange={handleTypeChange}
               onDomainChange={handleDomainChange}
               onInternalNotesChange={handleInternalNotesChange}
+              onComplianceChange={handleComplianceChange}
+              onAttestationToggle={handleAttestationToggle}
               generatingIds={generatingIds}
               onSaveToLibrary={handleSaveToLibrary}
               onInsertFromLibrary={handleInsertFromLibrary}

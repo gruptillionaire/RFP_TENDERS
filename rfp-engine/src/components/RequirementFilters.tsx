@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 type RequirementStatus = "UNANSWERED" | "PARTIAL" | "ANSWERED";
 type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
 type RequirementType = "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING";
+type ComplianceStatus = "PENDING" | "COMPLIANT" | "NON_COMPLIANT" | "NOT_APPLICABLE";
 
 export interface FilterState {
   statuses: RequirementStatus[];
@@ -18,6 +19,8 @@ export interface FilterState {
   overLimit: boolean | null;
   hasDraft: boolean | null;
   searchText: string;
+  isAttestation: boolean | null;  // null = all, true = attestation only, false = written only
+  complianceStatuses: ComplianceStatus[];  // filter by compliance status
 }
 
 export const defaultFilters: FilterState = {
@@ -29,6 +32,8 @@ export const defaultFilters: FilterState = {
   overLimit: null,
   hasDraft: null,
   searchText: "",
+  isAttestation: null,
+  complianceStatuses: [],
 };
 
 interface RequirementFiltersProps {
@@ -40,10 +45,13 @@ interface RequirementFiltersProps {
     byStatus: Record<RequirementStatus, number>;
     byDomain: Record<DomainContext, number>;
     byType: Record<RequirementType, number>;
+    byComplianceStatus: Record<ComplianceStatus, number>;
     mandatory: number;
     needsReview: number;
     overLimit: number;
     hasDraft: number;
+    attestation: number;
+    writtenResponse: number;
   };
 }
 
@@ -153,6 +161,8 @@ export function RequirementFilters({
     if (filters.overLimit !== null) count++;
     if (filters.hasDraft !== null) count++;
     if (filters.searchText) count++;
+    if (filters.isAttestation !== null) count++;
+    if (filters.complianceStatuses.length > 0) count++;
     return count;
   }, [filters]);
 
@@ -175,6 +185,13 @@ export function RequirementFilters({
       ? filters.types.filter(t => t !== type)
       : [...filters.types, type];
     onChange({ ...filters, types: newTypes });
+  }, [filters, onChange]);
+
+  const toggleComplianceStatus = useCallback((status: ComplianceStatus) => {
+    const newStatuses = filters.complianceStatuses.includes(status)
+      ? filters.complianceStatuses.filter(s => s !== status)
+      : [...filters.complianceStatuses, status];
+    onChange({ ...filters, complianceStatuses: newStatuses });
   }, [filters, onChange]);
 
   const clearFilters = useCallback(() => {
@@ -362,6 +379,68 @@ export function RequirementFilters({
             </div>
           </div>
 
+          {/* Response Type filters */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Response Type</h4>
+            <div className="flex flex-wrap gap-2">
+              <FilterChip
+                label="Attestation"
+                active={filters.isAttestation === true}
+                count={requirementCounts?.attestation}
+                onClick={() => onChange({
+                  ...filters,
+                  isAttestation: filters.isAttestation === true ? null : true
+                })}
+                color="blue"
+              />
+              <FilterChip
+                label="Written Response"
+                active={filters.isAttestation === false}
+                count={requirementCounts?.writtenResponse}
+                onClick={() => onChange({
+                  ...filters,
+                  isAttestation: filters.isAttestation === false ? null : false
+                })}
+                color="purple"
+              />
+            </div>
+          </div>
+
+          {/* Compliance Status filters (for attestation items) */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Compliance Status</h4>
+            <div className="flex flex-wrap gap-2">
+              <FilterChip
+                label="Pending"
+                active={filters.complianceStatuses.includes("PENDING")}
+                count={requirementCounts?.byComplianceStatus.PENDING}
+                onClick={() => toggleComplianceStatus("PENDING")}
+                color="gray"
+              />
+              <FilterChip
+                label="Compliant"
+                active={filters.complianceStatuses.includes("COMPLIANT")}
+                count={requirementCounts?.byComplianceStatus.COMPLIANT}
+                onClick={() => toggleComplianceStatus("COMPLIANT")}
+                color="green"
+              />
+              <FilterChip
+                label="Non-Compliant"
+                active={filters.complianceStatuses.includes("NON_COMPLIANT")}
+                count={requirementCounts?.byComplianceStatus.NON_COMPLIANT}
+                onClick={() => toggleComplianceStatus("NON_COMPLIANT")}
+                color="red"
+              />
+              <FilterChip
+                label="N/A"
+                active={filters.complianceStatuses.includes("NOT_APPLICABLE")}
+                count={requirementCounts?.byComplianceStatus.NOT_APPLICABLE}
+                onClick={() => toggleComplianceStatus("NOT_APPLICABLE")}
+                color="gray"
+              />
+            </div>
+          </div>
+
           {/* Toggle filters */}
           <div>
             <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Quick Filters</h4>
@@ -412,6 +491,8 @@ export function applyFilters<T extends {
   draftAnswer?: string | null;
   wordLimit?: number | null;
   characterLimit?: number | null;
+  isAttestation?: boolean;
+  complianceStatus?: ComplianceStatus;
 }>(
   requirements: T[],
   filters: FilterState
@@ -464,6 +545,22 @@ export function applyFilters<T extends {
       }
     }
 
+    // Attestation filter
+    if (filters.isAttestation !== null) {
+      const isAttestation = req.isAttestation || false;
+      if (isAttestation !== filters.isAttestation) {
+        return false;
+      }
+    }
+
+    // Compliance status filter
+    if (filters.complianceStatuses.length > 0) {
+      const complianceStatus = req.complianceStatus || "PENDING";
+      if (!filters.complianceStatuses.includes(complianceStatus)) {
+        return false;
+      }
+    }
+
     // Search text filter
     if (filters.searchText) {
       const searchLower = filters.searchText.toLowerCase();
@@ -490,6 +587,8 @@ export function calculateFilterCounts<T extends {
   draftAnswer?: string | null;
   wordLimit?: number | null;
   characterLimit?: number | null;
+  isAttestation?: boolean;
+  complianceStatus?: ComplianceStatus;
 }>(
   requirements: T[],
   filtered: T[]
@@ -499,10 +598,13 @@ export function calculateFilterCounts<T extends {
   byStatus: Record<RequirementStatus, number>;
   byDomain: Record<DomainContext, number>;
   byType: Record<RequirementType, number>;
+  byComplianceStatus: Record<ComplianceStatus, number>;
   mandatory: number;
   needsReview: number;
   overLimit: number;
   hasDraft: number;
+  attestation: number;
+  writtenResponse: number;
 } {
   const counts = {
     total: requirements.length,
@@ -510,20 +612,26 @@ export function calculateFilterCounts<T extends {
     byStatus: { UNANSWERED: 0, PARTIAL: 0, ANSWERED: 0 } as Record<RequirementStatus, number>,
     byDomain: { FEATURE: 0, PROCESS: 0, LEGAL: 0 } as Record<DomainContext, number>,
     byType: { CONTEXTUAL: 0, PROCEDURAL: 0, DECLARATIVE: 0, DESCRIPTIVE: 0, EVIDENCE_BASED: 0, QUANTITATIVE: 0, REFERENCE_BASED: 0, STAFFING: 0 } as Record<RequirementType, number>,
+    byComplianceStatus: { PENDING: 0, COMPLIANT: 0, NON_COMPLIANT: 0, NOT_APPLICABLE: 0 } as Record<ComplianceStatus, number>,
     mandatory: 0,
     needsReview: 0,
     overLimit: 0,
     hasDraft: 0,
+    attestation: 0,
+    writtenResponse: 0,
   };
 
   for (const req of requirements) {
     counts.byStatus[req.status]++;
     counts.byDomain[req.domainContext || "FEATURE"]++;
     counts.byType[req.type]++;
+    counts.byComplianceStatus[req.complianceStatus || "PENDING"]++;
     if (req.isMandatory) counts.mandatory++;
     if (req.requiresReview) counts.needsReview++;
     if (checkOverLimit(req)) counts.overLimit++;
     if (req.draftAnswer) counts.hasDraft++;
+    if (req.isAttestation) counts.attestation++;
+    else counts.writtenResponse++;
   }
 
   return counts;
