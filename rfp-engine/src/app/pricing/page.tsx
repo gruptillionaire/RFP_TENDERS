@@ -15,8 +15,8 @@ const plans = [
     description: "For freelancers and individual consultants",
     features: [
       "5 RFP extractions per month",
+      "100 AI draft responses per month",
       "AI-powered requirement detection",
-      "Draft response generation",
       "Response library",
       "Export to Word",
     ],
@@ -32,8 +32,8 @@ const plans = [
     description: "For SMEs and growing businesses",
     features: [
       "15 RFP extractions per month",
+      "500 AI draft responses per month",
       "AI-powered requirement detection",
-      "Draft response generation",
       "Response library",
       "Export to Word",
       "Priority support",
@@ -50,8 +50,8 @@ const plans = [
     description: "For agencies and high-volume users",
     features: [
       "Unlimited RFP extractions",
+      "Unlimited AI draft responses",
       "AI-powered requirement detection",
-      "Draft response generation",
       "Response library",
       "Export to Word",
       "Priority support",

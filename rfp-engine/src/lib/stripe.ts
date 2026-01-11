@@ -38,8 +38,8 @@ export const PLAN_CONFIG = {
     currency: "gbp",
     features: [
       "5 RFP extractions per month",
+      "100 AI draft responses per month",
       "AI-powered requirement detection",
-      "Draft response generation",
       "Response library",
       "Export to Word",
     ],
@@ -57,8 +57,8 @@ export const PLAN_CONFIG = {
     currency: "gbp",
     features: [
       "15 RFP extractions per month",
+      "500 AI draft responses per month",
       "AI-powered requirement detection",
-      "Draft response generation",
       "Response library",
       "Export to Word",
       "Priority support",
@@ -77,8 +77,8 @@ export const PLAN_CONFIG = {
     currency: "gbp",
     features: [
       "Unlimited RFP extractions",
+      "Unlimited AI draft responses",
       "AI-powered requirement detection",
-      "Draft response generation",
       "Response library",
       "Export to Word",
       "Priority support",
