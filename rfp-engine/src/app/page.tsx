@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { JsonLd, organizationSchema, softwareApplicationSchema } from "@/components/JsonLd";
 
 export const metadata: Metadata = {
-  title: "AI-Powered RFP & Tender Response Software",
-  description: "Upload RFP documents and get a structured compliance matrix with AI-generated draft responses in minutes. Track requirements, manage deadlines, and win more bids.",
+  title: "RFP Compliance Software for SMEs | Never Miss a Requirement",
+  description: "AI-powered RFP response software built for small and medium businesses. Extract every requirement, ensure 100% compliance, and generate draft responses in minutes.",
   alternates: {
     canonical: "/",
   },
@@ -20,6 +20,10 @@ export default function Home() {
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="font-bold text-xl">RFP Engine</div>
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            <Link href="#features" className="text-gray-600 hover:text-gray-900">Features</Link>
+            <Link href="#pricing" className="text-gray-600 hover:text-gray-900">Pricing</Link>
+          </nav>
           <div className="flex gap-4">
             <Link href="/login">
               <Button variant="ghost">Sign in</Button>
@@ -34,15 +38,18 @@ export default function Home() {
       {/* Hero */}
       <main className="max-w-6xl mx-auto px-4 py-20">
         <div className="text-center max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-medium mb-6">
+            Built for Small & Medium Businesses
+          </div>
           <h1 className="text-5xl font-bold tracking-tight text-gray-900 mb-6">
-            Respond to RFPs and Tenders
-            <span className="text-blue-600"> 10x Faster</span>
+            100% RFP Compliance.
+            <span className="text-blue-600"> Zero Missed Requirements.</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            Upload an RFP and get a structured compliance matrix with draft responses in minutes.
-            Never miss a requirement again.
+            Stop losing bids to missed requirements. Our AI extracts every question from your RFP,
+            tracks your compliance status, and drafts responses—so you can focus on winning.
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center flex-wrap">
             <Link href="/signup">
               <Button size="lg" className="text-lg px-8">
                 Get Started
@@ -54,91 +61,294 @@ export default function Home() {
               </Button>
             </Link>
           </div>
+          <p className="text-sm text-gray-500 mt-4">Plans from £39/month.</p>
         </div>
+
+        {/* Pain Points */}
+        <section className="mt-24 max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-8">Sound Familiar?</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="p-5 rounded-lg bg-red-50 border border-red-100">
+              <div className="text-red-600 font-medium mb-2">Hours wasted</div>
+              <p className="text-sm text-gray-600">Manually reading through 50+ page RFPs to find every requirement buried in dense text.</p>
+            </div>
+            <div className="p-5 rounded-lg bg-red-50 border border-red-100">
+              <div className="text-red-600 font-medium mb-2">Missed requirements</div>
+              <p className="text-sm text-gray-600">Discovering you missed a mandatory requirement after submission—instant disqualification.</p>
+            </div>
+            <div className="p-5 rounded-lg bg-red-50 border border-red-100">
+              <div className="text-red-600 font-medium mb-2">Starting from scratch</div>
+              <p className="text-sm text-gray-600">Rewriting similar answers for every bid instead of reusing your best responses.</p>
+            </div>
+          </div>
+        </section>
 
         {/* Features */}
         <section id="features" className="mt-32">
-          <h2 className="text-3xl font-bold text-center mb-12">How RFP Engine Works</h2>
+          <h2 className="text-3xl font-bold text-center mb-4">How RFP Engine Works</h2>
+          <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+            Three steps to complete compliance. No RFP expertise required.
+          </p>
           <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-6 rounded-xl border bg-white">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+            <div className="p-6 rounded-xl border bg-white">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="text-sm font-medium text-blue-600 mb-1">Step 1</div>
+              <h3 className="text-lg font-semibold mb-2">Upload Your RFP</h3>
+              <p className="text-gray-600">
+                Drop in a PDF or Word document. Our AI scans every page and extracts all requirements—including those hidden in tables and appendices.
+              </p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Extract Requirements</h3>
-            <p className="text-gray-600">
-              Upload PDF or Word documents. Our AI extracts every question and requirement automatically.
-            </p>
-          </div>
 
-          <div className="p-6 rounded-xl border bg-white">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
+            <div className="p-6 rounded-xl border bg-white">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div className="text-sm font-medium text-green-600 mb-1">Step 2</div>
+              <h3 className="text-lg font-semibold mb-2">Track Every Requirement</h3>
+              <p className="text-gray-600">
+                See your compliance score in real-time. Filter by category, priority, or status. Never wonder "did we answer everything?" again.
+              </p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Track Compliance</h3>
-            <p className="text-gray-600">
-              Visual compliance matrix shows your progress. Mark items as answered, partial, or pending.
-            </p>
-          </div>
 
-          <div className="p-6 rounded-xl border bg-white">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
+            <div className="p-6 rounded-xl border bg-white">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div className="text-sm font-medium text-purple-600 mb-1">Step 3</div>
+              <h3 className="text-lg font-semibold mb-2">Generate Draft Responses</h3>
+              <p className="text-gray-600">
+                AI drafts compliant responses for each requirement. Reuse winning answers from your library. Export to Word when you're ready.
+              </p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Draft Responses</h3>
-            <p className="text-gray-600">
-              AI generates first-draft responses for each requirement. Edit and refine to perfection.
-            </p>
-          </div>
           </div>
         </section>
 
         {/* Pricing */}
-        <div className="mt-32 text-center">
-          <h2 className="text-3xl font-bold mb-4">Simple Pricing</h2>
-          <p className="text-gray-600 mb-12">Plans for every team size</p>
+        <section id="pricing" className="mt-32">
+          <h2 className="text-3xl font-bold text-center mb-4">Simple, Transparent Pricing</h2>
+          <p className="text-gray-600 text-center mb-12">Choose the plan that fits your bid volume. No hidden fees.</p>
 
-          <div className="max-w-sm mx-auto p-8 rounded-2xl border-2 border-blue-600 bg-white">
-            <div className="text-sm font-medium text-blue-600 mb-2">MOST POPULAR</div>
-            <div className="text-4xl font-bold mb-2">
-              £99<span className="text-lg font-normal text-gray-500">/month</span>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {/* Solo */}
+            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900">Solo</h3>
+              <p className="text-sm text-gray-500 mt-1">For freelancers and consultants</p>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-gray-900">£39</span>
+                <span className="text-gray-500">/month</span>
+              </div>
+              <ul className="mt-6 space-y-3 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>5 RFP extractions/month</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>100 AI draft responses</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Compliance tracking</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Response library</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Export to Word</span>
+                </li>
+              </ul>
+              <Link href="/signup" className="block mt-8">
+                <Button variant="outline" className="w-full">Get Started</Button>
+              </Link>
             </div>
-            <ul className="text-left space-y-3 my-8">
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+
+            {/* Pro - Most Popular */}
+            <div className="p-8 rounded-2xl border-2 border-blue-500 bg-white relative">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
+                  Most Popular
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Pro</h3>
+              <p className="text-sm text-gray-500 mt-1">For growing SMEs</p>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-gray-900">£99</span>
+                <span className="text-gray-500">/month</span>
+              </div>
+              <ul className="mt-6 space-y-3 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>15 RFP extractions/month</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>500 AI draft responses</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Compliance tracking</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Response library</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Export to Word</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Priority support</span>
+                </li>
+              </ul>
+              <Link href="/signup" className="block mt-8">
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">Get Started</Button>
+              </Link>
+            </div>
+
+            {/* Team */}
+            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900">Team</h3>
+              <p className="text-sm text-gray-500 mt-1">For agencies and high-volume</p>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-gray-900">£249</span>
+                <span className="text-gray-500">/month</span>
+              </div>
+              <ul className="mt-6 space-y-3 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">Unlimited extractions</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">Unlimited AI responses</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Compliance tracking</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Response library</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Export to Word</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Priority support</span>
+                </li>
+              </ul>
+              <Link href="/signup" className="block mt-8">
+                <Button variant="outline" className="w-full">Get Started</Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Trust Signals */}
+        <section className="mt-32">
+          <div className="grid md:grid-cols-4 gap-8 text-center">
+            <div>
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                Up to 10 active tenders
-              </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </div>
+              <div className="font-medium text-gray-900">Secure & Private</div>
+              <p className="text-sm text-gray-500 mt-1">Your RFPs are encrypted and never used for AI training</p>
+            </div>
+            <div>
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                Compliance matrix
-              </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </div>
+              <div className="font-medium text-gray-900">GDPR Compliant</div>
+              <p className="text-sm text-gray-500 mt-1">Full data protection with EU-compliant practices</p>
+            </div>
+            <div>
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                AI draft responses
-              </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </div>
+              <div className="font-medium text-gray-900">Fast Setup</div>
+              <p className="text-sm text-gray-500 mt-1">Upload your first RFP in under 2 minutes</p>
+            </div>
+            <div>
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                 </svg>
-                Past response reuse
-              </li>
-            </ul>
-            <Link href="/pricing">
-              <Button className="w-full" size="lg">View All Plans</Button>
+              </div>
+              <div className="font-medium text-gray-900">Cancel Anytime</div>
+              <p className="text-sm text-gray-500 mt-1">No contracts. No setup fees. No surprises.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section className="mt-32 text-center p-12 bg-blue-50 rounded-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Ready to win more bids?
+          </h2>
+          <p className="mt-4 text-gray-600 max-w-xl mx-auto">
+            Join SMEs who are responding to RFPs faster and never missing a requirement.
+          </p>
+          <div className="mt-8">
+            <Link href="/signup">
+              <Button size="lg" className="px-8">
+                Get Started
+              </Button>
             </Link>
           </div>
-        </div>
+        </section>
       </main>
 
       {/* Footer */}
