@@ -40,6 +40,7 @@ export async function GET(request: NextRequest, { params }: Props) {
             text: true,
             draftAnswer: true,
             order: true,
+            type: true,
             isMandatory: true,
             isAttestation: true,
             complianceStatus: true,
@@ -76,10 +77,16 @@ export async function GET(request: NextRequest, { params }: Props) {
       (r) => r.isAttestation && r.complianceStatus === "NON_COMPLIANT" && !r.isMandatory
     );
 
+    // Count contextual requirements (internal use only, not exported)
+    const contextualCount = project.requirements.filter(
+      (r) => r.type === "CONTEXTUAL"
+    ).length;
+
     return NextResponse.json({
       hasBlockers: scanResult.hasBlockers,
       placeholders: scanResult,
       existingExports: project.exports,
+      contextualCount,
       nonCompliantWarnings: {
         mandatory: nonCompliantMandatory.map((r) => ({
           id: r.id,
@@ -175,8 +182,13 @@ export async function POST(request: NextRequest, { params }: Props) {
       );
     }
 
+    // Filter out CONTEXTUAL requirements (internal use only, not exported)
+    const exportableRequirements = project.requirements.filter(
+      r => r.type !== "CONTEXTUAL"
+    );
+
     // Generate document
-    const requirements: RequirementForExport[] = project.requirements.map((r) => ({
+    const requirements: RequirementForExport[] = exportableRequirements.map((r) => ({
       id: r.id,
       text: r.text,
       section: r.section,

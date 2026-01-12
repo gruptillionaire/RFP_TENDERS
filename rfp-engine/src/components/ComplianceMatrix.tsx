@@ -314,6 +314,9 @@ const RequirementRow = React.memo(function RequirementRow({
                 <SelectItem value="DECLARATIVE">Declarative</SelectItem>
                 <SelectItem value="DESCRIPTIVE">Descriptive</SelectItem>
                 <SelectItem value="EVIDENCE_BASED">Evidence</SelectItem>
+                <SelectItem value="QUANTITATIVE">Quantitative</SelectItem>
+                <SelectItem value="REFERENCE_BASED">Reference</SelectItem>
+                <SelectItem value="STAFFING">Staffing</SelectItem>
               </SelectContent>
             </Select>
             <DropdownMenu>
@@ -346,6 +349,14 @@ const RequirementRow = React.memo(function RequirementRow({
                 title="Requires manual review"
               >
                 !
+              </span>
+            )}
+            {req.type === "CONTEXTUAL" && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600"
+                title="For internal reference only - not included in exports"
+              >
+                Internal
               </span>
             )}
           </div>
@@ -389,10 +400,18 @@ const RequirementRow = React.memo(function RequirementRow({
                 </p>
               </div>
               {req.type === "CONTEXTUAL" ? (
-                <div className="bg-gray-100 p-4 rounded border border-gray-200 text-center">
-                  <p className="text-gray-500 italic">
-                    This is background context information. No response is required.
-                  </p>
+                <div className="bg-gray-100 p-4 rounded border border-gray-300">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Internal Use Only</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        This is background context from the RFP. No response is required and it will not be included in document exports.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : req.isAttestation ? (
                 /* Attestation UI - Radio buttons for compliance status */

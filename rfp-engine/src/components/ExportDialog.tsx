@@ -84,6 +84,7 @@ export function ExportDialog({
   const [showBlockers, setShowBlockers] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [nonCompliantWarnings, setNonCompliantWarnings] = useState<NonCompliantWarnings | null>(null);
+  const [contextualCount, setContextualCount] = useState<number>(0);
 
   // Check for blockers and list exports when dialog opens
   const checkForBlockers = useCallback(async () => {
@@ -95,6 +96,7 @@ export function ExportDialog({
         setScanResult(data.placeholders);
         setExistingExports(data.existingExports || []);
         setNonCompliantWarnings(data.nonCompliantWarnings || null);
+        setContextualCount(data.contextualCount || 0);
         if (data.hasBlockers) {
           setShowBlockers(true);
         }
@@ -409,25 +411,32 @@ export function ExportDialog({
         <DialogFooter className="flex-col sm:flex-row gap-4">
           {/* Format/Template selection in footer for visibility */}
           {!showBlockers && !isLoading && (
-            <div className="flex gap-2 flex-1 mr-auto">
-              <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="docx">Word (.docx)</SelectItem>
-                  <SelectItem value="pdf">PDF (.pdf)</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="compliance-matrix">Compliance Matrix</SelectItem>
-                  <SelectItem value="qa-format">Q&A Format</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col gap-2 flex-1 mr-auto">
+              <div className="flex gap-2">
+                <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="docx">Word (.docx)</SelectItem>
+                    <SelectItem value="pdf">PDF (.pdf)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="compliance-matrix">Compliance Matrix</SelectItem>
+                    <SelectItem value="qa-format">Q&A Format</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {contextualCount > 0 && (
+                <p className="text-xs text-gray-500">
+                  {contextualCount} contextual/instructional item{contextualCount !== 1 ? "s" : ""} will not be included in the export.
+                </p>
+              )}
             </div>
           )}
           <div className="flex gap-2">
