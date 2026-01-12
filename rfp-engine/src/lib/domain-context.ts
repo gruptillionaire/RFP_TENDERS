@@ -54,7 +54,7 @@ function keywordMatches(text: string, keyword: string): boolean {
 // Strong legal terms that trigger LEGAL domain with just 1 match
 // These are highly specific legal/compliance terms
 const STRONG_LEGAL_TERMS = [
-  "GDPR", "HIPAA", "PCI", "DPA", "NDA", "indemnity", "indemnification",
+  "gdpr", "hipaa", "pci", "dpa", "nda", "indemnity", "indemnification",
   "liability", "subprocessor", "data controller", "data processor"
 ];
 
@@ -79,7 +79,7 @@ export function detectDomainContext(requirementText: string): DomainContext {
   if (legalScore >= 2) return "LEGAL";
 
   // STEP 3: Process if keywords match or starts with "how"
-  if (processScore >= 3 || text.startsWith("how ") || text.includes("how do") || text.includes("how would")) {
+  if (processScore >= 2 || text.startsWith("how ") || text.includes("how do") || text.includes("how would")) {
     return "PROCESS";
   }
 

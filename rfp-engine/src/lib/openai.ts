@@ -97,18 +97,28 @@ For each item extracted, identify:
    - "failure to X may result in Y" = MANDATORY (consequence warning)
    - "respondents may" without consequence = OPTIONAL (permission)
    - Always check the full sentence context for "may"
-3. The FULL section reference WITH TITLE (extract number AND descriptive name):
-   - IMPORTANT: Extract BOTH the section number AND its title when available
-   - Examples of what to extract:
-     • "2: Specification" (not just "2")
-     • "5. SPECIFICATION" → extract as "5: SPECIFICATION"
-     • "Section 3.1 Technical Requirements" → extract as "3.1: Technical Requirements"
-     • "Part II.A - Service Delivery" → extract as "II.A: Service Delivery"
-     • "A25" (if no title nearby, just the identifier is fine)
-   - If section has a number/letter followed by descriptive text, capture BOTH
-   - Format as "NUMBER: TITLE" (e.g., "5: Specification", "3.1: Technical Requirements")
-   - If only a number exists with no title nearby, use just the number
-   - If no section identifier at all, use descriptive name (e.g., "Introduction")
+3. The FULL section reference WITH TITLE:
+   ==============================================================================
+   CRITICAL: ALWAYS include the section TITLE, not just the number!
+   ==============================================================================
+
+   WRONG: "2" or "5" or "8" (bare numbers are almost never correct)
+   RIGHT: "2: Background", "5: Specification", "8: Pricing Requirements"
+
+   HOW TO EXTRACT:
+   1. Find the section number (e.g., "2", "5.1", "A")
+   2. Look for the title text that follows or precedes it in the document
+   3. Combine as "NUMBER: TITLE"
+
+   Examples:
+   • Document says "2. Background Information" → extract "2: Background Information"
+   • Document says "Section 5 - SPECIFICATION" → extract "5: SPECIFICATION"
+   • Document says "PART III: Requirements" → extract "III: Requirements"
+   • Document says "A25 Pricing" → extract "A25: Pricing"
+   • Document says just "3" with truly no title anywhere → extract "3" (rare exception)
+
+   PRIORITY: Always try to include the title. A bare number like "2" is ONLY
+   acceptable if there is truly no title anywhere near that section in the document.
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
 ==============================================================================
@@ -828,8 +838,8 @@ export async function extractRequirements(documentText: string): Promise<Extract
       requirements: (parsed.requirements || []).map((req: ExtractedRequirement) => ({
         ...req,
         type: validateRequirementType(req.type),
-        // Use LLM-provided domain context or fallback to heuristic detection
-        domainContext: validateDomainContext(req.domainContext) || detectDomainContext(req.text),
+        // Always use heuristic detection for domain context (more reliable than LLM)
+        domainContext: detectDomainContext(req.text),
         wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
         characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
         isAttestation: req.isAttestation === true, // Default to false if not specified

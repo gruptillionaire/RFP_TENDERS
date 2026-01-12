@@ -395,7 +395,7 @@ const RequirementRow = React.memo(function RequirementRow({
             <div className="space-y-4">
               <div>
                 <h4 className="font-medium mb-2">Full Requirement</h4>
-                <p className="text-gray-700 bg-white p-3 rounded border">
+                <p className="text-gray-700 bg-white p-3 rounded border break-words whitespace-pre-wrap">
                   {req.text}
                 </p>
               </div>
