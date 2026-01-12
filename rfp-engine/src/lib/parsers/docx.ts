@@ -39,37 +39,87 @@ export async function parseDOCX(buffer: Buffer): Promise<string> {
 }
 
 /**
+ * Check if a string looks like a section number (e.g., "3", "3.", "A", "A1", "II")
+ */
+function looksLikeSectionNumber(text: string): boolean {
+  const trimmed = text.trim();
+  // Match patterns like: "3", "3.", "A", "A1", "A.1", "II", "II.", "Part 1", etc.
+  return /^(Part\s+)?\d+\.?$|^[A-Z]\.?$|^[A-Z]\d+\.?$|^[IVXLC]+\.?$/i.test(trimmed);
+}
+
+/**
+ * Check if a string looks like a section title (has letters, not just numbers)
+ */
+function looksLikeSectionTitle(text: string): boolean {
+  const trimmed = text.trim();
+  // Must have at least some letters and be more than just a number
+  return trimmed.length > 0 && /[a-zA-Z]{2,}/.test(trimmed) && !looksLikeSectionNumber(trimmed);
+}
+
+/**
  * Convert HTML to structured text that preserves table relationships.
  * Tables are converted to a clear format where each row shows column relationships.
+ *
+ * IMPORTANT: Merges consecutive headings where the first is a section number
+ * and the second is the section title (common in Word documents).
  */
 function htmlToStructuredText(html: string): string {
   const $ = cheerio.load(html);
   const output: string[] = [];
 
-  // Process all top-level elements in order
-  $("body")
-    .children()
-    .each((_, element) => {
-      const $el = $(element);
-      const tagName = element.tagName?.toLowerCase();
+  // Collect all children first so we can look ahead
+  const children = $("body").children().toArray();
 
-      if (tagName === "table") {
-        output.push(processTable($, $el));
-      } else if (tagName === "ul" || tagName === "ol") {
-        output.push(processList($, $el, tagName === "ol"));
-      } else if (tagName?.match(/^h[1-6]$/)) {
-        // Preserve heading structure
-        const level = parseInt(tagName[1]);
-        const prefix = "#".repeat(level);
-        output.push(`\n${prefix} ${$el.text().trim()}\n`);
-      } else {
-        // Regular paragraph or other element
-        const text = $el.text().trim();
-        if (text) {
-          output.push(text);
+  let i = 0;
+  while (i < children.length) {
+    const element = children[i];
+    const $el = $(element);
+    const tagName = element.tagName?.toLowerCase();
+
+    if (tagName === "table") {
+      output.push(processTable($, $el));
+      i++;
+    } else if (tagName === "ul" || tagName === "ol") {
+      output.push(processList($, $el, tagName === "ol"));
+      i++;
+    } else if (tagName?.match(/^h[1-6]$/)) {
+      // Check if this heading is just a section number
+      const currentText = $el.text().trim();
+      const level = parseInt(tagName[1]);
+      const prefix = "#".repeat(level);
+
+      // Look ahead to see if next element is also a heading with a title
+      if (looksLikeSectionNumber(currentText) && i + 1 < children.length) {
+        const nextElement = children[i + 1];
+        const nextTagName = nextElement.tagName?.toLowerCase();
+
+        // Check if next element is also a heading
+        if (nextTagName?.match(/^h[1-6]$/)) {
+          const nextText = $(nextElement).text().trim();
+
+          // If next heading looks like a title, merge them
+          if (looksLikeSectionTitle(nextText)) {
+            // Merge: "3" + "COMPANY BACKGROUND" = "3: COMPANY BACKGROUND"
+            const mergedText = `${currentText.replace(/\.$/, '')}: ${nextText}`;
+            output.push(`\n${prefix} ${mergedText}\n`);
+            i += 2; // Skip both elements
+            continue;
+          }
         }
       }
-    });
+
+      // No merge needed, output as normal
+      output.push(`\n${prefix} ${currentText}\n`);
+      i++;
+    } else {
+      // Regular paragraph or other element
+      const text = $el.text().trim();
+      if (text) {
+        output.push(text);
+      }
+      i++;
+    }
+  }
 
   // Clean up excessive whitespace while preserving structure
   return output
