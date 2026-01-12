@@ -174,6 +174,12 @@ CRITICAL INSTRUCTIONS:
   * Never truncate at the preamble - always include the actual question being asked
   * If there's a word count limit mentioned (e.g., "Maximum word count 2,500"), include that in the extracted text
   * The "text" field must contain everything the responder needs to understand and answer the requirement
+- TABLE FORMAT: Documents may contain structured tables in this format:
+  * [TABLE START] / [TABLE END] markers indicate table boundaries
+  * [HEADER] indicates column headers
+  * [ROW N] indicates data rows
+  * [Col N] indicates column values
+  * When extracting from tables, combine relevant columns into a coherent requirement (e.g., if Col 1 is "Ref" and Col 2 is "Requirement", combine them logically)
 - Do not summarize or paraphrase - extract the actual text from the document
 - Classify EVERY requirement with the most appropriate type
 - When uncertain between types, default to DESCRIPTIVE`;
