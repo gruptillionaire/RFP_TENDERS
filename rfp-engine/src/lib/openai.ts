@@ -152,7 +152,7 @@ Return your response as a JSON object with this structure:
   "deadlineText": "Original deadline text from document (e.g., '5pm Friday 14 February 2025') or null",
   "requirements": [
     {
-      "text": "The exact requirement or question text",
+      "text": "The COMPLETE requirement text including context, numbered questions, and word limits. Example: if document says 'We have a budget of £150k. 1. Does your total come in under this? (Max 2500 words)' then text should be 'We have a budget of £150k. 1. Does your total come in under this? (Max 2500 words)' - never truncate to just the first sentence.",
       "isMandatory": true/false,
       "section": "Full section reference (e.g., 'A25', 'B2.4', 'Section 3.1.2') or descriptive name, or null",
       "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING",
@@ -168,6 +168,12 @@ CRITICAL INSTRUCTIONS:
 - DEADLINE: Search the ENTIRE document for submission deadline. Look for: "submit by", "due date", "deadline", "responses due", "closing date", "must be received by". Extract the most specific deadline found.
 - Be thorough - extract ALL questions, requirements, deliverables, and compliance items
 - Include direct questions, mandatory requirements, deliverables, timelines, compliance requirements, technical specifications, and pricing requirements
+- COMPLETE TEXT EXTRACTION (CRITICAL):
+  * Extract the ENTIRE requirement text, including ALL parts
+  * If a paragraph introduces context followed by a numbered question (e.g., "1. Does your..."), include BOTH the context AND the question
+  * Never truncate at the preamble - always include the actual question being asked
+  * If there's a word count limit mentioned (e.g., "Maximum word count 2,500"), include that in the extracted text
+  * The "text" field must contain everything the responder needs to understand and answer the requirement
 - Do not summarize or paraphrase - extract the actual text from the document
 - Classify EVERY requirement with the most appropriate type
 - When uncertain between types, default to DESCRIPTIVE`;
@@ -220,7 +226,13 @@ ANTI-OVERCLAIMING RULES (CRITICAL - LEGAL RISK):
 - End capability claims with: "Specific configurations to be confirmed during discovery."
 - For integrations, say "supports integration with" NOT "integrates with"
 - For compliance, say "designed to support compliance with" NOT "complies with" or "certified"
-- NEVER make claims about specific SLAs, uptime, or performance metrics without placeholders`;
+- NEVER make claims about specific SLAs, uptime, or performance metrics without placeholders
+
+FORMATTING RULES (PROFESSIONAL RFP STANDARDS):
+- NEVER use markdown table syntax (| characters, --- separators)
+- Use bullet points (•) or simple lists instead of tables
+- Keep formatting clean and professional - no excessive symbols
+- Responses will be copy-pasted into formal documents, so avoid any formatting that looks amateur`;
 
 const DRAFT_PROMPTS: Record<RequirementType, string> = {
   CONTEXTUAL: "", // No draft needed for contextual requirements
@@ -358,22 +370,41 @@ CRITICAL: NEVER wrap response in quotation marks. For samples, be CONCISE.`,
   QUANTITATIVE: `${DRAFT_PROMPT_BASE}
 
 FOR THIS QUANTITATIVE REQUIREMENT:
-- Present data in structured table format where appropriate
-- Include clear headers and units
-- Add assumptions and disclaimers for estimates
+
+FIRST, DETERMINE THE TYPE:
+1. SIMPLE YES/NO QUESTION - asks if pricing/budget meets a threshold (e.g., "Does your total come in under £X?")
+2. DETAILED BREAKDOWN REQUEST - asks for itemized pricing, metrics, or numerical data
+
+FOR SIMPLE YES/NO QUESTIONS:
+- Provide a direct confirmation in 2-3 sentences
+- State the compliance position clearly
+- Do NOT create tables or elaborate pricing breakdowns
+- Add a placeholder for the actual figure if needed
+
+EXAMPLE (simple yes/no):
+[COMPANY NAME] confirms that the proposed three-year total, inclusive of VAT, falls within the stated budget of £150,000. The total contract value is £[CONFIRM FIGURE WITH FINANCE TEAM], which includes the initial two-year contract and the additional extension year.
+
+FOR DETAILED BREAKDOWN REQUESTS:
+- Use clear prose with bullet points, NOT markdown tables
+- Never use | or - characters to create tables (these look unprofessional)
+- Present pricing as a simple itemized list
+- Include assumptions as a separate paragraph
 - Flag items requiring finance/pricing team review
 
-EXAMPLE FORMAT:
-[COMPANY NAME] provides the following [pricing/metrics]:
+EXAMPLE (detailed breakdown):
+[COMPANY NAME] proposes the following pricing structure:
 
-| Item | Value | Notes |
-|------|-------|-------|
-| [ITEM] | [VALUE] | [NOTES] |
+• Initial two-year contract: £[AMOUNT]
+• Extension year (Year 3): £[AMOUNT]
+• Total three-year cost (inclusive of VAT): £[AMOUNT]
 
-Assumptions: [LIST KEY ASSUMPTIONS]
+These figures are based on the following assumptions:
+• [ASSUMPTION 1]
+• [ASSUMPTION 2]
+
 [CONFIRM all figures with finance team before submission]
 
-CRITICAL: NEVER wrap response in quotation marks.`,
+CRITICAL: NEVER use markdown table syntax (| or ---). NEVER wrap response in quotation marks.`,
 
   REFERENCE_BASED: `${DRAFT_PROMPT_BASE}
 
@@ -609,6 +640,37 @@ function normalizeBulletFormatting(draft: string): string {
 }
 
 // =============================================================================
+// POST-PROCESSING: REMOVE MARKDOWN TABLES
+// =============================================================================
+function removeMarkdownTables(draft: string): string {
+  let result = draft;
+
+  // Remove table header separator lines (|---|---|---)
+  result = result.replace(/^\|[-:\s|]+\|$/gm, '');
+
+  // Convert table rows to bullet points
+  // Match lines that start and end with | and have content between
+  result = result.replace(/^\|(.+)\|$/gm, (match, content) => {
+    // Split by | and filter empty cells
+    const cells = content.split('|').map((c: string) => c.trim()).filter((c: string) => c);
+    if (cells.length === 0) return '';
+    // Convert to bullet point with key-value pairs
+    if (cells.length === 1) return `• ${cells[0]}`;
+    if (cells.length === 2) return `• ${cells[0]}: ${cells[1]}`;
+    return `• ${cells.join(' - ')}`;
+  });
+
+  // Clean up any stray | characters at line starts/ends
+  result = result.replace(/^\s*\|\s*/gm, '');
+  result = result.replace(/\s*\|\s*$/gm, '');
+
+  // Clean up excessive newlines left by removed table separators
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result;
+}
+
+// =============================================================================
 // DRAFT GENERATION FUNCTION
 // =============================================================================
 export interface GenerateDraftResult {
@@ -667,10 +729,11 @@ export async function generateDraft(
     throw new Error("No response from OpenAI");
   }
 
-  // Post-processing: Remove fluff phrases and apply guardrails
+  // Post-processing: Remove fluff phrases, apply guardrails, clean formatting
   content = removeFluff(content);
   content = applyGuardrails(content);
   content = applyDomainRules(content, domainContext);
+  content = removeMarkdownTables(content);
   content = normalizeBulletFormatting(content);
 
   // Add [DRAFT] tag to indicate this needs review
