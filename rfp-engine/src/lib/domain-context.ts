@@ -10,19 +10,27 @@ export type DomainContext = "FEATURE" | "PROCESS" | "LEGAL";
 // DOMAIN DETECTION KEYWORDS
 // =============================================================================
 
+// Note: Use word boundary matching to avoid false positives (e.g., "database" matching "data")
 const LEGAL_KEYWORDS = [
-  "data", "regulation", "compliance", "GDPR", "privacy", "terms",
+  // Removed generic "data" - causes false positives with "database", "updating"
+  // Removed "SLA" - better handled by QUANTITATIVE requirement type
+  "regulation", "compliance", "GDPR", "privacy", "terms",
   "liability", "security", "certification", "audit", "ISO", "SOC",
   "HIPAA", "PCI", "breach", "incident", "retention", "deletion",
-  "processor", "controller", "DPA", "SLA", "indemnity", "warranty",
-  "confidential", "NDA", "contract", "agreement", "legal", "policy"
+  "processor", "controller", "DPA", "indemnity", "warranty",
+  "confidential", "NDA", "contract", "agreement", "legal", "policy",
+  // Added more specific legal terms
+  "indemnification", "governing law", "jurisdiction", "subprocessor",
+  "data protection", "data processing", "personal data"
 ];
 
 const PROCESS_KEYWORDS = [
   "how", "process", "approach", "steps", "methodology", "procedure",
   "workflow", "timeline", "phase", "stage", "onboarding", "implementation",
   "migration", "transition", "training", "support", "escalation",
-  "deployment", "rollout", "project", "plan", "schedule"
+  "deployment", "rollout", "project", "plan", "schedule",
+  // Added more process terms
+  "documentation", "testing", "acceptance", "deliverable"
 ];
 
 // =============================================================================
@@ -30,27 +38,35 @@ const PROCESS_KEYWORDS = [
 // =============================================================================
 
 /**
+ * Check if a keyword matches in text using word boundaries
+ * This prevents "database" from matching "data", etc.
+ */
+function keywordMatches(text: string, keyword: string): boolean {
+  // For multi-word keywords (e.g., "data protection"), use simple includes
+  if (keyword.includes(" ")) {
+    return text.includes(keyword.toLowerCase());
+  }
+  // For single-word keywords, use word boundary matching
+  const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+  return regex.test(text);
+}
+
+/**
  * Detect the domain context of a requirement using heuristic keyword matching
  * Legal takes precedence due to risk, then Process, then Feature (default)
  */
 export function detectDomainContext(requirementText: string): DomainContext {
   const text = requirementText.toLowerCase();
-  const words = text.split(/\s+/);
 
-  // Count keyword matches
-  const legalScore = LEGAL_KEYWORDS.filter(kw =>
-    words.some(word => word.includes(kw.toLowerCase()))
-  ).length;
+  // Count keyword matches using word boundary matching
+  const legalScore = LEGAL_KEYWORDS.filter(kw => keywordMatches(text, kw)).length;
+  const processScore = PROCESS_KEYWORDS.filter(kw => keywordMatches(text, kw)).length;
 
-  const processScore = PROCESS_KEYWORDS.filter(kw =>
-    words.some(word => word.includes(kw.toLowerCase()))
-  ).length;
+  // Legal takes precedence (higher risk) - increased threshold to 3
+  if (legalScore >= 3) return "LEGAL";
 
-  // Legal takes precedence (higher risk)
-  if (legalScore >= 2) return "LEGAL";
-
-  // Process if keywords match or starts with "how"
-  if (processScore >= 2 || text.startsWith("how ") || text.includes("how do") || text.includes("how would")) {
+  // Process if keywords match or starts with "how" - increased threshold to 3
+  if (processScore >= 3 || text.startsWith("how ") || text.includes("how do") || text.includes("how would")) {
     return "PROCESS";
   }
 

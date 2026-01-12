@@ -126,6 +126,23 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
      • Provides project background information
      • "Clarifications may be submitted to...", "Questions should be directed to..."
 
+  E. BUYER REQUIREMENTS/EXPECTATIONS (ALWAYS CONTEXTUAL):
+     • "We require [X]" - declarative statement of need
+     • "We need [X]" - organizational requirement
+     • "We are looking for [X]" - procurement intention
+     • "We expect [capability]" - buyer's expectation
+     • "The selected/chosen provider should/will/is expected to [have/offer/provide]..."
+     • "Our requirements include..."
+     • "Requirements for [X]: [capability list]"
+
+     THE ACID TEST: Is the RFP TELLING the bidder what the buyer wants?
+     → If BUYER DECLARING needs (no question mark) → CONTEXTUAL
+     → If ASKING BIDDER to explain/describe → NOT CONTEXTUAL
+
+     CRITICAL: Mentioning capabilities in a buyer's needs statement does NOT make it DESCRIPTIVE.
+     - "We require omnichannel tools" → CONTEXTUAL (buyer stating their requirement)
+     - "Describe your omnichannel tools" → DESCRIPTIVE (asking bidder to explain)
+
   ==============================================================================
   CRITICAL: CONTEXTUAL vs DECLARATIVE - Common Confusion Points
   ==============================================================================
@@ -146,6 +163,26 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   DECLARATIVE asks you to WRITE something (confirm, state, declare, answer yes/no).
 
   ==============================================================================
+  CRITICAL: CONTEXTUAL vs DESCRIPTIVE - WHO IS THE SUBJECT?
+  ==============================================================================
+  This is the #1 misclassification source for buyer requirements.
+
+  CONTEXTUAL (buyer stating needs - NO response needed):
+  • "We require a fixed ESP to provide X features"
+  • "The organization expects Y capability"
+  • "Our needs include Z functionality"
+  • "The chosen provider is expected to offer robust tools"
+
+  DESCRIPTIVE (asking bidder to explain - RESPONSE needed):
+  • "Describe your ESP features"
+  • "Explain how you provide X capability"
+  • "How do you deliver Y functionality?"
+
+  The key: WHO is the subject doing the describing/providing?
+  - BUYER describing THEIR needs → CONTEXTUAL (background, no response)
+  - BIDDER describing THEIR solution → DESCRIPTIVE (response required)
+
+  ==============================================================================
 
   NOT CONTEXTUAL (these require written responses - use other types):
   ✗ "Describe your approach to..." → DESCRIPTIVE
@@ -164,6 +201,9 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   • "RFP Respondents shall ensure that all information is supplied" → CONTEXTUAL (process instruction)
   • "RFP submissions shall include a signed copy of the Form of Tender. If not provided you will be excluded." → CONTEXTUAL (process instruction with warning)
   • "Respondents seeking clarifications may do so in writing" → CONTEXTUAL (process)
+  • "We require a fixed, permanent ESP to cover the next three years." → CONTEXTUAL (buyer requirement)
+  • "The chosen provider is expected to offer a robust set of omnichannel marketing tools." → CONTEXTUAL (buyer expectation)
+  • "We are looking for a solution that integrates with our existing systems." → CONTEXTUAL (buyer need)
 
 ■ DESCRIPTIVE
   INDICATORS (classify as DESCRIPTIVE if ANY apply):
@@ -209,6 +249,9 @@ CONTEXTUAL (no written response needed) - Check for these patterns FIRST:
   ✓ Contains "submissions/responses shall include [document]" → CONTEXTUAL (instruction)
   ✓ Background paragraph about the organization → CONTEXTUAL
   ✓ Deadline statement without a question → CONTEXTUAL
+  ✓ Contains "We require/need/are looking for [X]" (buyer stating needs, no question mark) → CONTEXTUAL
+  ✓ Contains "The [selected/chosen] provider is expected to..." → CONTEXTUAL (buyer expectation)
+  ✓ Subject is BUYER describing their requirements (not asking bidder to explain) → CONTEXTUAL
 
 If ANY of the above match → classify as CONTEXTUAL and STOP.
 
@@ -778,17 +821,25 @@ function applyGuardrails(draft: string): string {
 }
 
 // =============================================================================
-// POST-PROCESSING: BULLET POINT FORMATTING
+// POST-PROCESSING: FINAL NEWLINE NORMALIZER
 // =============================================================================
-function normalizeBulletFormatting(draft: string): string {
+// This is the single final normalizer - consolidates all newline handling
+function normalizeNewlines(draft: string): string {
   let result = draft;
-  // Ensure newline before first bullet after non-bullet text
-  result = result.replace(/([^\n•\-\*])[ \t]*([•\-\*])/g, '$1\n\n$2');
-  // Ensure newline after last bullet line before new paragraph
-  result = result.replace(/([•\-\*][^\n]+\n)([A-Z])/g, '$1\n$2');
-  // Clean excessive newlines
+
+  // Ensure consistent blank line before bullet lists (when preceded by non-bullet text)
+  result = result.replace(/([^\n•\-\*])[ \t]*\n?([•\-\*])/g, '$1\n\n$2');
+
+  // Ensure consistent blank line after bullet lists before new paragraph (capital letter)
+  result = result.replace(/([•\-\*][^\n]+)\n([A-Z])/g, '$1\n\n$2');
+
+  // Collapse 3+ newlines to exactly 2 (one blank line)
   result = result.replace(/\n{3,}/g, '\n\n');
-  return result;
+
+  // Clean up any trailing whitespace on lines
+  result = result.replace(/[ \t]+$/gm, '');
+
+  return result.trim();
 }
 
 // =============================================================================
@@ -886,11 +937,12 @@ export async function generateDraft(
   content = applyGuardrails(content);
   content = applyDomainRules(content, domainContext);
   content = removeMarkdownTables(content);
-  content = normalizeBulletFormatting(content);
+  // Final normalizer - consolidates all newline handling
+  content = normalizeNewlines(content);
 
-  // Add [DRAFT] tag to indicate this needs review
+  // Add [DRAFT] tag with consistent spacing (single blank line before tag)
   return {
-    draft: content.trim() + "\n\n[DRAFT]",
+    draft: content + "\n\n[DRAFT]",
     requiresReview: DOMAIN_RULES[domainContext].requiresManualReview,
   };
 }
