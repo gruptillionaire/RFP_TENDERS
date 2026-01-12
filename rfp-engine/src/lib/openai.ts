@@ -24,11 +24,79 @@ export const EXTRACTION_PROMPT = `You are an expert at analyzing RFP (Request fo
 
 For each item extracted, identify:
 1. The exact text of the requirement or question
-2. Whether it is MANDATORY or OPTIONAL - use these rules:
-   - DEFAULT to isMandatory: false (most requirements are optional unless explicitly stated)
-   - Set isMandatory: true ONLY if the text contains explicit mandatory language: "must", "shall", "required", "mandatory", "essential", "critical"
-   - Set isMandatory: false if the text contains optional language: "should", "may", "can", "could", "preferred", "desirable", "optional", "recommended", "if possible", "where applicable"
-   - When unclear, default to isMandatory: false
+2. Whether it is MANDATORY or OPTIONAL - use these rules IN ORDER:
+
+   ==============================================================================
+   MANDATORY/OPTIONAL CLASSIFICATION (CHECK IN THIS ORDER - FIRST MATCH WINS)
+   ==============================================================================
+
+   === STEP 1: CHECK FOR EXPLICIT OPTIONAL SIGNALS ===
+   Set isMandatory: false ONLY IF the text contains EXPLICIT optional language:
+   - "optional", "if desired", "if applicable", "where applicable"
+   - "at your discretion", "you may choose to", "not required"
+   - "bonus points", "nice to have", "desirable but not essential"
+   - "preferred but not mandatory", "encouraged but not required"
+   - "you may include" (permissive language, not consequence)
+
+   If ANY of these are present → isMandatory: false, STOP.
+
+   === STEP 2: CHECK FOR WARNING/CONSEQUENCE PATTERNS ===
+   Set isMandatory: true IF the text contains consequence warnings:
+   - "Failure to [X] may/will result in..."
+   - "Failure to [X] may render [submission/response] invalid"
+   - "If not [provided/submitted/included], [consequence]..."
+   - "Non-compliance with [X] may/will result in..."
+   - "Proposals/submissions that do not [X] will be [rejected/disqualified]"
+   - "Incomplete [submissions/responses] may be [rejected/not considered]"
+
+   WARNING PATTERNS OVERRIDE "should" and "may" - these are MANDATORY.
+   If ANY warning pattern is present → isMandatory: true, STOP.
+
+   === STEP 3: CHECK FOR STRONG MANDATORY SIGNALS ===
+   Set isMandatory: true IF the text contains:
+   - "must", "shall", "required", "mandatory", "essential", "critical", "obligatory"
+   - "will" as commitment: "Respondents will provide...", "Proposals will include..."
+   - "are required to", "is required", "must be provided", "shall include"
+
+   If ANY of these are present → isMandatory: true, STOP.
+
+   === STEP 4: CHECK FOR STRUCTURAL MANDATORY SIGNALS ===
+   Set isMandatory: true IF the text contains:
+   - Word/character limits: "maximum X words", "X word limit", "not to exceed X"
+   - Direct questions (contains "?") requesting specific information
+   - Request language: "Please provide...", "Describe your...", "Explain your...",
+     "State your...", "Outline your...", "Detail your..."
+
+   If ANY structural signal is present → isMandatory: true, STOP.
+
+   === STEP 5: CONTEXT-AWARE "should" INTERPRETATION ===
+   "should" in RFP context is typically a POLITE IMPERATIVE (mandatory):
+
+   "should" is MANDATORY when:
+   - Requests specific information: "should state", "should provide", "should describe"
+   - Precedes deadline/action: "should notify by", "should submit by"
+   - Describes expected content: "should include", "should address"
+   - No explicit optional alternative is provided
+
+   "should" is OPTIONAL only when:
+   - Paired with optional language: "should, if possible, include"
+   - Alternative provided: "should do X, but may do Y instead"
+   - Explicit preference: "Ideally, respondents should..."
+
+   If "should" is present without optional context → isMandatory: true
+
+   === STEP 6: DEFAULT TO MANDATORY ===
+   If none of the above rules determined classification:
+   → isMandatory: true (DEFAULT)
+
+   RATIONALE: In professional RFPs, all questions and requirements expect a response.
+   Optional items are the EXCEPTION and are explicitly marked as such.
+
+   CONTEXT FOR "may":
+   - "you may include additional..." = OPTIONAL (permission)
+   - "failure to X may result in Y" = MANDATORY (consequence warning)
+   - "respondents may" without consequence = OPTIONAL (permission)
+   - Always check the full sentence context for "may"
 3. The FULL section reference (extract the complete identifier):
    - Look for: "A1", "A25", "B2.4", "Section 3.1.2", "1.2.3", "Part II.A", "Q15", etc.
    - Include the full alphanumeric reference (e.g., "A25" not just "A")
