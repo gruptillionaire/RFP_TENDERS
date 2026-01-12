@@ -38,17 +38,32 @@ For each item extracted, identify:
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
 REQUIREMENT TYPES:
-- CONTEXTUAL: Background information, context-setting statements that do NOT require a response
+- CONTEXTUAL: Background information, context-setting statements, OR RFP process instructions that do NOT require a written response in the submission
   INDICATORS - classify as CONTEXTUAL if ANY of these apply:
   • Describes what the organization does or who they are
   • States facts about the RFP issuer (location, size, history)
   • Provides background context without asking for anything
   • No implied action, question, or requirement
   • Introductory paragraphs explaining the RFP purpose
-  Examples: "The Treasurer of X County is soliciting proposals for...", "ABC Organization serves 50,000 customers annually", "This RFP is issued to obtain competitive bids for..."
+  • INSTRUCTIONS ABOUT THE RFP PROCESS ITSELF:
+    - Submission deadlines, methods, formats, or addresses ("submit by email by...", "responses due by...")
+    - Instructions for seeking clarifications ("respondents seeking clarifications may...")
+    - Notification requirements about intent to submit ("notify of your intention to submit")
+    - Warnings about non-compliance with RFP procedures ("failure to provide may render invalid", "late submissions will not be accepted")
+    - Any "RFP respondents shall/should" statement about the PROCESS (not about your product/service)
+  Examples:
+  - "The Treasurer of X County is soliciting proposals for..."
+  - "ABC Organization serves 50,000 customers annually"
+  - "This RFP is issued to obtain competitive bids for..."
+  - "RFP Responses should be submitted by email by 12:00pm on Friday 14 February 2020"
+  - "Respondents seeking clarifications may do so in writing by [date]"
+  - "You should notify of your intention to make a submission by [date]"
+  - "Failure to provide all information may render the RFP invalid"
+  - "RFP Respondents shall ensure that all information requested in this document is supplied" (this is a PROCESS instruction, not a question requiring an answer)
 
-- PROCEDURAL: Simple confirmations, acknowledgments, deadlines, administrative requirements
-  Examples: "Confirm receipt of this RFP", "Submit by [date]", "Sign attached form", "Provide contact details", "Responses should be submitted by email by..."
+- PROCEDURAL: Simple confirmations or acknowledgments that DO require a brief written response
+  NOTE: If the statement is just telling you HOW/WHEN to submit (no response needed), use CONTEXTUAL instead
+  Examples: "Confirm receipt of this RFP", "Sign attached form", "Provide contact details"
 
 - DECLARATIVE: Compliance statements requiring a clear yes/no with brief justification
   Examples: "The vendor must comply with ISO 27001", "Confirm you accept the terms", "State your data protection policy", "Ensure all information requested is supplied"
@@ -100,16 +115,22 @@ REQUIREMENT TYPES:
   Examples: "Identify key personnel", "Provide team qualifications", "Describe your project team"
 
 CLASSIFICATION PRIORITY (FIRST MATCH WINS):
-1. If NO action/response required, just background info → CONTEXTUAL
-2. If asks to attach/include/submit/upload a sample, copy, or document → EVIDENCE_BASED
-3. If asks for certificates/evidence/proof/documentation → EVIDENCE_BASED
-4. If asks for pricing, costs, fees, SLAs, numerical data → QUANTITATIVE
-5. If asks for references, past performance, client contacts → REFERENCE_BASED
-6. If asks for team, personnel, staff, qualifications → STAFFING
-7. If contains 3+ comma-separated items OR asks for detailed explanation → DESCRIPTIVE
-8. If yes/no compliance question with brief justification → DECLARATIVE
-9. If administrative/deadline/submission → PROCEDURAL
-10. When uncertain → DESCRIPTIVE
+1. If about RFP PROCESS (submission deadlines, how/where to submit, clarification procedures,
+   notification requirements, compliance warnings about the RFP itself) → CONTEXTUAL
+2. If NO action/response required in the submission, just background info → CONTEXTUAL
+3. If asks to attach/include/submit/upload a sample, copy, or document → EVIDENCE_BASED
+4. If asks for certificates/evidence/proof/documentation → EVIDENCE_BASED
+5. If asks for pricing, costs, fees, SLAs, numerical data → QUANTITATIVE
+6. If asks for references, past performance, client contacts → REFERENCE_BASED
+7. If asks for team, personnel, staff, qualifications → STAFFING
+8. If contains 3+ comma-separated items OR asks for detailed explanation → DESCRIPTIVE
+9. If yes/no compliance question with brief justification → DECLARATIVE
+10. If requires simple confirmation/acknowledgment in the response → PROCEDURAL
+11. When uncertain → DESCRIPTIVE
+
+KEY DISTINCTION:
+- "Submit your response by [date]" → CONTEXTUAL (instruction about HOW to respond, no written answer needed)
+- "Confirm you can meet the [date] deadline" → DECLARATIVE (question requiring a YES answer in submission)
 
 5. The DOMAIN CONTEXT - classify into ONE of these domains:
 
