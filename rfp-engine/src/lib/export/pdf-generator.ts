@@ -343,9 +343,9 @@ async function generateComplianceMatrixPdf(
   // Table configuration - adjusted widths for A4
   const tableColumns: TableColumn[] = [
     { width: 25, header: "#" },
-    { width: 70, header: "Section" },
+    { width: 80, header: "Section" },
     { width: 170, header: "Requirement" },
-    { width: 220, header: "Response" },
+    { width: 210, header: "Response" },
   ];
 
   const headerHeight = 22;
@@ -497,6 +497,14 @@ function calculateRowHeight(
   padding: number,
   companyName: string | null
 ): number {
+  // Calculate wrapped lines for each column that can have variable content
+  const sectionLines = wrapText(
+    req.section || "-",
+    fonts.regular,
+    PDF_CONFIG.FONT_SIZE_SMALL,
+    columns[1].width - padding * 2
+  );
+
   const reqLines = wrapText(
     req.text + (req.isMandatory ? " *" : ""),
     fonts.regular,
@@ -511,7 +519,7 @@ function calculateRowHeight(
     columns[3].width - padding * 2
   );
 
-  const maxLines = Math.max(reqLines.length, answerLines.length, 1);
+  const maxLines = Math.max(sectionLines.length, reqLines.length, answerLines.length, 1);
   return Math.max(maxLines * PDF_CONFIG.LINE_HEIGHT + padding * 2, 24);
 }
 
