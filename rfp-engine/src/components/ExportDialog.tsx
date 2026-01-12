@@ -343,43 +343,8 @@ export function ExportDialog({
               </div>
             )}
 
-            {/* New Export Section */}
+            {/* Warnings Section */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Create New Export</h3>
-
-              {/* Format Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Format</label>
-                <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="docx">Microsoft Word (.docx)</SelectItem>
-                    <SelectItem value="pdf">PDF (.pdf)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Template Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Template</label>
-                <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="compliance-matrix">Compliance Matrix (Table)</SelectItem>
-                    <SelectItem value="qa-format">Question & Answer</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500">
-                  {template === "compliance-matrix"
-                    ? "Table format with requirement, response, and status columns."
-                    : "Q&A format grouped by section."}
-                </p>
-              </div>
-
               {/* Warning if blockers exist */}
               {scanResult?.hasBlockers && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -441,23 +406,48 @@ export function ExportDialog({
           </div>
         )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
+        <DialogFooter className="flex-col sm:flex-row gap-4">
+          {/* Format/Template selection in footer for visibility */}
           {!showBlockers && !isLoading && (
-            <>
-              {scanResult?.hasBlockers ? (
-                <Button onClick={() => handleExport(true)} disabled={isExporting}>
-                  {isExporting ? "Exporting..." : "Export as Draft (Watermarked)"}
-                </Button>
-              ) : (
-                <Button onClick={() => handleExport(false)} disabled={isExporting}>
-                  {isExporting ? "Exporting..." : "Export"}
-                </Button>
-              )}
-            </>
+            <div className="flex gap-2 flex-1 mr-auto">
+              <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="docx">Word (.docx)</SelectItem>
+                  <SelectItem value="pdf">PDF (.pdf)</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compliance-matrix">Compliance Matrix</SelectItem>
+                  <SelectItem value="qa-format">Q&A Format</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            {!showBlockers && !isLoading && (
+              <>
+                {scanResult?.hasBlockers ? (
+                  <Button onClick={() => handleExport(true)} disabled={isExporting}>
+                    {isExporting ? "Exporting..." : "Export Draft"}
+                  </Button>
+                ) : (
+                  <Button onClick={() => handleExport(false)} disabled={isExporting}>
+                    {isExporting ? "Exporting..." : "Export"}
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
