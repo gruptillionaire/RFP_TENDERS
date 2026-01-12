@@ -42,18 +42,40 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
 ==============================================================================
 
 ■ QUANTITATIVE
-  TRIGGER KEYWORDS (if ANY present, strongly consider QUANTITATIVE):
-  £, $, €, price, pricing, cost, costing, budget, fee, rate, quote, tender sum,
-  total, TCO, ROI, SLA, uptime, %, percent, percentage, capacity, volume,
-  quantity, metric, measurement, KPI, target, threshold, benchmark
+  ==============================================================================
+  ACID TEST: Is the PRIMARY PURPOSE to obtain ACTUAL NUMBERS (prices, %, values)?
+  → If YES (asking for specific prices, costs, percentages) → QUANTITATIVE
+  → If NO (numbers are incidental, or asking about process/compliance) → Other type
+  ==============================================================================
 
-  USE WHEN: Requirement involves money, pricing, numerical targets, or measurable SLAs
-  INCLUDES: Yes/no questions about pricing (e.g., "Does your total come in under £X?")
-  Examples:
-  • "Provide detailed pricing breakdown" → QUANTITATIVE
-  • "Does your three-year total come in under £150k?" → QUANTITATIVE (pricing question)
-  • "What is your system uptime SLA?" → QUANTITATIVE
-  • "List your performance metrics" → QUANTITATIVE
+  STRICT TRIGGER KEYWORDS (MUST contain at least one):
+  £, $, €, ¥, price, pricing, cost, costing, fee, fees, rate, rates,
+  budget, tender sum, quote, quotation, TCO, ROI,
+  %, percent, percentage
+
+  STRONG INDICATORS (phrases that signal QUANTITATIVE):
+  • "what is the cost", "provide pricing", "your fees for"
+  • "what percentage", "how much" (when asking for specific numbers)
+  • "provide figures", "provide numbers", "breakdown of costs"
+  • Currency amounts or % values being requested
+
+  USE WHEN: Asking for ACTUAL PRICES, COSTS, PERCENTAGES, or NUMERIC VALUES
+
+  Examples - QUANTITATIVE:
+  • "Provide detailed pricing breakdown" → QUANTITATIVE (asks for prices)
+  • "What is your cost per user per month?" → QUANTITATIVE (specific cost)
+  • "What percentage uptime do you guarantee?" → QUANTITATIVE (asks for %)
+  • "Does your three-year total come in under £150k?" → QUANTITATIVE (pricing)
+
+  ==============================================================================
+  NOT QUANTITATIVE - Common False Positives (use correct type instead):
+  ==============================================================================
+  • "Describe your approach to metrics" → DESCRIPTIVE (asks HOW, not values)
+  • "How do you measure success?" → DESCRIPTIVE (asks for explanation)
+  • "Do you comply with SLA requirements?" → DECLARATIVE (compliance question)
+  • "Provide 3 client references" → REFERENCE_BASED (count is incidental)
+  • "How many FTEs will be dedicated?" → STAFFING (personnel question)
+  • "What are your key performance indicators?" → DESCRIPTIVE (asks to describe)
 
 ■ EVIDENCE_BASED
   TRIGGER KEYWORDS (if ANY present, strongly consider EVIDENCE_BASED):
@@ -256,14 +278,21 @@ CONTEXTUAL (no written response needed) - Check for these patterns FIRST:
 If ANY of the above match → classify as CONTEXTUAL and STOP.
 
 >>> STEP 2: IF NOT CONTEXTUAL, check other types in order <<<
+
+IMPORTANT: Check subject-specific types BEFORE generic ones to avoid false positives!
+
 3. EVIDENCE_BASED: Asks to attach/include/submit/upload a file, sample, or document
-4. QUANTITATIVE: Contains £/$, pricing, cost, budget, fee, SLA, %, or numerical metrics
-5. REFERENCE_BASED: Asks for references, past performance, client contacts
-6. STAFFING: Asks for team, personnel, staff, qualifications, CVs
-7. DESCRIPTIVE: Contains "describe/explain/outline" or lists 3+ items to address
-8. DECLARATIVE: Yes/no compliance question (NOT about pricing - that's QUANTITATIVE)
+4. REFERENCE_BASED: Asks for references, past performance, client contacts, case studies
+5. STAFFING: Asks for team, personnel, staff, qualifications, CVs, FTEs
+6. DESCRIPTIVE: Contains "describe/explain/outline/how do you" or lists items to address
+7. QUANTITATIVE: Asks for ACTUAL PRICES, COSTS, PERCENTAGES (strict - must have £/$/%/pricing terms)
+8. DECLARATIVE: Yes/no compliance question (about policy/status, NOT pricing)
 9. PROCEDURAL: Simple confirmation or acknowledgment needed
 10. Default → DESCRIPTIVE
+
+NOTE: QUANTITATIVE is intentionally AFTER DESCRIPTIVE because questions like
+"Describe your metrics" should be DESCRIPTIVE, not QUANTITATIVE. Only use
+QUANTITATIVE when asking for ACTUAL NUMBERS (prices, costs, percentages).
 
 ==============================================================================
 CRITICAL: CONTEXTUAL vs DECLARATIVE - The "shall/should" Trap
