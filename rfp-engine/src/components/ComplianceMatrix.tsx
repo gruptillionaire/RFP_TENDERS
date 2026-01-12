@@ -265,6 +265,7 @@ const RequirementRow = React.memo(function RequirementRow({
   return (
     <React.Fragment>
       <TableRow
+        id={`requirement-${req.id}`}
         data-req-id={req.id}
         className="cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={handleRowClick}
