@@ -64,25 +64,6 @@ export default function Home() {
           <p className="text-sm text-gray-500 mt-4">Plans from £39/month.</p>
         </div>
 
-        {/* Pain Points */}
-        <section className="mt-24 max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold text-center mb-8">Sound Familiar?</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-5 rounded-lg bg-red-50 border border-red-100">
-              <div className="text-red-600 font-medium mb-2">Hours wasted</div>
-              <p className="text-sm text-gray-600">Manually reading through 50+ page RFPs to find every requirement buried in dense text.</p>
-            </div>
-            <div className="p-5 rounded-lg bg-red-50 border border-red-100">
-              <div className="text-red-600 font-medium mb-2">Missed requirements</div>
-              <p className="text-sm text-gray-600">Discovering you missed a mandatory requirement after submission—instant disqualification.</p>
-            </div>
-            <div className="p-5 rounded-lg bg-red-50 border border-red-100">
-              <div className="text-red-600 font-medium mb-2">Starting from scratch</div>
-              <p className="text-sm text-gray-600">Rewriting similar answers for every bid instead of reusing your best responses.</p>
-            </div>
-          </div>
-        </section>
-
         {/* Features */}
         <section id="features" className="mt-32">
           <h2 className="text-3xl font-bold text-center mb-4">How RFP Engine Works</h2>
@@ -133,8 +114,7 @@ export default function Home() {
 
         {/* Pricing */}
         <section id="pricing" className="mt-32">
-          <h2 className="text-3xl font-bold text-center mb-4">Simple, Transparent Pricing</h2>
-          <p className="text-gray-600 text-center mb-12">Choose the plan that fits your bid volume. No hidden fees.</p>
+          <h2 className="text-3xl font-bold text-center mb-12">Pricing</h2>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {/* Solo */}
@@ -335,10 +315,7 @@ export default function Home() {
 
         {/* Final CTA */}
         <section className="mt-32 text-center p-12 bg-blue-50 rounded-2xl">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Ready to win more bids?
-          </h2>
-          <p className="mt-4 text-gray-600 max-w-xl mx-auto">
+          <p className="text-xl text-gray-700 max-w-xl mx-auto">
             Join SMEs who are responding to RFPs faster and never missing a requirement.
           </p>
           <div className="mt-8">
