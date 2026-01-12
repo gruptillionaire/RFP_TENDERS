@@ -51,6 +51,13 @@ function keywordMatches(text: string, keyword: string): boolean {
   return regex.test(text);
 }
 
+// Strong legal terms that trigger LEGAL domain with just 1 match
+// These are highly specific legal/compliance terms
+const STRONG_LEGAL_TERMS = [
+  "GDPR", "HIPAA", "PCI", "DPA", "NDA", "indemnity", "indemnification",
+  "liability", "subprocessor", "data controller", "data processor"
+];
+
 /**
  * Detect the domain context of a requirement using heuristic keyword matching
  * Legal takes precedence due to risk, then Process, then Feature (default)
@@ -58,14 +65,20 @@ function keywordMatches(text: string, keyword: string): boolean {
 export function detectDomainContext(requirementText: string): DomainContext {
   const text = requirementText.toLowerCase();
 
+  // STEP 1: Check for strong legal terms first (single match = LEGAL)
+  // These are highly specific legal/compliance terms
+  if (STRONG_LEGAL_TERMS.some(term => keywordMatches(text, term))) {
+    return "LEGAL";
+  }
+
   // Count keyword matches using word boundary matching
   const legalScore = LEGAL_KEYWORDS.filter(kw => keywordMatches(text, kw)).length;
   const processScore = PROCESS_KEYWORDS.filter(kw => keywordMatches(text, kw)).length;
 
-  // Legal takes precedence (higher risk) - increased threshold to 3
-  if (legalScore >= 3) return "LEGAL";
+  // STEP 2: Legal with 2+ keywords (lowered from 3 - legal terms are specific)
+  if (legalScore >= 2) return "LEGAL";
 
-  // Process if keywords match or starts with "how" - increased threshold to 3
+  // STEP 3: Process if keywords match or starts with "how"
   if (processScore >= 3 || text.startsWith("how ") || text.includes("how do") || text.includes("how would")) {
     return "PROCESS";
   }

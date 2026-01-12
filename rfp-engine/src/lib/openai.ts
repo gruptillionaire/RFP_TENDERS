@@ -97,12 +97,18 @@ For each item extracted, identify:
    - "failure to X may result in Y" = MANDATORY (consequence warning)
    - "respondents may" without consequence = OPTIONAL (permission)
    - Always check the full sentence context for "may"
-3. The FULL section reference (extract the complete identifier):
-   - Look for: "A1", "A25", "B2.4", "Section 3.1.2", "1.2.3", "Part II.A", "Q15", etc.
-   - Include the full alphanumeric reference (e.g., "A25" not just "A")
-   - Include sub-section numbers (e.g., "3.1.2" not just "3")
-   - Preserve exact format from document (e.g., "II.B.3", "Appendix A.2")
-   - If no section identifier, use descriptive name (e.g., "Introduction", "Technical Requirements")
+3. The FULL section reference WITH TITLE (extract number AND descriptive name):
+   - IMPORTANT: Extract BOTH the section number AND its title when available
+   - Examples of what to extract:
+     • "2: Specification" (not just "2")
+     • "5. SPECIFICATION" → extract as "5: SPECIFICATION"
+     • "Section 3.1 Technical Requirements" → extract as "3.1: Technical Requirements"
+     • "Part II.A - Service Delivery" → extract as "II.A: Service Delivery"
+     • "A25" (if no title nearby, just the identifier is fine)
+   - If section has a number/letter followed by descriptive text, capture BOTH
+   - Format as "NUMBER: TITLE" (e.g., "5: Specification", "3.1: Technical Requirements")
+   - If only a number exists with no title nearby, use just the number
+   - If no section identifier at all, use descriptive name (e.g., "Introduction")
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
 ==============================================================================

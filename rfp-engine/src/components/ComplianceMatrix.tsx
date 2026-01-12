@@ -277,7 +277,7 @@ const RequirementRow = React.memo(function RequirementRow({
         <TableCell className="font-medium">{index + 1}</TableCell>
         <TableCell>
           <div className="max-w-xl">
-            <p className="line-clamp-2 text-ellipsis overflow-hidden">{req.text}</p>
+            <p className="line-clamp-2 text-ellipsis overflow-hidden break-words">{req.text}</p>
             {req.text.length > 100 && (
               <span className="text-xs text-blue-500 mt-1 inline-block">
                 (click to expand)

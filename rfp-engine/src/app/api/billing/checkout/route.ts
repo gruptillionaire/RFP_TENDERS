@@ -70,8 +70,9 @@ export async function POST(request: NextRequest) {
 
     const planConfig = PLAN_CONFIG[plan as PlanType];
     if (!planConfig.priceId) {
+      console.error(`Missing Stripe price ID for plan: ${plan}. Set STRIPE_${plan}_PRICE_ID environment variable.`);
       return NextResponse.json(
-        { error: "Price not configured for this plan." },
+        { error: `The ${plan} plan is not configured yet. Please contact support.` },
         { status: 500 }
       );
     }

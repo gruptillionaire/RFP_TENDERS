@@ -37,6 +37,18 @@ export default async function DashboardPage() {
     },
   });
 
+  // Auto-recovery: Fix projects marked FAILED that actually have requirements
+  // This can happen when user navigates away during extraction but extraction succeeded
+  for (const project of projects) {
+    if (project.status === "FAILED" && project._count.requirements > 0) {
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { status: "READY" },
+      });
+      project.status = "READY"; // Update local state too
+    }
+  }
+
   const getProgressStats = (requirements: { status: string }[]) => {
     const total = requirements.length;
     const answered = requirements.filter((r) => r.status === "ANSWERED").length;
@@ -130,9 +142,11 @@ export default async function DashboardPage() {
               </div>
             </div>
             {quota.remaining === 0 && (
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                Upgrade Plan
-              </Button>
+              <Link href="/pricing">
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                  Upgrade Plan
+                </Button>
+              </Link>
             )}
           </div>
         </div>

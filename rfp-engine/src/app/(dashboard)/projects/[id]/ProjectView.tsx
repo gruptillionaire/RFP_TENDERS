@@ -75,6 +75,19 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       if (notesSaveTimeoutRef.current) clearTimeout(notesSaveTimeoutRef.current);
     };
   }, []);
+
+  // Warn user if they try to navigate away while extraction is in progress
+  useEffect(() => {
+    if (project.status === "PROCESSING") {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "Extraction is still in progress. Are you sure you want to leave?";
+        return e.returnValue;
+      };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
+  }, [project.status]);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(initialProject.name);
   const [isRenamingSaving, setIsRenamingSaving] = useState(false);

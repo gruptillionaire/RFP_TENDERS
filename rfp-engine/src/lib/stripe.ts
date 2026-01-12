@@ -30,6 +30,13 @@ export { getStripeClient };
 
 // Plan configuration with price IDs
 // IMPORTANT: These must match your Stripe Dashboard price IDs
+// Warn if price IDs are not configured (only in development)
+if (process.env.NODE_ENV === "development") {
+  if (!process.env.STRIPE_SOLO_PRICE_ID) console.warn("Warning: STRIPE_SOLO_PRICE_ID not set - checkout will fail for Solo plan");
+  if (!process.env.STRIPE_PRO_PRICE_ID) console.warn("Warning: STRIPE_PRO_PRICE_ID not set - checkout will fail for Pro plan");
+  if (!process.env.STRIPE_TEAM_PRICE_ID) console.warn("Warning: STRIPE_TEAM_PRICE_ID not set - checkout will fail for Team plan");
+}
+
 export const PLAN_CONFIG = {
   SOLO: {
     name: "Solo",
