@@ -267,7 +267,11 @@ const RequirementRow = React.memo(function RequirementRow({
       <TableRow
         id={`requirement-${req.id}`}
         data-req-id={req.id}
-        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        className={`cursor-pointer hover:bg-gray-50 transition-colors ${
+          req.isAttestation && req.complianceStatus === "NON_COMPLIANT" && req.isMandatory
+            ? "bg-red-50"
+            : ""
+        }`}
         onClick={handleRowClick}
       >
         <TableCell className="font-medium">{index + 1}</TableCell>
