@@ -91,25 +91,79 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   • "Describe your project manager's qualifications" → STAFFING
 
 ■ CONTEXTUAL
-  STRONG SIGNALS (classify as CONTEXTUAL if ANY match):
-  • Statement is ABOUT the RFP process, NOT asking for proposal content
-  • Contains: "RFP respondents shall/should/must" + process verb (submit, notify, ensure, comply)
-  • Contains: "failure to [process action] may/will result in"
-  • Contains: "deadline", "by [date]", "due by" without asking a question
-  • Contains: "clarifications may be submitted", "questions should be directed"
-  • Does NOT ask "do you", "can you", "will you", "describe", "explain", "provide"
-  • Provides background about the issuing organization (not a question)
-  • Introductory paragraphs explaining the RFP purpose
+  ==============================================================================
+  ACID TEST: Does this require a WRITTEN RESPONSE in the proposal?
+  → If NO written response is needed in the proposal document → CONTEXTUAL
+  → If YES a written answer/statement is needed → NOT CONTEXTUAL (use another type)
+  ==============================================================================
 
-  USE WHEN: No written response needed in the submission - just background or process instructions
-  Examples:
-  • "The Treasurer of X County is soliciting proposals for..." → CONTEXTUAL
-  • "ABC Organization serves 50,000 customers annually" → CONTEXTUAL
-  • "RFP Responses should be submitted by email by 12:00pm Friday" → CONTEXTUAL
-  • "You should notify of your intention to make a submission by [date]" → CONTEXTUAL
-  • "Failure to provide all information may render the RFP invalid" → CONTEXTUAL
+  MANDATORY CONTEXTUAL - These patterns are ALWAYS CONTEXTUAL regardless of other signals:
+
+  A. CONSEQUENCE/WARNING PATTERNS (ALWAYS CONTEXTUAL):
+     • "Failure to [verb] may/will result in..."
+     • "Failure to [verb] may render [the RFP/submission/response] invalid..."
+     • "If not [provided/submitted/included], you will/may be [excluded/disqualified/eliminated]..."
+     • "Non-compliance with [X] may result in..."
+     These are WARNING STATEMENTS about process rules, NOT questions requiring answers.
+
+  B. PROCESS INSTRUCTION PATTERNS (ALWAYS CONTEXTUAL):
+     • "You should/shall/must [notify/submit/ensure/return/deliver/send/direct]..."
+     • "RFP [Respondents/Submissions] shall/should/must [process verb]..."
+     • "Respondents are [required/expected/advised] to [process action]..."
+     • "[Submissions/Responses] must be [delivered/received/sent/submitted] [by/to]..."
+     • "[Submissions/Responses] shall include [document X]" (instruction, not asking for content)
+     These TELL you what to do procedurally; they don't ask for written proposal content.
+
+  C. DEADLINE/TIMING INSTRUCTIONS (ALWAYS CONTEXTUAL when not asking a question):
+     • "[Action] by [date]" - e.g., "Submit by Friday 7 February"
+     • "Deadline for [X] is [date]"
+     • "Responses/Submissions due by..."
+     • "Notify us of your intention by [date]"
+
+  D. BACKGROUND/INTRODUCTORY CONTENT (ALWAYS CONTEXTUAL):
+     • Describes the issuing organization
+     • Explains purpose/scope of the RFP
+     • Provides project background information
+     • "Clarifications may be submitted to...", "Questions should be directed to..."
+
+  ==============================================================================
+  CRITICAL: CONTEXTUAL vs DECLARATIVE - Common Confusion Points
+  ==============================================================================
+
+  The word "shall" does NOT automatically mean DECLARATIVE. Look at the SUBJECT and VERB:
+
+  CONTEXTUAL (process instruction - no written response):
+  • "RFP submissions SHALL INCLUDE a signed Form of Tender" → Telling you what to include
+  • "Respondents SHALL ENSURE all information is supplied" → Telling you to do something
+  • "You SHOULD NOTIFY us by [date]" → Telling you to take an action
+
+  DECLARATIVE (asks for written statement - needs response):
+  • "CONFIRM you will include a signed Form of Tender" → Asking for confirmation statement
+  • "STATE whether you can ensure all information is supplied" → Asking for a statement
+  • "Will you notify us by [date]?" → Direct question requiring answer
+
+  THE DIFFERENCE: CONTEXTUAL uses imperative/instructive language telling you WHAT TO DO.
+  DECLARATIVE asks you to WRITE something (confirm, state, declare, answer yes/no).
+
+  ==============================================================================
+
+  NOT CONTEXTUAL (these require written responses - use other types):
+  ✗ "Describe your approach to..." → DESCRIPTIVE
+  ✗ "Confirm you will comply with..." → DECLARATIVE (asks for confirmation)
+  ✗ "Will you be able to...?" → DECLARATIVE (direct question)
+  ✗ "How do you ensure...?" → DESCRIPTIVE
+  ✗ "Provide evidence of..." → EVIDENCE_BASED
+  ✗ "State your policy on..." → DECLARATIVE
+
+  EXAMPLES - CONTEXTUAL:
+  • "The Treasurer of X County is soliciting proposals for..." → CONTEXTUAL (background)
+  • "ABC Organization serves 50,000 customers annually" → CONTEXTUAL (background)
+  • "RFP Responses should be submitted by email by 12:00pm Friday" → CONTEXTUAL (process)
+  • "You should notify of your intention to make a submission by [date]" → CONTEXTUAL (process)
+  • "Failure to provide all information may render the RFP invalid" → CONTEXTUAL (warning)
   • "RFP Respondents shall ensure that all information is supplied" → CONTEXTUAL (process instruction)
-  • "Respondents seeking clarifications may do so in writing" → CONTEXTUAL
+  • "RFP submissions shall include a signed copy of the Form of Tender. If not provided you will be excluded." → CONTEXTUAL (process instruction with warning)
+  • "Respondents seeking clarifications may do so in writing" → CONTEXTUAL (process)
 
 ■ DESCRIPTIVE
   INDICATORS (classify as DESCRIPTIVE if ANY apply):
@@ -142,33 +196,66 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   • "Provide your contact details" → PROCEDURAL
 
 ==============================================================================
-CLASSIFICATION PRIORITY (FIRST MATCH WINS)
+CLASSIFICATION PRIORITY (FIRST MATCH WINS - CHECK IN THIS ORDER)
 ==============================================================================
-1. CONTEXTUAL: About RFP PROCESS (deadlines, submission instructions, clarifications, warnings)
-2. CONTEXTUAL: Background info about issuer, no response required
+
+>>> STEP 1: CHECK FOR CONTEXTUAL FIRST (highest priority) <<<
+Ask: "Does this require the respondent to WRITE something in the proposal?"
+
+CONTEXTUAL (no written response needed) - Check for these patterns FIRST:
+  ✓ Contains "Failure to [X] may/will result in..." → CONTEXTUAL (warning)
+  ✓ Contains "If not [provided/included], [consequence]" → CONTEXTUAL (warning)
+  ✓ Contains "shall/should/must [notify/submit/ensure/include/deliver/send]" → CONTEXTUAL (process instruction)
+  ✓ Contains "submissions/responses shall include [document]" → CONTEXTUAL (instruction)
+  ✓ Background paragraph about the organization → CONTEXTUAL
+  ✓ Deadline statement without a question → CONTEXTUAL
+
+If ANY of the above match → classify as CONTEXTUAL and STOP.
+
+>>> STEP 2: IF NOT CONTEXTUAL, check other types in order <<<
 3. EVIDENCE_BASED: Asks to attach/include/submit/upload a file, sample, or document
 4. QUANTITATIVE: Contains £/$, pricing, cost, budget, fee, SLA, %, or numerical metrics
 5. REFERENCE_BASED: Asks for references, past performance, client contacts
 6. STAFFING: Asks for team, personnel, staff, qualifications, CVs
 7. DESCRIPTIVE: Contains "describe/explain/outline" or lists 3+ items to address
 8. DECLARATIVE: Yes/no compliance question (NOT about pricing - that's QUANTITATIVE)
-9. PROCEDURAL: Simple confirmation needed
+9. PROCEDURAL: Simple confirmation or acknowledgment needed
 10. Default → DESCRIPTIVE
 
 ==============================================================================
-CRITICAL: YES/NO QUESTIONS - Subject Matter Determines Type!
+CRITICAL: CONTEXTUAL vs DECLARATIVE - The "shall/should" Trap
+==============================================================================
+
+Many misclassifications occur because "shall" appears in both types. THE KEY IS:
+- Is it TELLING you to do something (process)? → CONTEXTUAL
+- Is it ASKING you to write/confirm something? → DECLARATIVE
+
+CONTEXTUAL (instructions - no written answer):
+• "RFP submissions shall include a signed Form of Tender" → Instruction
+• "Respondents shall ensure all information is supplied" → Instruction
+• "Failure to [X] may render the RFP invalid" → Warning
+• "You should notify us by [date]" → Instruction
+
+DECLARATIVE (questions - requires written answer):
+• "Confirm you will include a signed Form of Tender" → Asks for confirmation
+• "State whether you will ensure all information is supplied" → Asks for statement
+• "Do you agree to [terms]?" → Question
+• "Will you notify us by [date]?" → Question (note the question mark)
+
+==============================================================================
+YES/NO QUESTIONS - Subject Matter Determines Type
 ==============================================================================
 The question FORMAT (yes/no) does NOT determine the type. The SUBJECT determines type:
 
 • "Does your price come in under £150k?" → QUANTITATIVE (subject: pricing)
 • "Do you comply with ISO 27001?" → DECLARATIVE (subject: compliance status)
-• "Will you submit by the deadline?" → CONTEXTUAL (subject: RFP process)
+• "Will you submit by the deadline?" → DECLARATIVE (question requiring answer)
 • "Can you provide three references?" → REFERENCE_BASED (subject: references)
 • "Do you have certified project managers?" → STAFFING (subject: personnel)
 
-KEY DISTINCTION:
-• "Submit your response by [date]" → CONTEXTUAL (process instruction, no answer needed)
-• "Confirm you can meet the [date] deadline" → DECLARATIVE (question requiring YES answer)
+But STATEMENTS about process (not questions) are CONTEXTUAL:
+• "Submit your response by [date]" → CONTEXTUAL (instruction, no answer needed)
+• "Failure to submit by [date] will result in disqualification" → CONTEXTUAL (warning)
 
 5. The DOMAIN CONTEXT - classify into ONE of these domains:
 
