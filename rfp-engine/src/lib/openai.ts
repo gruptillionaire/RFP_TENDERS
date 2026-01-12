@@ -37,100 +37,138 @@ For each item extracted, identify:
    - If no section identifier, use descriptive name (e.g., "Introduction", "Technical Requirements")
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
-REQUIREMENT TYPES:
-- CONTEXTUAL: Background information, context-setting statements, OR RFP process instructions that do NOT require a written response in the submission
-  INDICATORS - classify as CONTEXTUAL if ANY of these apply:
-  • Describes what the organization does or who they are
-  • States facts about the RFP issuer (location, size, history)
-  • Provides background context without asking for anything
-  • No implied action, question, or requirement
-  • Introductory paragraphs explaining the RFP purpose
-  • INSTRUCTIONS ABOUT THE RFP PROCESS ITSELF:
-    - Submission deadlines, methods, formats, or addresses ("submit by email by...", "responses due by...")
-    - Instructions for seeking clarifications ("respondents seeking clarifications may...")
-    - Notification requirements about intent to submit ("notify of your intention to submit")
-    - Warnings about non-compliance with RFP procedures ("failure to provide may render invalid", "late submissions will not be accepted")
-    - Any "RFP respondents shall/should" statement about the PROCESS (not about your product/service)
+==============================================================================
+REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
+==============================================================================
+
+■ QUANTITATIVE
+  TRIGGER KEYWORDS (if ANY present, strongly consider QUANTITATIVE):
+  £, $, €, price, pricing, cost, costing, budget, fee, rate, quote, tender sum,
+  total, TCO, ROI, SLA, uptime, %, percent, percentage, capacity, volume,
+  quantity, metric, measurement, KPI, target, threshold, benchmark
+
+  USE WHEN: Requirement involves money, pricing, numerical targets, or measurable SLAs
+  INCLUDES: Yes/no questions about pricing (e.g., "Does your total come in under £X?")
   Examples:
-  - "The Treasurer of X County is soliciting proposals for..."
-  - "ABC Organization serves 50,000 customers annually"
-  - "This RFP is issued to obtain competitive bids for..."
-  - "RFP Responses should be submitted by email by 12:00pm on Friday 14 February 2020"
-  - "Respondents seeking clarifications may do so in writing by [date]"
-  - "You should notify of your intention to make a submission by [date]"
-  - "Failure to provide all information may render the RFP invalid"
-  - "RFP Respondents shall ensure that all information requested in this document is supplied" (this is a PROCESS instruction, not a question requiring an answer)
+  • "Provide detailed pricing breakdown" → QUANTITATIVE
+  • "Does your three-year total come in under £150k?" → QUANTITATIVE (pricing question)
+  • "What is your system uptime SLA?" → QUANTITATIVE
+  • "List your performance metrics" → QUANTITATIVE
 
-- PROCEDURAL: Simple confirmations or acknowledgments that DO require a brief written response
-  NOTE: If the statement is just telling you HOW/WHEN to submit (no response needed), use CONTEXTUAL instead
-  Examples: "Confirm receipt of this RFP", "Sign attached form", "Provide contact details"
+■ EVIDENCE_BASED
+  TRIGGER KEYWORDS (if ANY present, strongly consider EVIDENCE_BASED):
+  attach, attached, include, included, submit, upload, enclose, provide copy,
+  sample, example, specimen, mock-up, template, certificate, certification,
+  license, insurance, bond, evidence, proof, documentation, appendix
 
-- DECLARATIVE: Compliance statements requiring a clear yes/no with brief justification
-  Examples: "The vendor must comply with ISO 27001", "Confirm you accept the terms", "State your data protection policy", "Ensure all information requested is supplied"
+  USE WHEN: Response requires a FILE or ATTACHMENT, not just written text
+  Examples:
+  • "Include a sample monthly report" → EVIDENCE_BASED
+  • "Attach proof of insurance" → EVIDENCE_BASED
+  • "Provide copies of certifications" → EVIDENCE_BASED
 
-- DESCRIPTIVE: Detailed explanations requiring comprehensive response
-  INDICATORS - classify as DESCRIPTIVE if ANY of these apply:
+■ REFERENCE_BASED
+  TRIGGER KEYWORDS (if ANY present, strongly consider REFERENCE_BASED):
+  reference, references, past performance, similar project, previous client,
+  client contact, customer reference, case study, track record, experience with
+
+  USE WHEN: Asks for client contacts, project history, or verifiable references
+  Examples:
+  • "Provide 3 client references" → REFERENCE_BASED
+  • "Describe similar projects completed" → REFERENCE_BASED
+  • "List your experience with comparable implementations" → REFERENCE_BASED
+
+■ STAFFING
+  TRIGGER KEYWORDS (if ANY present, strongly consider STAFFING):
+  personnel, staff, team, resource, FTE, headcount, resume, CV, qualifications,
+  project manager, key personnel, roles, responsibilities, org chart, bio,
+  experience of staff, dedicated resource
+
+  USE WHEN: About team composition, individual qualifications, or personnel
+  Examples:
+  • "Identify key personnel for this project" → STAFFING
+  • "Provide CVs of proposed team members" → STAFFING
+  • "Describe your project manager's qualifications" → STAFFING
+
+■ CONTEXTUAL
+  STRONG SIGNALS (classify as CONTEXTUAL if ANY match):
+  • Statement is ABOUT the RFP process, NOT asking for proposal content
+  • Contains: "RFP respondents shall/should/must" + process verb (submit, notify, ensure, comply)
+  • Contains: "failure to [process action] may/will result in"
+  • Contains: "deadline", "by [date]", "due by" without asking a question
+  • Contains: "clarifications may be submitted", "questions should be directed"
+  • Does NOT ask "do you", "can you", "will you", "describe", "explain", "provide"
+  • Provides background about the issuing organization (not a question)
+  • Introductory paragraphs explaining the RFP purpose
+
+  USE WHEN: No written response needed in the submission - just background or process instructions
+  Examples:
+  • "The Treasurer of X County is soliciting proposals for..." → CONTEXTUAL
+  • "ABC Organization serves 50,000 customers annually" → CONTEXTUAL
+  • "RFP Responses should be submitted by email by 12:00pm Friday" → CONTEXTUAL
+  • "You should notify of your intention to make a submission by [date]" → CONTEXTUAL
+  • "Failure to provide all information may render the RFP invalid" → CONTEXTUAL
+  • "RFP Respondents shall ensure that all information is supplied" → CONTEXTUAL (process instruction)
+  • "Respondents seeking clarifications may do so in writing" → CONTEXTUAL
+
+■ DESCRIPTIVE
+  INDICATORS (classify as DESCRIPTIVE if ANY apply):
+  • Contains "describe", "explain", "outline", "detail", "elaborate", "discuss"
   • Contains a comma-separated list of 3+ features/capabilities to address
   • Starts with "Please provide information on..."
   • Asks about platform/system capabilities or features
-  • Requires listing or describing multiple items
   • Contains phrases like "ability to cover:", "capabilities for:", "support for:"
 
+  USE WHEN: Requires detailed written explanation, multiple items, or comprehensive response
   Examples:
-  • "Describe your approach to..."
-  • "Explain your methodology for..."
-  • "Provide details of your experience with..."
-  • "Please provide information on the platform's ability to cover: [list of items]"
-  • "Outline your proposed solution..."
-  • Any requirement listing multiple features/capabilities to address
+  • "Describe your approach to data migration" → DESCRIPTIVE
+  • "Explain your methodology for quality assurance" → DESCRIPTIVE
+  • "Please provide information on the platform's ability to cover: X, Y, Z" → DESCRIPTIVE
 
-- EVIDENCE_BASED: Requirements asking for attachments, samples, copies, or documentation
-  STRONG INDICATORS - classify as EVIDENCE_BASED if ANY:
-  • Contains: "sample", "example", "specimen", "mock-up", "template"
-  • Contains: "attach", "include", "submit", "upload", "enclose", "provide copy"
-  • Contains: "certificate", "certification", "license", "insurance", "bond"
-  • Contains: "evidence", "proof", "documentation of"
-  • The response CANNOT be written - requires a FILE/ATTACHMENT
-  Examples: "Include a sample of the monthly report", "Attach proof of insurance", "Submit evidence of compliance"
+■ DECLARATIVE
+  USE WHEN: Simple yes/no compliance question about POLICIES or STATUS (not pricing!)
+  IMPORTANT: If the yes/no question is about PRICING → use QUANTITATIVE instead
+  Examples:
+  • "Do you comply with ISO 27001?" → DECLARATIVE (compliance status)
+  • "Confirm you accept the terms and conditions" → DECLARATIVE
+  • "State your data protection policy" → DECLARATIVE
 
-- QUANTITATIVE: Requirements asking for pricing, costs, metrics, SLAs, or numerical data
-  INDICATORS:
-  • Contains: "pricing", "cost", "price", "fee", "rate", "budget", "TCO", "ROI"
-  • Contains: "SLA", "uptime", "percentage", "capacity", "volume", "quantity", "metrics"
-  • Asks for numerical data, tables, or calculations
-  Examples: "Provide detailed pricing breakdown", "List your SLA commitments", "What is your system capacity?"
+■ PROCEDURAL
+  USE WHEN: Simple confirmation or acknowledgment that requires a brief response
+  NOTE: If telling you HOW/WHEN to submit (no response needed) → CONTEXTUAL instead
+  Examples:
+  • "Confirm receipt of this RFP" → PROCEDURAL
+  • "Sign the attached form" → PROCEDURAL
+  • "Provide your contact details" → PROCEDURAL
 
-- REFERENCE_BASED: Requirements asking for past performance, references, or client contacts
-  INDICATORS:
-  • Contains: "reference", "past performance", "similar project", "experience with"
-  • Contains: "client", "customer", "contact information", "project example"
-  • Asks for specific number of references
-  Examples: "Provide 3 client references", "Describe similar projects completed", "List relevant experience"
+==============================================================================
+CLASSIFICATION PRIORITY (FIRST MATCH WINS)
+==============================================================================
+1. CONTEXTUAL: About RFP PROCESS (deadlines, submission instructions, clarifications, warnings)
+2. CONTEXTUAL: Background info about issuer, no response required
+3. EVIDENCE_BASED: Asks to attach/include/submit/upload a file, sample, or document
+4. QUANTITATIVE: Contains £/$, pricing, cost, budget, fee, SLA, %, or numerical metrics
+5. REFERENCE_BASED: Asks for references, past performance, client contacts
+6. STAFFING: Asks for team, personnel, staff, qualifications, CVs
+7. DESCRIPTIVE: Contains "describe/explain/outline" or lists 3+ items to address
+8. DECLARATIVE: Yes/no compliance question (NOT about pricing - that's QUANTITATIVE)
+9. PROCEDURAL: Simple confirmation needed
+10. Default → DESCRIPTIVE
 
-- STAFFING: Requirements about team composition, personnel, or qualifications
-  INDICATORS:
-  • Contains: "personnel", "staff", "team", "resource", "FTE", "resume", "CV", "qualifications"
-  • Contains: "project manager", "key personnel", "roles", "responsibilities", "org chart"
-  • Asks for specific positions or skill requirements
-  Examples: "Identify key personnel", "Provide team qualifications", "Describe your project team"
+==============================================================================
+CRITICAL: YES/NO QUESTIONS - Subject Matter Determines Type!
+==============================================================================
+The question FORMAT (yes/no) does NOT determine the type. The SUBJECT determines type:
 
-CLASSIFICATION PRIORITY (FIRST MATCH WINS):
-1. If about RFP PROCESS (submission deadlines, how/where to submit, clarification procedures,
-   notification requirements, compliance warnings about the RFP itself) → CONTEXTUAL
-2. If NO action/response required in the submission, just background info → CONTEXTUAL
-3. If asks to attach/include/submit/upload a sample, copy, or document → EVIDENCE_BASED
-4. If asks for certificates/evidence/proof/documentation → EVIDENCE_BASED
-5. If asks for pricing, costs, fees, SLAs, numerical data → QUANTITATIVE
-6. If asks for references, past performance, client contacts → REFERENCE_BASED
-7. If asks for team, personnel, staff, qualifications → STAFFING
-8. If contains 3+ comma-separated items OR asks for detailed explanation → DESCRIPTIVE
-9. If yes/no compliance question with brief justification → DECLARATIVE
-10. If requires simple confirmation/acknowledgment in the response → PROCEDURAL
-11. When uncertain → DESCRIPTIVE
+• "Does your price come in under £150k?" → QUANTITATIVE (subject: pricing)
+• "Do you comply with ISO 27001?" → DECLARATIVE (subject: compliance status)
+• "Will you submit by the deadline?" → CONTEXTUAL (subject: RFP process)
+• "Can you provide three references?" → REFERENCE_BASED (subject: references)
+• "Do you have certified project managers?" → STAFFING (subject: personnel)
 
 KEY DISTINCTION:
-- "Submit your response by [date]" → CONTEXTUAL (instruction about HOW to respond, no written answer needed)
-- "Confirm you can meet the [date] deadline" → DECLARATIVE (question requiring a YES answer in submission)
+• "Submit your response by [date]" → CONTEXTUAL (process instruction, no answer needed)
+• "Confirm you can meet the [date] deadline" → DECLARATIVE (question requiring YES answer)
 
 5. The DOMAIN CONTEXT - classify into ONE of these domains:
 
@@ -787,7 +825,7 @@ function validateRequirementType(type: string): RequirementType {
   if (validTypes.includes(type as RequirementType)) {
     return type as RequirementType;
   }
-  return "DECLARATIVE"; // Default fallback
+  return "DESCRIPTIVE"; // Default fallback - matches "when uncertain → DESCRIPTIVE" guidance
 }
 
 function validateDomainContext(domain: string | undefined): DomainContext | null {
