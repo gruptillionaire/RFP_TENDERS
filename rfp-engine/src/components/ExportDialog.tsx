@@ -208,7 +208,7 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Export Project</DialogTitle>
           <DialogDescription>
@@ -408,13 +408,13 @@ export function ExportDialog({
           </div>
         )}
 
-        <DialogFooter className="flex-col sm:flex-row gap-4">
+        <DialogFooter className="flex-col gap-4">
           {/* Format/Template selection in footer for visibility */}
           {!showBlockers && !isLoading && (
-            <div className="flex flex-col gap-2 flex-1 mr-auto">
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-2 w-full">
+              <div className="flex flex-wrap gap-2">
                 <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[120px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -423,7 +423,7 @@ export function ExportDialog({
                   </SelectContent>
                 </Select>
                 <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
-                  <SelectTrigger className="w-[160px]">
+                  <SelectTrigger className="w-[150px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -439,7 +439,7 @@ export function ExportDialog({
               )}
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-end w-full">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
