@@ -82,7 +82,7 @@ export async function generateDocx(
 
 /**
  * Generate Compliance Matrix format document
- * Table with columns: #, Section, Requirement, Response, Status
+ * Table with columns: #, Section, Requirement, Response
  */
 async function generateComplianceMatrixDocx(
   requirements: RequirementForExport[],
@@ -97,8 +97,7 @@ async function generateComplianceMatrixDocx(
       createHeaderCell("#", 600),
       createHeaderCell("Section", 1200),
       createHeaderCell("Requirement", 4000),
-      createHeaderCell("Response", 4000),
-      createHeaderCell("Status", 1200),
+      createHeaderCell("Response", 5200),
     ],
   });
 
@@ -108,8 +107,7 @@ async function generateComplianceMatrixDocx(
         createDataCell(String(index + 1), 600),
         createDataCell(req.section || "-", 1200),
         createDataCell(req.text, 4000, req.isMandatory),
-        createDataCell(getResponseText(req, options.companyName), 4000),
-        createStatusCell(req.status, 1200),
+        createDataCell(getResponseText(req, options.companyName), 5200),
       ],
     })
   );
@@ -454,45 +452,6 @@ function createDataCell(
       }),
     ],
     width: { size: width, type: WidthType.DXA },
-    margins: { top: 80, bottom: 80, left: 100, right: 100 },
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
-      bottom: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
-      left: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
-      right: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
-    },
-  });
-}
-
-function createStatusCell(
-  status: "UNANSWERED" | "PARTIAL" | "ANSWERED",
-  width: number
-): TableCell {
-  const colors = {
-    ANSWERED: { bg: "DCFCE7", text: "166534" },
-    PARTIAL: { bg: "FEF3C7", text: "92400E" },
-    UNANSWERED: { bg: "F3F4F6", text: "6B7280" },
-  };
-
-  const color = colors[status];
-  const label = status.charAt(0) + status.slice(1).toLowerCase();
-
-  return new TableCell({
-    children: [
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: label,
-            size: 18,
-            color: color.text,
-            bold: true,
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-      }),
-    ],
-    width: { size: width, type: WidthType.DXA },
-    shading: { fill: color.bg },
     margins: { top: 80, bottom: 80, left: 100, right: 100 },
     borders: {
       top: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },

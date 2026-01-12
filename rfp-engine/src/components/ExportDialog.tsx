@@ -411,26 +411,32 @@ export function ExportDialog({
         <DialogFooter className="flex-col gap-4">
           {/* Format/Template selection in footer for visibility */}
           {!showBlockers && !isLoading && (
-            <div className="flex flex-col gap-2 w-full">
-              <div className="flex flex-wrap gap-2">
-                <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="docx">Word (.docx)</SelectItem>
-                    <SelectItem value="pdf">PDF (.pdf)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="compliance-matrix">Compliance Matrix</SelectItem>
-                    <SelectItem value="qa-format">Q&A Format</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-col gap-3 w-full">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600 whitespace-nowrap">File Type:</label>
+                  <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="docx">Word (.docx)</SelectItem>
+                      <SelectItem value="pdf">PDF (.pdf)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600 whitespace-nowrap">Format:</label>
+                  <Select value={template} onValueChange={(v) => setTemplate(v as ExportTemplate)}>
+                    <SelectTrigger className="w-[170px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compliance-matrix">Compliance Matrix</SelectItem>
+                      <SelectItem value="qa-format">Q&A Format</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               {contextualCount > 0 && (
                 <p className="text-xs text-gray-500">

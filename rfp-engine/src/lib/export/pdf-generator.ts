@@ -152,18 +152,6 @@ function wrapText(
   return lines.length > 0 ? lines : [""];
 }
 
-function getStatusColor(status: string): RGB {
-  switch (status) {
-    case "ANSWERED": return COLORS.STATUS_GREEN;
-    case "PARTIAL": return COLORS.STATUS_AMBER;
-    default: return COLORS.STATUS_GRAY;
-  }
-}
-
-function formatStatus(status: string): string {
-  return status.charAt(0) + status.slice(1).toLowerCase();
-}
-
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-GB", {
     day: "numeric",
@@ -356,9 +344,8 @@ async function generateComplianceMatrixPdf(
   const tableColumns: TableColumn[] = [
     { width: 25, header: "#" },
     { width: 70, header: "Section" },
-    { width: 160, header: "Requirement" },
-    { width: 170, header: "Response" },
-    { width: 60, header: "Status" },
+    { width: 170, header: "Requirement" },
+    { width: 220, header: "Response" },
   ];
 
   const headerHeight = 22;
@@ -559,7 +546,6 @@ function drawTableRow(
     req.section || "-",
     req.text + (req.isMandatory ? " *" : ""),
     getResponseText(req, companyName),
-    formatStatus(req.status),
   ];
 
   for (let i = 0; i < columns.length; i++) {
@@ -574,7 +560,7 @@ function drawTableRow(
         y: textY,
         size: PDF_CONFIG.FONT_SIZE_SMALL,
         font: fonts.regular,
-        color: i === 4 ? getStatusColor(req.status) : COLORS.TEXT_DARK,
+        color: COLORS.TEXT_DARK,
       });
       textY -= PDF_CONFIG.LINE_HEIGHT;
     }
@@ -656,27 +642,43 @@ function drawSectionHeader(pageManager: PDFPageManager, sectionName: string): vo
   const page = pageManager.getCurrentPage();
   const fonts = pageManager.getFonts();
   const x = pageManager.getLeftMargin();
+  const contentWidth = pageManager.getContentWidth();
 
   pageManager.moveDown(15);
 
-  page.drawText(sectionName, {
-    x,
-    y: pageManager.getY(),
-    size: PDF_CONFIG.FONT_SIZE_HEADING,
-    font: fonts.bold,
-    color: COLORS.TEXT_DARK,
-  });
+  // Wrap section name if too long
+  const sectionLines = wrapText(
+    sectionName,
+    fonts.bold,
+    PDF_CONFIG.FONT_SIZE_HEADING,
+    contentWidth
+  );
 
-  // Underline
-  const textWidth = fonts.bold.widthOfTextAtSize(sectionName, PDF_CONFIG.FONT_SIZE_HEADING);
+  // Draw each line of the section title
+  for (const line of sectionLines) {
+    page.drawText(line, {
+      x,
+      y: pageManager.getY(),
+      size: PDF_CONFIG.FONT_SIZE_HEADING,
+      font: fonts.bold,
+      color: COLORS.TEXT_DARK,
+    });
+    pageManager.moveDown(PDF_CONFIG.LINE_HEIGHT + 2);
+  }
+
+  // Underline (width of first line or full content width if wrapped)
+  const underlineWidth = sectionLines.length > 1
+    ? contentWidth
+    : fonts.bold.widthOfTextAtSize(sectionLines[0], PDF_CONFIG.FONT_SIZE_HEADING);
+
   page.drawLine({
-    start: { x, y: pageManager.getY() - 4 },
-    end: { x: x + textWidth, y: pageManager.getY() - 4 },
+    start: { x, y: pageManager.getY() + PDF_CONFIG.LINE_HEIGHT - 2 },
+    end: { x: x + underlineWidth, y: pageManager.getY() + PDF_CONFIG.LINE_HEIGHT - 2 },
     thickness: 1.5,
     color: COLORS.PRIMARY,
   });
 
-  pageManager.moveDown(22);
+  pageManager.moveDown(10);
 }
 
 function calculateQAHeight(
