@@ -679,18 +679,36 @@ export async function extractRequirements(documentText: string): Promise<Extract
       ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length]"
       : sanitizedText;
 
-  const response = await openai.chat.completions.create({
-    model: MODELS.EXTRACTION,
-    messages: [
-      { role: "system", content: EXTRACTION_PROMPT },
+  // Create abort controller for timeout (2 minutes)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+  let response;
+  try {
+    response = await openai.chat.completions.create(
       {
-        role: "user",
-        content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
+        model: MODELS.EXTRACTION,
+        messages: [
+          { role: "system", content: EXTRACTION_PROMPT },
+          {
+            role: "user",
+            content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
       },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.1,
-  });
+      { signal: controller.signal }
+    );
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error("Extraction timed out after 2 minutes. Try a smaller document.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
