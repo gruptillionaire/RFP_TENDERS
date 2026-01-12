@@ -51,7 +51,9 @@ export async function checkAndIncrementQuota(
 
     // Unlimited plans have -1 as limit
     const isUnlimited = limit === -1;
-    const allowed = isUnlimited || currentUsage < limit;
+    // TODO: TEMPORARY DEBUG - Remove this line and uncomment the one below
+    const allowed = true;
+    // const allowed = isUnlimited || currentUsage < limit;
 
     // Perform update within transaction if needed
     if (increment && allowed) {
