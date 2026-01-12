@@ -766,9 +766,9 @@ export function generateInsights(
     });
   }
 
-  // Check for pending attestations
+  // Check for pending attestations (only if not already answered)
   const pendingAttestations = requirements.filter(
-    r => r.isAttestation && r.complianceStatus === "PENDING"
+    r => r.isAttestation && r.complianceStatus === "PENDING" && r.status !== "ANSWERED"
   );
   if (pendingAttestations.length > 0) {
     insights.push({

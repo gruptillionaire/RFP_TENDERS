@@ -240,7 +240,7 @@ export function ActionableInsights({
                     {insight.requirementIds && insight.requirementIds.length > 0 && onRequirementClick && (
                       <button
                         onClick={() => onRequirementClick(insight.requirementIds![0])}
-                        className="text-xs text-blue-600 hover:underline mt-1"
+                        className="text-xs text-blue-600 hover:underline mt-1 cursor-pointer"
                       >
                         View {insight.count === 1 ? "item" : `${insight.count} items`}
                       </button>
