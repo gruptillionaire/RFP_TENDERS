@@ -39,12 +39,25 @@ export async function parseDOCX(buffer: Buffer): Promise<string> {
 }
 
 /**
- * Check if a string looks like a section number (e.g., "3", "3.", "A", "A1", "II")
+ * Check if a string looks like a section number
+ * Matches: "3", "3.", "3:", "3)", "Section 3", "A", "A1", "II", "3.1", "3.1.2"
  */
 function looksLikeSectionNumber(text: string): boolean {
   const trimmed = text.trim();
-  // Match patterns like: "3", "3.", "A", "A1", "A.1", "II", "II.", "Part 1", etc.
-  return /^(Part\s+)?\d+\.?$|^[A-Z]\.?$|^[A-Z]\d+\.?$|^[IVXLC]+\.?$/i.test(trimmed);
+
+  // Multi-part numbers like "3.1.2"
+  if (/^\d+(\.\d+)+[.:\)]*$/.test(trimmed)) return true;
+
+  // Simple numbers with optional punctuation: "3", "3.", "3:", "3)"
+  if (/^(Part\s+|Section\s+)?\d+[.:\)]*$/i.test(trimmed)) return true;
+
+  // Letters: "A", "A.", "A1", "A1."
+  if (/^[A-Z]\d*[.:\)]*$/i.test(trimmed)) return true;
+
+  // Roman numerals: "II", "II.", "IV"
+  if (/^[IVXLC]+[.:\)]*$/i.test(trimmed)) return true;
+
+  return false;
 }
 
 /**
@@ -88,23 +101,37 @@ function htmlToStructuredText(html: string): string {
       const level = parseInt(tagName[1]);
       const prefix = "#".repeat(level);
 
-      // Look ahead to see if next element is also a heading with a title
-      if (looksLikeSectionNumber(currentText) && i + 1 < children.length) {
-        const nextElement = children[i + 1];
-        const nextTagName = nextElement.tagName?.toLowerCase();
+      // Look ahead to find next heading, skipping empty elements
+      if (looksLikeSectionNumber(currentText)) {
+        let nextHeadingIdx = -1;
+        let nextText = "";
 
-        // Check if next element is also a heading
-        if (nextTagName?.match(/^h[1-6]$/)) {
-          const nextText = $(nextElement).text().trim();
+        // Scan up to 3 elements ahead (skip empty paragraphs)
+        for (let j = i + 1; j < Math.min(i + 4, children.length); j++) {
+          const nextEl = children[j];
+          const nextTag = nextEl.tagName?.toLowerCase();
 
-          // If next heading looks like a title, merge them
-          if (looksLikeSectionTitle(nextText)) {
-            // Merge: "3" + "COMPANY BACKGROUND" = "3: COMPANY BACKGROUND"
-            const mergedText = `${currentText.replace(/\.$/, '')}: ${nextText}`;
-            output.push(`\n${prefix} ${mergedText}\n`);
-            i += 2; // Skip both elements
-            continue;
+          // If we hit a non-empty non-heading, stop searching
+          if (!nextTag?.match(/^h[1-6]$/)) {
+            const txt = $(nextEl).text().trim();
+            if (txt) break; // Non-empty paragraph/other element - stop
+            continue; // Empty element - skip and continue
           }
+
+          // Found a heading - check if it's a title
+          nextText = $(nextEl).text().trim();
+          if (nextText && looksLikeSectionTitle(nextText)) {
+            nextHeadingIdx = j;
+            break;
+          }
+        }
+
+        if (nextHeadingIdx > -1) {
+          // Merge number and title (strip trailing punctuation from number)
+          const mergedText = `${currentText.replace(/[.:\)]+$/, '')}: ${nextText}`;
+          output.push(`\n${prefix} ${mergedText}\n`);
+          i = nextHeadingIdx + 1; // Skip all elements we processed
+          continue;
         }
       }
 

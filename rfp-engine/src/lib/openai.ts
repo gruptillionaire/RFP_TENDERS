@@ -779,6 +779,48 @@ export interface ExtractionResult {
 }
 
 // =============================================================================
+// POST-PROCESSING: SECTION TITLE ENRICHMENT
+// =============================================================================
+
+/**
+ * Post-process to fix bare section numbers by looking up titles from the document.
+ * When the LLM returns just "3" instead of "3: COMPANY BACKGROUND", this function
+ * finds the title from the structured document text and enriches the section field.
+ */
+function enrichSectionTitles(requirements: ExtractedRequirement[], documentText: string): void {
+  // Build a map of section numbers to their titles from the document
+  const sectionTitleMap = new Map<string, string>();
+
+  // Match patterns like "# 3: COMPANY BACKGROUND" or "## 5.1: SPECIFICATION"
+  // Also matches "# 3 COMPANY BACKGROUND" (space instead of colon)
+  const headingPattern = /#+\s*(\d+(?:\.\d+)*|[A-Z]\d*|[IVXLC]+)[.:\)]*(?:\s*[:\-]\s*|\s+)([A-Z][A-Za-z\s]+)/g;
+  let match;
+  while ((match = headingPattern.exec(documentText)) !== null) {
+    const num = match[1].replace(/[.:\)]+$/, '');
+    const title = match[2].trim();
+    if (title.length > 2) {
+      sectionTitleMap.set(num, title);
+    }
+  }
+
+  // Fix requirements with bare section numbers
+  for (const req of requirements) {
+    if (!req.section) continue;
+
+    const section = req.section.trim();
+
+    // Check if section is just a number (no title)
+    if (/^(\d+(?:\.\d+)*|[A-Z]\d*|[IVXLC]+)[.:\)]*$/i.test(section)) {
+      const numOnly = section.replace(/[.:\)]+$/, '');
+      const title = sectionTitleMap.get(numOnly);
+      if (title) {
+        req.section = `${numOnly}: ${title}`;
+      }
+    }
+  }
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 export async function extractRequirements(documentText: string): Promise<ExtractionResult> {
@@ -845,6 +887,9 @@ export async function extractRequirements(documentText: string): Promise<Extract
         isAttestation: req.isAttestation === true, // Default to false if not specified
       })),
     };
+
+    // Enrich bare section numbers with titles from document
+    enrichSectionTitles(result.requirements, documentText);
 
     return result;
   } catch {
