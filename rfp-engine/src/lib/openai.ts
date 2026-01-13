@@ -814,19 +814,26 @@ export interface ExtractionResult {
 function extractMajorCategory(section: string): string {
   const trimmed = section.trim();
 
-  // Pattern: "A.1.2" → "A"
-  const letterMatch = trimmed.match(/^([A-Z])\./i);
+  // Pattern: "A.1.2" or "A15" or "A-1" → "A" (letter followed by separator or number)
+  const letterMatch = trimmed.match(/^([A-Z])[.\-\d]/i);
   if (letterMatch) return letterMatch[1].toUpperCase();
 
-  // Pattern: "3.4.1" → "3"
+  // Pattern: "3.4.1" or "3 " → "3"
   const numericMatch = trimmed.match(/^(\d+)[.\s]/);
   if (numericMatch) return numericMatch[1];
 
-  // Pattern: "II.A" → "II"
-  const romanMatch = trimmed.match(/^([IVXLC]+)\./i);
+  // Pattern: "II.A" or "II-1" → "II"
+  const romanMatch = trimmed.match(/^([IVXLC]+)[.\-]/i);
   if (romanMatch) return romanMatch[1].toUpperCase();
 
-  // Fallback: return as-is (might be just "A" or "3")
+  // Pattern: Single letter "A" or number "3"
+  const singleMatch = trimmed.match(/^([A-Z]|\d+)$/i);
+  if (singleMatch) return singleMatch[1].toUpperCase();
+
+  // Fallback: extract first letter if starts with letter, else return as-is
+  const firstLetter = trimmed.match(/^([A-Z])/i);
+  if (firstLetter) return firstLetter[1].toUpperCase();
+
   return trimmed.replace(/[.:\)]+$/, '');
 }
 
