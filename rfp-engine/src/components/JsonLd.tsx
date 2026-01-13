@@ -14,7 +14,7 @@ export function JsonLd({ data }: JsonLdProps) {
 export const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "name": "RFP Engine",
+  "name": "RFP Matrix",
   "url": "https://rfpengine.com",
   "logo": "https://rfpengine.com/logo.png",
   "description": "AI-powered RFP and tender response management software",
@@ -24,7 +24,7 @@ export const organizationSchema = {
 export const softwareApplicationSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "RFP Engine",
+  "name": "RFP Matrix",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "offers": {
@@ -46,7 +46,7 @@ export const softwareApplicationSchema = {
 export const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "name": "RFP Engine",
+  "name": "RFP Matrix",
   "url": "https://rfpengine.com",
   "potentialAction": {
     "@type": "SearchAction",

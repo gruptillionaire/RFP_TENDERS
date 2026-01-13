@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy - RFP Engine",
-  description: "Cookie Policy for RFP Engine - Learn about the cookies we use.",
+  title: "Cookie Policy - RFP Matrix",
+  description: "Cookie Policy for RFP Matrix - Learn about the cookies we use.",
 };
 
 export default function CookiePolicyPage() {

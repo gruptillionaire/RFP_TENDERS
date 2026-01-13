@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { JsonLd, organizationSchema, softwareApplicationSchema } from "@/components/JsonLd";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "RFP Compliance Software for SMEs | Never Miss a Requirement",
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+  const isSignedIn = !!session?.user;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <JsonLd data={organizationSchema} />
@@ -19,18 +23,29 @@ export default function Home() {
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="font-bold text-xl">RFP Engine</div>
+          <div>
+            <div className="font-bold text-xl">RFP Matrix</div>
+            <div className="text-xs text-gray-500">Compliance-first RFP response planner</div>
+          </div>
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <Link href="#features" className="text-gray-600 hover:text-gray-900">Features</Link>
             <Link href="#pricing" className="text-gray-600 hover:text-gray-900">Pricing</Link>
           </nav>
           <div className="flex gap-4">
-            <Link href="/login">
-              <Button variant="ghost">Sign in</Button>
-            </Link>
-            <Link href="/signup">
-              <Button>Get Started</Button>
-            </Link>
+            {isSignedIn ? (
+              <Link href="/dashboard">
+                <Button>Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">Sign in</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button>Get Started</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -66,7 +81,7 @@ export default function Home() {
 
         {/* Features */}
         <section id="features" className="mt-32">
-          <h2 className="text-3xl font-bold text-center mb-4">How RFP Engine Works</h2>
+          <h2 className="text-3xl font-bold text-center mb-4">How RFP Matrix Works</h2>
           <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
             Three steps to complete compliance. No RFP expertise required.
           </p>
@@ -333,7 +348,8 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <div className="font-bold text-lg mb-4">RFP Engine</div>
+              <div className="font-bold text-lg mb-2">RFP Matrix</div>
+              <p className="text-xs text-gray-500 mb-2">Compliance-first RFP response planner</p>
               <p className="text-gray-600 text-sm">
                 AI-powered RFP and tender response management software.
               </p>
@@ -364,7 +380,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t pt-8 text-center text-gray-500 text-sm">
-            © {new Date().getFullYear()} RFP Engine. All rights reserved.
+            © {new Date().getFullYear()} RFP Matrix. All rights reserved.
           </div>
         </div>
       </footer>

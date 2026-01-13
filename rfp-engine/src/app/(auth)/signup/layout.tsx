@@ -2,7 +2,7 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Create Account",
-  description: "Create your RFP Engine account. Start responding to RFPs faster with AI-powered extraction and drafting tools.",
+  description: "Create your RFP Matrix account. Start responding to RFPs faster with AI-powered extraction and drafting tools.",
   alternates: {
     canonical: "/signup",
   },

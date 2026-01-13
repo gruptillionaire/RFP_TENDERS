@@ -63,7 +63,7 @@ export default async function DashboardPage() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-8">
             <Link href="/" className="font-bold text-xl">
-              RFP Engine
+              RFP Matrix
             </Link>
             <nav className="hidden sm:flex items-center gap-1">
               <Link

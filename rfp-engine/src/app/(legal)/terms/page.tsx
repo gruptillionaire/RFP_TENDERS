@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service - RFP Engine",
-  description: "Terms of Service for RFP Engine - Read our terms and conditions.",
+  title: "Terms of Service - RFP Matrix",
+  description: "Terms of Service for RFP Matrix - Read our terms and conditions.",
 };
 
 export default function TermsOfServicePage() {
@@ -19,11 +19,11 @@ export default function TermsOfServicePage() {
       <section>
         <h2>1. Acceptance of Terms</h2>
         <p>
-          By accessing or using RFP Engine (&quot;the Service&quot;), you agree to be bound by these
+          By accessing or using RFP Matrix (&quot;the Service&quot;), you agree to be bound by these
           Terms of Service (&quot;Terms&quot;). If you do not agree to these Terms, do not use the Service.
         </p>
         <p>
-          These Terms constitute a legally binding agreement between you and RFP Engine.
+          These Terms constitute a legally binding agreement between you and RFP Matrix.
           Please read them carefully.
         </p>
       </section>
@@ -31,7 +31,7 @@ export default function TermsOfServicePage() {
       <section>
         <h2>2. Service Description</h2>
         <p>
-          RFP Engine is a software-as-a-service (SaaS) platform that helps businesses manage
+          RFP Matrix is a software-as-a-service (SaaS) platform that helps businesses manage
           Request for Proposal (RFP) documents. Our Service includes:
         </p>
         <ul>
@@ -84,7 +84,7 @@ export default function TermsOfServicePage() {
         <h3>5.1 Our Property</h3>
         <p>
           The Service, including its design, code, features, and documentation, is owned by
-          RFP Engine and protected by intellectual property laws. You may not copy, modify,
+          RFP Matrix and protected by intellectual property laws. You may not copy, modify,
           or distribute any part of the Service without our written permission.
         </p>
 
@@ -129,7 +129,7 @@ export default function TermsOfServicePage() {
 
         <h3>7.1 Paid Subscriptions</h3>
         <p>
-          RFP Engine is a paid service. Access to core features requires an active subscription.
+          RFP Matrix is a paid service. Access to core features requires an active subscription.
           Subscriptions are billed in advance on a monthly or annual basis.
           Prices are subject to change with notice.
         </p>
@@ -209,7 +209,7 @@ export default function TermsOfServicePage() {
       <section>
         <h2>11. Indemnification</h2>
         <p>
-          You agree to indemnify and hold harmless RFP Engine and its employees, contractors,
+          You agree to indemnify and hold harmless RFP Matrix and its employees, contractors,
           and affiliates from any claims, damages, or expenses (including attorney&apos;s fees)
           arising from:
         </p>
@@ -270,7 +270,7 @@ export default function TermsOfServicePage() {
         <h2>14. Governing Law</h2>
         <p>
           These Terms shall be governed by and construed in accordance with the laws of
-          the jurisdiction in which RFP Engine is incorporated, without regard to
+          the jurisdiction in which RFP Matrix is incorporated, without regard to
           conflict of law principles.
         </p>
       </section>
@@ -304,7 +304,7 @@ export default function TermsOfServicePage() {
         <h2>17. Entire Agreement</h2>
         <p>
           These Terms, together with our Privacy Policy and any other policies referenced
-          herein, constitute the entire agreement between you and RFP Engine regarding
+          herein, constitute the entire agreement between you and RFP Matrix regarding
           the Service.
         </p>
       </section>

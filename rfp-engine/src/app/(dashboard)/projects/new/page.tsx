@@ -86,7 +86,7 @@ export default function NewProjectPage() {
       <header className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="font-bold text-xl">
-            RFP Engine
+            RFP Matrix
           </Link>
         </div>
       </header>

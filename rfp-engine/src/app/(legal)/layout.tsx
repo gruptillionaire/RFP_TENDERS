@@ -11,7 +11,7 @@ export default function LegalLayout({
       <header className="bg-white border-b">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold text-gray-900">
-            RFP Engine
+            RFP Matrix
           </Link>
           <nav className="flex gap-6 text-sm">
             <Link href="/privacy" className="text-gray-600 hover:text-gray-900">
@@ -58,7 +58,7 @@ export default function LegalLayout({
             </Link>
           </div>
           <p className="mt-4 text-sm text-gray-500">
-            &copy; {new Date().getFullYear()} RFP Engine. All rights reserved.
+            &copy; {new Date().getFullYear()} RFP Matrix. All rights reserved.
           </p>
         </div>
       </footer>

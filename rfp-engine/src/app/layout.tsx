@@ -18,33 +18,33 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://rfpengine.com'),
   title: {
-    default: "RFP Engine - AI-Powered RFP Management Software",
-    template: "%s | RFP Engine"
+    default: "RFP Matrix - AI-Powered RFP Management Software",
+    template: "%s | RFP Matrix"
   },
   description: "Respond to RFPs and tenders 10x faster with AI-powered requirement extraction and draft response generation. Upload documents, track compliance, and win more bids.",
   keywords: ["RFP software", "tender management", "proposal automation", "AI RFP response", "bid management", "compliance matrix", "RFP response tool"],
-  authors: [{ name: "RFP Engine" }],
-  creator: "RFP Engine",
-  publisher: "RFP Engine",
+  authors: [{ name: "RFP Matrix" }],
+  creator: "RFP Matrix",
+  publisher: "RFP Matrix",
   openGraph: {
     type: "website",
     locale: "en_GB",
     url: "/",
-    siteName: "RFP Engine",
-    title: "RFP Engine - AI-Powered RFP Management",
+    siteName: "RFP Matrix",
+    title: "RFP Matrix - AI-Powered RFP Management",
     description: "Respond to RFPs 10x faster with AI-powered requirement extraction and draft generation.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "RFP Engine - AI-Powered RFP Management",
+        alt: "RFP Matrix - AI-Powered RFP Management",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RFP Engine - AI-Powered RFP Management",
+    title: "RFP Matrix - AI-Powered RFP Management",
     description: "Respond to RFPs 10x faster with AI-powered requirement extraction.",
     images: ["/og-image.png"],
   },

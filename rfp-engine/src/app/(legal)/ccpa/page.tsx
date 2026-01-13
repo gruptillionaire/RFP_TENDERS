@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "California Privacy Rights (CCPA) - RFP Engine",
+  title: "California Privacy Rights (CCPA) - RFP Matrix",
   description: "Your California Privacy Rights under the California Consumer Privacy Act.",
 };
 

@@ -2,7 +2,7 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Reset Password",
-  description: "Reset your RFP Engine account password.",
+  description: "Reset your RFP Matrix account password.",
   robots: {
     index: false,
     follow: false,

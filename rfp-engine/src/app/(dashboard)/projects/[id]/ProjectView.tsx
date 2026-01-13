@@ -499,7 +499,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
               <Link href="/" className="font-bold text-xl">
-                RFP Engine
+                RFP Matrix
               </Link>
               <span className="text-gray-300">/</span>
               {isEditingName ? (

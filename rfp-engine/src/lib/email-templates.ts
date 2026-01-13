@@ -1,8 +1,8 @@
 /**
- * Email templates for the RFP Engine application
+ * Email templates for the RFP Matrix application
  */
 
-const APP_NAME = "RFP Engine";
+const APP_NAME = "RFP Matrix";
 
 interface DeadlineReminderData {
   projectName: string;

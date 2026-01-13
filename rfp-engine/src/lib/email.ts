@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { deadlineReminderEmail } from "./email-templates";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@rfpengine.com";
-const APP_NAME = "RFP Engine";
+const APP_NAME = "RFP Matrix";
 
 // Lazy initialization to avoid errors during build when API key is not set
 let resend: Resend | null = null;

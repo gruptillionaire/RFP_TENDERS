@@ -54,7 +54,7 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `rfp-engine-data-export-${new Date().toISOString().split("T")[0]}.json`;
+        a.download = `rfp-matrix-data-export-${new Date().toISOString().split("T")[0]}.json`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -202,7 +202,7 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
       <header className="bg-white border-b">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-            RFP Engine
+            RFP Matrix
           </Link>
           <nav className="flex gap-4">
             <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
@@ -336,7 +336,7 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
             {billingInfo.plan === "FREE" && (
               <div className="border-t pt-4">
                 <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900">Subscribe to unlock RFP Engine</h4>
+                  <h4 className="font-medium text-blue-900">Subscribe to unlock RFP Matrix</h4>
                   <p className="text-sm text-blue-700 mt-1">
                     Choose a plan to start extracting requirements and generating draft responses.
                   </p>

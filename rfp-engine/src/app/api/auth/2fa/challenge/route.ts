@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       const secret = decryptTOTPSecret(user.twoFactorSecret);
 
       const totp = new OTPAuth.TOTP({
-        issuer: "RFP Engine",
+        issuer: "RFP Matrix",
         label: user.email,
         algorithm: "SHA1",
         digits: 6,

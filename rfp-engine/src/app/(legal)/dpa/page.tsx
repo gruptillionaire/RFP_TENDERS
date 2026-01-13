@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Data Processing Agreement - RFP Engine",
+  title: "Data Processing Agreement - RFP Matrix",
   description: "Data Processing Agreement (DPA) for enterprise customers.",
 };
 
@@ -19,7 +19,7 @@ export default function DPAPage() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 my-6">
         <p className="text-blue-800">
           <strong>For Enterprise Customers:</strong> This Data Processing Agreement (DPA)
-          governs the processing of personal data when you use RFP Engine as a business customer.
+          governs the processing of personal data when you use RFP Matrix as a business customer.
           To execute this DPA, please contact us at <strong>enterprise@rfpengine.com</strong>.
         </p>
       </div>
@@ -33,7 +33,7 @@ export default function DPAPage() {
           </li>
           <li>
             <strong>&quot;Processor&quot;</strong> means the entity that processes Personal Data on
-            behalf of the Controller (RFP Engine).
+            behalf of the Controller (RFP Matrix).
           </li>
           <li>
             <strong>&quot;Personal Data&quot;</strong> means any information relating to an identified
@@ -56,7 +56,7 @@ export default function DPAPage() {
       <section>
         <h2>2. Scope and Purpose</h2>
         <p>
-          This DPA applies to the processing of Personal Data by RFP Engine on behalf of the
+          This DPA applies to the processing of Personal Data by RFP Matrix on behalf of the
           Customer in connection with the provision of the Service.
         </p>
         <h3>2.1 Subject Matter</h3>
@@ -105,7 +105,7 @@ export default function DPAPage() {
 
       <section>
         <h2>4. Processor Obligations</h2>
-        <p>RFP Engine agrees to:</p>
+        <p>RFP Matrix agrees to:</p>
         <ul>
           <li>
             Process Personal Data only on documented instructions from the Customer
@@ -137,7 +137,7 @@ export default function DPAPage() {
       <section>
         <h2>5. Security Measures</h2>
         <p>
-          RFP Engine implements the following technical and organizational measures:
+          RFP Matrix implements the following technical and organizational measures:
         </p>
         <h3>5.1 Technical Measures</h3>
         <ul>
@@ -197,7 +197,7 @@ export default function DPAPage() {
         </table>
         <h3>6.2 Sub-processor Changes</h3>
         <p>
-          RFP Engine will notify the Customer of any intended changes to Sub-processors
+          RFP Matrix will notify the Customer of any intended changes to Sub-processors
           at least 30 days in advance. The Customer may object to such changes.
         </p>
       </section>
@@ -218,7 +218,7 @@ export default function DPAPage() {
       <section>
         <h2>8. Data Subject Rights</h2>
         <p>
-          RFP Engine will assist the Customer in responding to Data Subject requests
+          RFP Matrix will assist the Customer in responding to Data Subject requests
           including:
         </p>
         <ul>
@@ -234,7 +234,7 @@ export default function DPAPage() {
       <section>
         <h2>9. Data Breach Notification</h2>
         <p>
-          In the event of a Personal Data breach, RFP Engine will:
+          In the event of a Personal Data breach, RFP Matrix will:
         </p>
         <ul>
           <li>
@@ -254,7 +254,7 @@ export default function DPAPage() {
       <section>
         <h2>10. Audit Rights</h2>
         <p>
-          Upon reasonable notice, RFP Engine will:
+          Upon reasonable notice, RFP Matrix will:
         </p>
         <ul>
           <li>
@@ -277,13 +277,13 @@ export default function DPAPage() {
         </p>
         <ul>
           <li>
-            At the Customer&apos;s choice, RFP Engine will delete or return all Personal Data
+            At the Customer&apos;s choice, RFP Matrix will delete or return all Personal Data
           </li>
           <li>
             Deletion will be completed within 90 days
           </li>
           <li>
-            RFP Engine may retain data where required by law (with notification)
+            RFP Matrix may retain data where required by law (with notification)
           </li>
         </ul>
       </section>
