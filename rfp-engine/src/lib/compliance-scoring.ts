@@ -109,13 +109,23 @@ export function getMajorCategory(section: string | null | undefined): string {
     return trimmed.split(",")[0].trim();
   }
 
-  // Pattern 8: Starts with a letter - extract just the first letter
-  const firstLetter = trimmed.match(/^([A-Z])/i);
-  if (firstLetter) {
-    return firstLetter[1].toUpperCase();
+  // Pattern 8: Full title sections like "MANDATORY REQUIREMENTS" or "General Information"
+  // These are multi-word titles without a letter/number prefix - keep them intact
+  // Detect: starts with 2+ letter word, contains space, no colon/period after first char
+  const fullTitleMatch = trimmed.match(/^([A-Z]{2,})\s+/i);
+  if (fullTitleMatch && !trimmed.match(/^[A-Z][.:\-\d]/i)) {
+    // It's a multi-word title, return as-is for grouping
+    return trimmed;
   }
 
-  // Fallback: return the original section
+  // Pattern 9: Single letter at start followed by space and title - might be "A REQUIREMENTS"
+  // But only if it's a single letter (not like "MANDATORY")
+  const singleLetterTitle = trimmed.match(/^([A-Z])\s+[A-Z]/i);
+  if (singleLetterTitle) {
+    return singleLetterTitle[1].toUpperCase();
+  }
+
+  // Fallback: return the original section (it's likely already a category or title)
   return trimmed;
 }
 
@@ -159,6 +169,13 @@ export function getMajorCategoryTitle(section: string | null | undefined): { key
   const romanTitleMatch = trimmed.match(/^([IVX]+)[.:\-]\s*(.+)$/i);
   if (romanTitleMatch && romanTitleMatch[1].toUpperCase() === key) {
     return { key, title: romanTitleMatch[2].trim() };
+  }
+
+  // Pattern 5: Full title sections like "MANDATORY REQUIREMENTS"
+  // The key IS the title (no separate prefix), so title is null but the key is the full string
+  if (key === trimmed && trimmed.includes(" ")) {
+    // Key equals full string - it's a titled section, use the whole thing
+    return { key, title: null }; // Title is already in the key
   }
 
   return { key, title: null };
