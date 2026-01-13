@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parsePDF } from "@/lib/parsers/pdf";
@@ -205,20 +205,18 @@ export async function POST(request: Request) {
       request,
     });
 
-    // Extract requirements using AI (async, don't block response)
-    extractRequirements(rawText)
-      .then(async (result) => {
+    // Use after() to ensure extraction completes even after response is sent
+    // This prevents Vercel from killing the function before extraction finishes
+    after(async () => {
+      try {
+        const result = await extractRequirements(rawText);
         const requirementCount = result.requirements.length;
 
         if (requirementCount === 0) {
-          // FAILED extraction - mark as FAILED, DON'T count against quota
           console.error("Extraction returned 0 requirements:", {
             projectId: project.id,
             fileName: project.fileName,
             rawTextLength: rawText.length,
-            rawTextPreview: rawText.substring(0, 500),
-            deadline: result.deadline,
-            deadlineText: result.deadlineText,
           });
           await prisma.project.update({
             where: { id: project.id },
@@ -227,7 +225,7 @@ export async function POST(request: Request) {
           return;
         }
 
-        // SUCCESSFUL extraction - store requirements with type, domain context, limits, and attestation
+        // Store requirements
         await prisma.requirement.createMany({
           data: result.requirements.map((req, index) => ({
             projectId: project.id,
@@ -246,7 +244,7 @@ export async function POST(request: Request) {
           })),
         });
 
-        // Update project status to READY and store deadline if extracted
+        // Update project status to READY
         await prisma.project.update({
           where: { id: project.id },
           data: {
@@ -258,15 +256,14 @@ export async function POST(request: Request) {
 
         // Increment quota on successful extraction
         await checkAndIncrementQuota(session.user.id, true);
-      })
-      .catch(async (error) => {
+      } catch (error) {
         console.error("Extraction failed:", error);
-        // Mark as FAILED on error - DON'T count against quota
         await prisma.project.update({
           where: { id: project.id },
           data: { status: "FAILED" },
         });
-      });
+      }
+    });
 
     return NextResponse.json({
       id: project.id,
