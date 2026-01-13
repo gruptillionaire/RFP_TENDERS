@@ -194,6 +194,10 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   • "List your experience with comparable implementations" → REFERENCE_BASED
 
 ■ STAFFING
+  ==============================================================================
+  STAFFING HAS PRIORITY OVER CONTEXTUAL when asking for person contact info!
+  ==============================================================================
+
   TRIGGER KEYWORDS (if ANY present, strongly consider STAFFING):
   personnel, staff, team, resource, FTE, headcount, resume, CV, qualifications,
   project manager, key personnel, roles, responsibilities, org chart, bio,
@@ -201,15 +205,25 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   name and address, email address, telephone number, individual with authority
 
   USE WHEN: About team composition, individual qualifications, personnel, OR contact information
+
+  STAFFING BEATS CONTEXTUAL - Even if text contains "shall submit" or "must provide":
+  ==============================================================================
+  When asking for a PERSON'S name/email/phone/contact info → ALWAYS use STAFFING
+  The fact that it says "shall submit" does NOT make it CONTEXTUAL.
+  ==============================================================================
+
   Examples:
   • "Identify key personnel for this project" → STAFFING
   • "Provide CVs of proposed team members" → STAFFING
   • "Describe your project manager's qualifications" → STAFFING
-  • "Submit the name, address, email, and telephone of an individual with authority to answer questions" → STAFFING (asking for contact info of a PERSON)
+  • "Submit the name, address, email, and telephone of an individual with authority to answer questions" → STAFFING
+  • "Banks shall submit the name, address, email address, and telephone number of an individual" → STAFFING
+    (Even though it says "shall submit", it's asking for person contact info → STAFFING)
 
   CRITICAL: Requests for CONTACT INFORMATION of a person are STAFFING, not CONTEXTUAL:
   • "Provide name and contact details of your project lead" → STAFFING
   • "Submit contact information for clarification questions" → STAFFING
+  • "Shall submit name, address, and email of authorized representative" → STAFFING
 
 ■ CONTEXTUAL
   ==============================================================================
@@ -217,6 +231,10 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   → If NO written response is needed in the proposal document → CONTEXTUAL
   → If YES a written answer/statement is needed → NOT CONTEXTUAL (use another type)
   ==============================================================================
+
+  *** EXCEPTION: NEVER classify as CONTEXTUAL if asking for person contact info! ***
+  If text asks for name, email, telephone, address of a PERSON → use STAFFING instead
+  (See STAFFING section for details)
 
   MANDATORY CONTEXTUAL - These patterns are ALWAYS CONTEXTUAL regardless of other signals:
 
@@ -368,13 +386,33 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
 CLASSIFICATION PRIORITY (FIRST MATCH WINS - CHECK IN THIS ORDER)
 ==============================================================================
 
->>> STEP 1: CHECK FOR CONTEXTUAL FIRST (highest priority) <<<
+>>> STEP 0: CHECK FOR STAFFING CONTACT KEYWORDS FIRST (HIGHEST PRIORITY) <<<
+CRITICAL EXCEPTION: When asking for PERSON CONTACT INFORMATION, this is STAFFING even if
+it contains process verbs like "shall submit" or "must provide".
+
+STAFFING OVERRIDE KEYWORDS - If the text contains ANY of these, classify as STAFFING:
+  • "name, address" OR "name and address" (person's contact info)
+  • "email address" combined with "name" or "telephone" or "individual"
+  • "telephone number" or "phone number" combined with person-related words
+  • "individual with authority" or "individual with the authority"
+  • "contact person" or "contact details" for a specific person
+  • "submit the name" or "provide the name" of a person
+
+Example that MUST be STAFFING (not CONTEXTUAL):
+  "Banks shall submit the name, address, email address, and telephone number of an
+   individual with the authority to answer questions" → STAFFING
+   WHY: It's asking for a PERSON'S contact information to include in the proposal.
+
+If STAFFING OVERRIDE KEYWORDS are present → classify as STAFFING and STOP.
+
+>>> STEP 1: CHECK FOR CONTEXTUAL (high priority) <<<
 Ask: "Does this require the respondent to WRITE something in the proposal?"
 
-CONTEXTUAL (no written response needed) - Check for these patterns FIRST:
+CONTEXTUAL (no written response needed) - Check for these patterns:
   ✓ Contains "Failure to [X] may/will result in..." → CONTEXTUAL (warning)
   ✓ Contains "If not [provided/included], [consequence]" → CONTEXTUAL (warning)
   ✓ Contains "shall/should/must [notify/submit/ensure/include/deliver/send]" → CONTEXTUAL (process instruction)
+      EXCEPTION: NOT CONTEXTUAL if asking for person contact info (see STEP 0 above)
   ✓ Contains "submissions/responses shall include [document]" → CONTEXTUAL (instruction)
   ✓ Background paragraph about the organization → CONTEXTUAL
   ✓ Deadline statement without a question → CONTEXTUAL
@@ -382,7 +420,7 @@ CONTEXTUAL (no written response needed) - Check for these patterns FIRST:
   ✓ Contains "The [selected/chosen] provider is expected to..." → CONTEXTUAL (buyer expectation)
   ✓ Subject is BUYER describing their requirements (not asking bidder to explain) → CONTEXTUAL
 
-If ANY of the above match → classify as CONTEXTUAL and STOP.
+If ANY of the above match (and STEP 0 didn't match) → classify as CONTEXTUAL and STOP.
 
 >>> STEP 2: IF NOT CONTEXTUAL, check other types in order <<<
 
@@ -845,16 +883,62 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
   // Build a map of major section numbers to their titles from document headings
   const sectionTitleMap = new Map<string, string>();
 
-  // Match patterns like "# A: REQUIRED BANKING SERVICES" or "# 3: Technical Requirements"
-  // Also matches "# A. REQUIRED BANKING" (period instead of colon)
-  // Use matchAll() to avoid stateful regex issues (exec() with global flag retains lastIndex)
-  const headingPattern = /#+\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*(?:\s*[:\-.\s]\s*)([A-Z][A-Za-z\s]+)/gi;
-  for (const match of documentText.matchAll(headingPattern)) {
-    const num = match[1].toUpperCase();
-    const title = match[2].trim();
-    if (title.length > 2 && !sectionTitleMap.has(num)) {
-      sectionTitleMap.set(num, title);
+  // DEBUG: Log that enrichSectionData is being called
+  console.log("[enrichSectionData] Starting section enrichment...");
+
+  // ===========================================================================
+  // MULTI-PATTERN HEADING EXTRACTION
+  // We try multiple patterns to handle different document formats:
+  // 1. Markdown format from DOCX parser: "# A: REQUIRED BANKING SERVICES"
+  // 2. Plain text format from PDF parser: "A. REQUIRED BANKING SERVICES" or "A: REQUIRED BANKING"
+  // 3. All-caps section headers: "SECTION A: REQUIRED BANKING SERVICES"
+  // 4. Numbered sections: "1. Introduction" or "1: INTRODUCTION"
+  // ===========================================================================
+
+  const headingPatterns = [
+    // Pattern 1: Markdown headings (from DOCX parser)
+    // Matches: "# A: REQUIRED BANKING", "## 3: Technical Requirements"
+    /#+\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*\s*[:\-.\s]\s*([A-Z][A-Za-z\s,&\-]+)/gi,
+
+    // Pattern 2: Plain text section headers with colon separator
+    // Matches: "A: REQUIRED BANKING SERVICES", "3: Technical Requirements"
+    // Must be at start of line (^) or after newline
+    /(?:^|\n)\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*\s*:\s*([A-Z][A-Za-z\s,&\-]{3,})/gi,
+
+    // Pattern 3: Plain text section headers with period separator
+    // Matches: "A. REQUIRED BANKING SERVICES", "3. Technical Requirements"
+    /(?:^|\n)\s*([A-Z]|[IVXLC]+|\d+)\.\s+([A-Z][A-Za-z\s,&\-]{3,})/gi,
+
+    // Pattern 4: "SECTION X:" format
+    // Matches: "SECTION A: REQUIRED BANKING", "Section 3: Requirements"
+    /(?:^|\n)\s*SECTION\s+([A-Z]|\d+)[.:\)]*\s*[:\-.\s]\s*([A-Z][A-Za-z\s,&\-]+)/gi,
+
+    // Pattern 5: Parenthetical section markers
+    // Matches: "(A) REQUIRED BANKING SERVICES"
+    /(?:^|\n)\s*\(([A-Z]|\d+)\)\s+([A-Z][A-Za-z\s,&\-]{3,})/gi,
+
+    // Pattern 6: All-caps title following section number (common in RFPs)
+    // Matches: "A  REQUIRED BANKING SERVICES" (multiple spaces after letter)
+    /(?:^|\n)\s*([A-Z])\s{2,}([A-Z][A-Z\s,&\-]{5,})/g,
+  ];
+
+  // Try each pattern and collect all matches
+  for (const pattern of headingPatterns) {
+    for (const match of documentText.matchAll(pattern)) {
+      const num = match[1].toUpperCase();
+      const title = match[2].trim();
+      // Only add if we found a valid title and haven't already found one for this section
+      if (title.length > 2 && !sectionTitleMap.has(num)) {
+        sectionTitleMap.set(num, title);
+        console.log(`[enrichSectionData] Found section title: ${num} -> "${title}"`);
+      }
     }
+  }
+
+  // DEBUG: Log total section titles found
+  console.log(`[enrichSectionData] Found ${sectionTitleMap.size} section titles in document`);
+  if (sectionTitleMap.size > 0) {
+    console.log("[enrichSectionData] Section title map:", Object.fromEntries(sectionTitleMap));
   }
 
   // Enrich each requirement's sectionGroup
@@ -873,17 +957,30 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
     // - Missing entirely
     // - Just a letter/number (no title): "A", "3", "IV"
     // - A subsection reference (should be parent section): "A15", "A.1.2", "3.4"
+    // - sectionGroup looks like a specific reference instead of parent section with title
+    const sectionGroupTrimmed = (req.sectionGroup || '').trim();
     const needsEnrichment =
       !req.sectionGroup ||
-      /^([A-Z]|\d+|[IVXLC]+)[.:\)\s]*$/i.test(req.sectionGroup.trim()) || // Just a number/letter
-      /^[A-Z]\d+$/i.test(req.sectionGroup.trim()) || // Letter+number like "A15"
-      /^[A-Z][.\-]\d/i.test(req.sectionGroup.trim()) || // Subsection like "A.1" or "A-1"
-      /^\d+\.\d/i.test(req.sectionGroup.trim()); // Numeric subsection like "3.4"
+      /^([A-Z]|\d+|[IVXLC]+)[.:\)\s]*$/i.test(sectionGroupTrimmed) || // Just a number/letter: "A", "3"
+      /^[A-Z]\d+$/i.test(sectionGroupTrimmed) || // Letter+number like "A15"
+      /^[A-Z][.\-]\d/i.test(sectionGroupTrimmed) || // Subsection like "A.1" or "A-1"
+      /^\d+\.\d/i.test(sectionGroupTrimmed) || // Numeric subsection like "3.4"
+      // NEW: sectionGroup equals section (LLM didn't differentiate)
+      (req.section && req.sectionGroup === req.section) ||
+      // NEW: sectionGroup doesn't contain a colon (missing the ": TITLE" part)
+      (!sectionGroupTrimmed.includes(':') && sectionGroupTrimmed.length < 20);
+
+    // DEBUG: Log enrichment check for first few requirements
+    if (requirements.indexOf(req) < 3) {
+      console.log(`[enrichSectionData] Requirement section="${req.section}" sectionGroup="${req.sectionGroup}" majorCategory="${majorCategory}" needsEnrichment=${needsEnrichment}`);
+    }
 
     if (needsEnrichment) {
       const title = sectionTitleMap.get(majorCategory.toUpperCase());
       if (title) {
+        const oldValue = req.sectionGroup;
         req.sectionGroup = `${majorCategory}: ${title}`;
+        console.log(`[enrichSectionData] Enriched: "${oldValue}" -> "${req.sectionGroup}"`);
       } else if (!req.sectionGroup || !req.sectionGroup.includes(':')) {
         // No title found, at least set the major category
         req.sectionGroup = majorCategory;
