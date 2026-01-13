@@ -945,6 +945,14 @@ async function callOpenAIWithRetry(
 }
 
 export async function extractRequirements(documentText: string): Promise<ExtractionResult> {
+  const startTime = Date.now();
+
+  // Log extraction start
+  console.log("Extraction started:", {
+    documentLength: documentText.length,
+    timestamp: new Date().toISOString(),
+  });
+
   // Sanitize input to prevent prompt injection
   const sanitizedText = sanitizeForLLM(documentText);
 
@@ -955,6 +963,14 @@ export async function extractRequirements(documentText: string): Promise<Extract
       ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length]"
       : sanitizedText;
 
+  const wasTruncated = sanitizedText.length > maxLength;
+  if (wasTruncated) {
+    console.log("Document truncated:", {
+      originalLength: sanitizedText.length,
+      truncatedTo: maxLength,
+    });
+  }
+
   // Call OpenAI with retry logic
   const content = await callOpenAIWithRetry([
     { role: "system", content: EXTRACTION_PROMPT },
@@ -964,14 +980,50 @@ export async function extractRequirements(documentText: string): Promise<Extract
     },
   ]);
 
+  console.log("OpenAI call completed:", {
+    responseLength: content.length,
+    durationMs: Date.now() - startTime,
+  });
+
   try {
     const parsed = JSON.parse(content);
+
+    // Validate response structure
+    if (!parsed || typeof parsed !== 'object') {
+      console.error("OpenAI returned invalid response structure:", {
+        contentType: typeof parsed,
+        contentPreview: content.substring(0, 500),
+      });
+      throw new Error("Invalid response structure from OpenAI");
+    }
+
+    if (!Array.isArray(parsed.requirements)) {
+      console.error("OpenAI response missing requirements array:", {
+        hasRequirements: 'requirements' in parsed,
+        requirementsType: typeof parsed.requirements,
+        keys: Object.keys(parsed),
+        contentPreview: content.substring(0, 1000),
+      });
+      // Treat as empty array rather than throwing - will trigger 0-requirements logging in route
+      parsed.requirements = [];
+    }
+
+    // Log if requirements array is empty (for debugging intermittent failures)
+    if (parsed.requirements.length === 0) {
+      console.warn("OpenAI returned empty requirements array:", {
+        deadline: parsed.deadline,
+        deadlineText: parsed.deadlineText,
+        responseKeys: Object.keys(parsed),
+        contentLength: content.length,
+        contentPreview: content.substring(0, 1000),
+      });
+    }
 
     // Build the result with deadline and requirements
     const result: ExtractionResult = {
       deadline: parsed.deadline || null,
       deadlineText: parsed.deadlineText || null,
-      requirements: (parsed.requirements || []).map((req: ExtractedRequirement) => ({
+      requirements: parsed.requirements.map((req: ExtractedRequirement) => ({
         ...req,
         section: req.section || null,
         sectionGroup: req.sectionGroup || null,
@@ -988,7 +1040,13 @@ export async function extractRequirements(documentText: string): Promise<Extract
     enrichSectionData(result.requirements, documentText);
 
     return result;
-  } catch {
+  } catch (error) {
+    console.error("Failed to parse extraction response:", {
+      error: error instanceof Error ? error.message : String(error),
+      contentLength: content.length,
+      contentPreview: content.substring(0, 500),
+      contentEnd: content.substring(content.length - 200),
+    });
     throw new Error("Failed to parse extraction response");
   }
 }

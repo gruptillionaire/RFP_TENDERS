@@ -190,6 +190,14 @@ export async function POST(request: Request) {
 
         if (requirementCount === 0) {
           // FAILED extraction - mark as FAILED, DON'T count against quota
+          console.error("Extraction returned 0 requirements:", {
+            projectId: project.id,
+            fileName: project.fileName,
+            rawTextLength: rawText.length,
+            rawTextPreview: rawText.substring(0, 500),
+            deadline: result.deadline,
+            deadlineText: result.deadlineText,
+          });
           await prisma.project.update({
             where: { id: project.id },
             data: { status: "FAILED" },
