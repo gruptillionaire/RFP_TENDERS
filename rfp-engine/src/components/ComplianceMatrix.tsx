@@ -1031,7 +1031,7 @@ export function ComplianceMatrix({
         <div
           ref={tableContainerRef}
           className="overflow-auto"
-          style={{ maxHeight: "calc(100vh - 280px)" }}
+          style={{ maxHeight: "calc(100vh - 200px)" }}
         >
           <Table>
             <TableHeader className="sticky top-0 bg-white z-10">

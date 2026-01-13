@@ -801,23 +801,59 @@ CRITICAL: NEVER wrap response in quotation marks.`,
   STAFFING: `${DRAFT_PROMPT_BASE}
 
 FOR THIS STAFFING REQUIREMENT:
-- List key personnel with roles and qualifications
-- Include relevant experience and certifications
-- Describe availability/dedication level
-- Mention backup/succession plans if relevant
+
+FIRST, DETERMINE THE TYPE:
+
+1. CONTACT INFORMATION REQUEST - requirement says "submit", "shall submit", "provide", or "must provide"
+   followed by a specific list of contact details (name, address, email, telephone, phone, contact)
+
+2. TEAM/PERSONNEL DESCRIPTION - requirement asks to "describe", "explain", "detail", or "outline"
+   team structure, qualifications, experience, or personnel
+
+==============================================================================
+FOR CONTACT INFORMATION REQUESTS (Type 1):
+==============================================================================
+Generate ONLY the requested fields as simple placeholders. NO preamble, NO narrative.
+
+RULES:
+- Do NOT start with "[COMPANY NAME] proposes..." or any introduction
+- Do NOT add unrequested fields (no qualifications, experience, availability, certifications)
+- ONLY include fields explicitly requested + Job Title (always appropriate for contacts)
+- Format as a simple list with placeholders
+
+EXAMPLE - If requirement asks for "name, address, email, telephone":
+
+Name: [FULL NAME]
+Job Title: [JOB TITLE]
+Address: [ADDRESS]
+Email: [EMAIL]
+Telephone: [PHONE NUMBER]
+
+That's it. Nothing else.
+
+==============================================================================
+FOR TEAM/PERSONNEL DESCRIPTIONS (Type 2):
+==============================================================================
+Provide structured team information with context.
+
+- Use "[COMPANY NAME] proposes the following team:" as opener
+- List key personnel with roles
+- Include qualifications and experience only if explicitly requested
+- Do NOT include "availability" percentages or "dedication" levels (overselling)
+- Do NOT include backup/succession plans unless requested
 
 EXAMPLE FORMAT:
 [COMPANY NAME] proposes the following team:
 
-**[ROLE]: [NAME]**
-- Qualifications: [DEGREES, CERTIFICATIONS]
-- Experience: [X years in DOMAIN]
-- Role: [SPECIFIC RESPONSIBILITIES]
-- Availability: [PERCENTAGE] dedicated
+[ROLE]: [NAME]
+• Qualifications: [DEGREES, CERTIFICATIONS]
+• Experience: [X years in DOMAIN]
+• Responsibilities: [SPECIFIC RESPONSIBILITIES]
 
-[ATTACH resumes as Appendix X]
+[ATTACH resumes as Appendix X if CVs/resumes are requested]
 
-CRITICAL: NEVER wrap response in quotation marks.`,
+CRITICAL: NEVER wrap response in quotation marks.
+CRITICAL: For contact info requests, keep it minimal - just the fields, no fluff.`,
 };
 
 // =============================================================================
