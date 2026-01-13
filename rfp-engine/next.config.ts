@@ -31,11 +31,12 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js requires these
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com", // Next.js + Stripe
               "style-src 'self' 'unsafe-inline'", // Tailwind requires inline styles
               "img-src 'self' data: https:",
               "font-src 'self'",
-              "connect-src 'self' https://api.openai.com https://*.sentry.io https://*.ingest.sentry.io",
+              "connect-src 'self' https://api.openai.com https://*.sentry.io https://*.ingest.sentry.io https://api.stripe.com https://checkout.stripe.com https://*.vercel-insights.com",
+              "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
