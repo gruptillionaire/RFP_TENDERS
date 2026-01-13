@@ -734,9 +734,10 @@ export function ComplianceMatrix({
   const historyReq = historyReqId ? requirements.find(r => r.id === historyReqId) : null;
 
   // Get unique major categories - MEMOIZED
+  // Uses sectionGroup (preferred) or section for consistency with compliance-scoring.ts
   const sections = useMemo(() => {
     const categories = requirements
-      .map(r => getMajorCategory(r.section))
+      .map(r => getMajorCategory(r.sectionGroup || r.section))
       .filter(cat => cat !== "Uncategorized");
     return [...new Set(categories)].sort((a, b) => {
       // Sort numerically if both are numbers, otherwise alphabetically
@@ -766,10 +767,11 @@ export function ComplianceMatrix({
   }, []);
 
   // Calculate section stats by major category - MEMOIZED
+  // Uses sectionGroup (preferred) or section for consistency
   const sectionStats = useMemo(() =>
     sections.map(category => {
       // Filter requirements that belong to this major category
-      const categoryReqs = requirements.filter(r => getMajorCategory(r.section) === category);
+      const categoryReqs = requirements.filter(r => getMajorCategory(r.sectionGroup || r.section) === category);
       const answered = categoryReqs.filter(r => r.status === "ANSWERED").length;
       return {
         name: category,
@@ -817,10 +819,11 @@ export function ComplianceMatrix({
   }, []);
 
   // Apply advanced filters - MEMOIZED
+  // Uses sectionGroup (preferred) or section for consistency
   const filteredRequirements = useMemo(() => {
     // First apply section filter by major category if active
     const sectionFiltered = activeSection
-      ? requirements.filter(req => getMajorCategory(req.section) === activeSection)
+      ? requirements.filter(req => getMajorCategory(req.sectionGroup || req.section) === activeSection)
       : requirements;
 
     // Then apply all other filters
@@ -874,10 +877,11 @@ export function ComplianceMatrix({
   );
 
   // Section counts by major category - MEMOIZED for section tabs
+  // Uses sectionGroup (preferred) or section for consistency
   const sectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const req of requirements) {
-      const category = getMajorCategory(req.section);
+      const category = getMajorCategory(req.sectionGroup || req.section);
       if (category !== "Uncategorized") {
         counts[category] = (counts[category] || 0) + 1;
       }

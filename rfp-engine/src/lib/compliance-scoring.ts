@@ -85,9 +85,9 @@ export function getMajorCategory(section: string | null | undefined): string {
     return justNumber[1];
   }
 
-  // Pattern 4: "A.1.2" or "A15" or "A-1" - extract the letter
-  // Matches letter followed by dot, number, or dash
-  const letterMatch = trimmed.match(/^([A-Z])[.\-\d]/i);
+  // Pattern 4: "A.1.2" or "A15" or "A-1" or "A: TITLE" - extract the letter
+  // Matches letter followed by dot, colon, dash, or number
+  const letterMatch = trimmed.match(/^([A-Z])[.:\-\d]/i);
   if (letterMatch) {
     return letterMatch[1].toUpperCase();
   }
@@ -144,10 +144,17 @@ export function getMajorCategoryTitle(section: string | null | undefined): { key
 
   // Try to extract title from various patterns
 
-  // Pattern 1: "A: TITLE" or "A. TITLE" or "A - TITLE" (letter-based sections)
+  // Pattern 1a: "A: TITLE" or "A. TITLE" or "A - TITLE" (letter-based sections with separator)
   const letterTitleMatch = trimmed.match(/^([A-Z])[.:\-]\s*(.+)$/i);
   if (letterTitleMatch && letterTitleMatch[1].toUpperCase() === key) {
     return { key, title: letterTitleMatch[2].trim() };
+  }
+
+  // Pattern 1b: "A TITLE" (letter + space + title, no separator)
+  // Important: Only match if title starts with capital letter (avoids matching "A1.2")
+  const letterSpaceTitleMatch = trimmed.match(/^([A-Z])\s+([A-Z][A-Za-z\s,&\-]+)$/i);
+  if (letterSpaceTitleMatch && letterSpaceTitleMatch[1].toUpperCase() === key) {
+    return { key, title: letterSpaceTitleMatch[2].trim() };
   }
 
   // Pattern 2: "2: Title" or "2. Title" or "2 - Title" (numeric sections)
@@ -370,8 +377,10 @@ function calculateSectionScores(requirements: RequirementForScoring[]): Record<s
   const bySection: Record<string, { totalWeight: number; earnedWeight: number }> = {};
 
   for (const req of requirements) {
-    // Group by major category instead of full section path
-    const section = getMajorCategory(req.section);
+    // Group by major category - MUST use same source as buildCategoryTitleMap for consistency
+    // Use sectionGroup first (preferred), fallback to section
+    const source = req.sectionGroup || req.section;
+    const section = getMajorCategory(source);
 
     if (!bySection[section]) {
       bySection[section] = { totalWeight: 0, earnedWeight: 0 };
