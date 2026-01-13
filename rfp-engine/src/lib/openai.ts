@@ -886,9 +886,9 @@ async function callOpenAIWithRetry(
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Create abort controller for timeout (3 minutes per attempt - large docs need more time)
+    // 2 minute timeout per attempt
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     try {
       const response = await openai.chat.completions.create(
@@ -915,24 +915,23 @@ async function callOpenAIWithRetry(
 
       // Don't retry on abort (timeout)
       if (lastError.name === 'AbortError') {
-        throw new Error("Extraction timed out after 3 minutes. Try a smaller document.");
+        throw new Error("Extraction timed out. Try a smaller document.");
       }
 
       // Check if it's a retryable error (rate limit, server error, network error)
       const isRetryable =
-        lastError.message.includes('429') ||  // Rate limit
-        lastError.message.includes('500') ||  // Server error
-        lastError.message.includes('502') ||  // Bad gateway
-        lastError.message.includes('503') ||  // Service unavailable
-        lastError.message.includes('504') ||  // Gateway timeout
+        lastError.message.includes('429') ||
+        lastError.message.includes('500') ||
+        lastError.message.includes('502') ||
+        lastError.message.includes('503') ||
+        lastError.message.includes('504') ||
         lastError.message.includes('ECONNRESET') ||
         lastError.message.includes('ETIMEDOUT') ||
         lastError.message.includes('fetch failed');
 
       if (isRetryable && attempt < maxRetries) {
-        // Exponential backoff: 2s, 4s, 8s
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`OpenAI call failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`, lastError.message);
+        // Linear backoff: 1s, 2s, 3s (faster recovery)
+        const delay = attempt * 1000;
         await sleep(delay);
         continue;
       }
@@ -945,14 +944,6 @@ async function callOpenAIWithRetry(
 }
 
 export async function extractRequirements(documentText: string): Promise<ExtractionResult> {
-  const startTime = Date.now();
-
-  // Log extraction start
-  console.log("Extraction started:", {
-    documentLength: documentText.length,
-    timestamp: new Date().toISOString(),
-  });
-
   // Sanitize input to prevent prompt injection
   const sanitizedText = sanitizeForLLM(documentText);
 
@@ -963,14 +954,6 @@ export async function extractRequirements(documentText: string): Promise<Extract
       ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length]"
       : sanitizedText;
 
-  const wasTruncated = sanitizedText.length > maxLength;
-  if (wasTruncated) {
-    console.log("Document truncated:", {
-      originalLength: sanitizedText.length,
-      truncatedTo: maxLength,
-    });
-  }
-
   // Call OpenAI with retry logic
   const content = await callOpenAIWithRetry([
     { role: "system", content: EXTRACTION_PROMPT },
@@ -979,11 +962,6 @@ export async function extractRequirements(documentText: string): Promise<Extract
       content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
     },
   ]);
-
-  console.log("OpenAI call completed:", {
-    responseLength: content.length,
-    durationMs: Date.now() - startTime,
-  });
 
   try {
     const parsed = JSON.parse(content);
@@ -1002,10 +980,8 @@ export async function extractRequirements(documentText: string): Promise<Extract
         hasRequirements: 'requirements' in parsed,
         requirementsType: typeof parsed.requirements,
         keys: Object.keys(parsed),
-        contentPreview: content.substring(0, 1000),
       });
-      // Treat as empty array rather than throwing - will trigger 0-requirements logging in route
-      parsed.requirements = [];
+      throw new Error("OpenAI response missing requirements array");
     }
 
     // Log if requirements array is empty (for debugging intermittent failures)
