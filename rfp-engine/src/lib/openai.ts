@@ -877,45 +877,51 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Call OpenAI with timeout using Promise.race (more reliable than AbortController)
+ */
+async function callOpenAIWithTimeout(
+  messages: { role: "system" | "user"; content: string }[],
+  timeoutMs = 120000
+): Promise<string> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("TIMEOUT")), timeoutMs);
+  });
+
+  const apiPromise = openai.chat.completions.create({
+    model: MODELS.EXTRACTION,
+    messages,
+    response_format: { type: "json_object" },
+    temperature: 0.1,
+  });
+
+  const response = await Promise.race([apiPromise, timeoutPromise]);
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("No response from OpenAI");
+  }
+
+  return content;
+}
+
+/**
  * Call OpenAI with retry logic for transient failures
  */
 async function callOpenAIWithRetry(
   messages: { role: "system" | "user"; content: string }[],
-  maxRetries = 3
+  maxRetries = 2
 ): Promise<string> {
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // 2 minute timeout per attempt
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
-
     try {
-      const response = await openai.chat.completions.create(
-        {
-          model: MODELS.EXTRACTION,
-          messages,
-          response_format: { type: "json_object" },
-          temperature: 0.1,
-        },
-        { signal: controller.signal }
-      );
-
-      clearTimeout(timeoutId);
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error("No response from OpenAI");
-      }
-
-      return content;
+      return await callOpenAIWithTimeout(messages, 120000);
     } catch (error) {
-      clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // Don't retry on abort (timeout)
-      if (lastError.name === 'AbortError') {
-        throw new Error("Extraction timed out. Try a smaller document.");
+      // Don't retry on timeout
+      if (lastError.message === 'TIMEOUT') {
+        throw new Error("Extraction timed out after 2 minutes. Try a smaller document.");
       }
 
       // Check if it's a retryable error (rate limit, server error, network error)
@@ -930,7 +936,7 @@ async function callOpenAIWithRetry(
         lastError.message.includes('fetch failed');
 
       if (isRetryable && attempt < maxRetries) {
-        // Linear backoff: 1s, 2s, 3s (faster recovery)
+        // Linear backoff: 1s, 2s, 3s
         const delay = attempt * 1000;
         await sleep(delay);
         continue;
