@@ -847,32 +847,51 @@ export interface ExtractionResult {
 
 /**
  * Extract the major category from a section reference.
- * "A.1.2" → "A", "3.4.1" → "3", "II.A" → "II"
+ *
+ * SIMPLE RULE: If it starts with a SINGLE letter followed by a NON-letter, extract that letter.
+ * Otherwise, return the whole string (it's a full title like "MANDATORY REQUIREMENTS").
+ *
+ * Examples:
+ *   "A.1.2" → "A" (letter + non-letter)
+ *   "A: TITLE" → "A" (letter + non-letter)
+ *   "A15" → "A" (letter + non-letter digit)
+ *   "3.4.1" → "3" (number + non-letter)
+ *   "III.2" → "III" (Roman numeral)
+ *   "MANDATORY REQUIREMENTS" → "MANDATORY REQUIREMENTS" (letter + letter = full title)
  */
 function extractMajorCategory(section: string): string {
   const trimmed = section.trim();
+  if (!trimmed) return trimmed;
 
-  // Pattern: "A.1.2" or "A15" or "A-1" → "A" (letter followed by separator or number)
-  const letterMatch = trimmed.match(/^([A-Z])[.\-\d]/i);
-  if (letterMatch) return letterMatch[1].toUpperCase();
+  const firstChar = trimmed[0];
+  const secondChar = trimmed[1] || '';
 
-  // Pattern: "3.4.1" or "3 " → "3"
-  const numericMatch = trimmed.match(/^(\d+)[.\s]/);
-  if (numericMatch) return numericMatch[1];
+  // 1. Starts with digit → extract leading number
+  if (/\d/.test(firstChar)) {
+    const numMatch = trimmed.match(/^(\d+)/);
+    return numMatch ? numMatch[1] : trimmed;
+  }
 
-  // Pattern: "II.A" or "II-1" → "II"
-  const romanMatch = trimmed.match(/^([IVXLC]+)[.\-]/i);
-  if (romanMatch) return romanMatch[1].toUpperCase();
+  // 2. Starts with letter
+  if (/[A-Z]/i.test(firstChar)) {
+    // If second char is NOT a letter, it's a single-letter section
+    // Matches: "A:", "A.", "A-", "A1", "A ", or just "A"
+    if (!/[A-Z]/i.test(secondChar)) {
+      return firstChar.toUpperCase();
+    }
 
-  // Pattern: Single letter "A" or number "3"
-  const singleMatch = trimmed.match(/^([A-Z]|\d+)$/i);
-  if (singleMatch) return singleMatch[1].toUpperCase();
+    // Second char IS a letter - check for Roman numerals (I, II, III, IV, V, etc.)
+    const romanMatch = trimmed.match(/^([IVX]+)(?:[^A-Z]|$)/i);
+    if (romanMatch) {
+      return romanMatch[1].toUpperCase();
+    }
 
-  // Fallback: extract first letter if starts with letter, else return as-is
-  const firstLetter = trimmed.match(/^([A-Z])/i);
-  if (firstLetter) return firstLetter[1].toUpperCase();
+    // Not a single letter, not a Roman numeral
+    // It's a full title like "MANDATORY REQUIREMENTS" - return as-is
+    return trimmed;
+  }
 
-  return trimmed.replace(/[.:\)]+$/, '');
+  return trimmed;
 }
 
 /**

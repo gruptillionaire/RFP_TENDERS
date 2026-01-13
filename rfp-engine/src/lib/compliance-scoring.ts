@@ -57,75 +57,64 @@ export interface CriterionScore {
 
 /**
  * Extract the major category KEY from a section string (for grouping).
+ *
+ * SIMPLE RULE: If it starts with a SINGLE letter followed by a NON-letter, extract that letter.
+ * Otherwise, return the whole string (it's a full title like "MANDATORY REQUIREMENTS").
+ *
  * Examples:
+ *   "A.1.2" → "A" (letter + non-letter)
+ *   "A: REQUIRED BANKING" → "A" (letter + non-letter)
+ *   "A15" → "A" (letter + digit)
  *   "2.1.1 Something" → "2"
  *   "Section 2.1.1" → "Section 2"
- *   "A.1.2" → "A"
+ *   "III.2" → "III" (Roman numeral)
+ *   "MANDATORY REQUIREMENTS" → "MANDATORY REQUIREMENTS" (letter + letter = full title)
  */
 export function getMajorCategory(section: string | null | undefined): string {
   if (!section) return "Uncategorized";
 
   const trimmed = section.trim();
+  if (!trimmed) return "Uncategorized";
 
-  // Pattern 1: "Section X.Y.Z" or "Part X.Y.Z" - extract "Section X" or "Part X"
+  // Handle "Section X", "Part X", etc. prefix format
   const prefixMatch = trimmed.match(/^(Section|Part|Chapter|Article)\s+(\d+|[A-Z]+|[IVX]+)/i);
   if (prefixMatch) {
     return `${prefixMatch[1]} ${prefixMatch[2]}`;
   }
 
-  // Pattern 2: "X.Y.Z" or "X. Title" where X is numeric - extract "X"
-  const numericMatch = trimmed.match(/^(\d+)[.\s]/);
-  if (numericMatch) {
-    return numericMatch[1];
-  }
-
-  // Pattern 3: Just a number at the start
-  const justNumber = trimmed.match(/^(\d+)$/);
-  if (justNumber) {
-    return justNumber[1];
-  }
-
-  // Pattern 4: "A.1.2" or "A15" or "A-1" or "A: TITLE" - extract the letter
-  // Matches letter followed by dot, colon, dash, or number
-  const letterMatch = trimmed.match(/^([A-Z])[.:\-\d]/i);
-  if (letterMatch) {
-    return letterMatch[1].toUpperCase();
-  }
-
-  // Pattern 5: Single letter "A" or "B"
-  const singleLetter = trimmed.match(/^([A-Z])$/i);
-  if (singleLetter) {
-    return singleLetter[1].toUpperCase();
-  }
-
-  // Pattern 6: Roman numerals "III.2.1" or "III-1" - extract the numeral
-  const romanMatch = trimmed.match(/^([IVX]+)[.\-\d]/i);
-  if (romanMatch) {
-    return romanMatch[1].toUpperCase();
-  }
-
-  // Pattern 7: Contains comma separation like "Part III, Section 2.1" - take first part
+  // Handle comma-separated (take first part)
   if (trimmed.includes(",")) {
-    return trimmed.split(",")[0].trim();
+    return getMajorCategory(trimmed.split(",")[0].trim());
   }
 
-  // Pattern 8: Full title sections like "MANDATORY REQUIREMENTS" or "General Information"
-  // These are multi-word titles without a letter/number prefix - keep them intact
-  // Detect: starts with 2+ letter word, contains space, no colon/period after first char
-  const fullTitleMatch = trimmed.match(/^([A-Z]{2,})\s+/i);
-  if (fullTitleMatch && !trimmed.match(/^[A-Z][.:\-\d]/i)) {
-    // It's a multi-word title, return as-is for grouping
+  const firstChar = trimmed[0];
+  const secondChar = trimmed[1] || '';
+
+  // 1. Starts with digit → extract leading number
+  if (/\d/.test(firstChar)) {
+    const numMatch = trimmed.match(/^(\d+)/);
+    return numMatch ? numMatch[1] : trimmed;
+  }
+
+  // 2. Starts with letter
+  if (/[A-Z]/i.test(firstChar)) {
+    // If second char is NOT a letter, it's a single-letter section
+    // Matches: "A:", "A.", "A-", "A1", "A ", or just "A"
+    if (!/[A-Z]/i.test(secondChar)) {
+      return firstChar.toUpperCase();
+    }
+
+    // Second char IS a letter - check for Roman numerals (I, II, III, IV, V, etc.)
+    const romanMatch = trimmed.match(/^([IVX]+)(?:[^A-Z]|$)/i);
+    if (romanMatch) {
+      return romanMatch[1].toUpperCase();
+    }
+
+    // Not a single letter, not a Roman numeral
+    // It's a full title like "MANDATORY REQUIREMENTS" - return as-is
     return trimmed;
   }
 
-  // Pattern 9: Single letter at start followed by space and title - might be "A REQUIREMENTS"
-  // But only if it's a single letter (not like "MANDATORY")
-  const singleLetterTitle = trimmed.match(/^([A-Z])\s+[A-Z]/i);
-  if (singleLetterTitle) {
-    return singleLetterTitle[1].toUpperCase();
-  }
-
-  // Fallback: return the original section (it's likely already a category or title)
   return trimmed;
 }
 
