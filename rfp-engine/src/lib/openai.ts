@@ -868,6 +868,82 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 // =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Call OpenAI with retry logic for transient failures
+ */
+async function callOpenAIWithRetry(
+  messages: { role: "system" | "user"; content: string }[],
+  maxRetries = 3
+): Promise<string> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Create abort controller for timeout (2 minutes per attempt)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+    try {
+      const response = await openai.chat.completions.create(
+        {
+          model: MODELS.EXTRACTION,
+          messages,
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        },
+        { signal: controller.signal }
+      );
+
+      clearTimeout(timeoutId);
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("No response from OpenAI");
+      }
+
+      return content;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry on abort (timeout)
+      if (lastError.name === 'AbortError') {
+        throw new Error("Extraction timed out after 2 minutes. Try a smaller document.");
+      }
+
+      // Check if it's a retryable error (rate limit, server error, network error)
+      const isRetryable =
+        lastError.message.includes('429') ||  // Rate limit
+        lastError.message.includes('500') ||  // Server error
+        lastError.message.includes('502') ||  // Bad gateway
+        lastError.message.includes('503') ||  // Service unavailable
+        lastError.message.includes('504') ||  // Gateway timeout
+        lastError.message.includes('ECONNRESET') ||
+        lastError.message.includes('ETIMEDOUT') ||
+        lastError.message.includes('fetch failed');
+
+      if (isRetryable && attempt < maxRetries) {
+        // Exponential backoff: 2s, 4s, 8s
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`OpenAI call failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`, lastError.message);
+        await sleep(delay);
+        continue;
+      }
+
+      throw lastError;
+    }
+  }
+
+  throw lastError || new Error("Extraction failed after retries");
+}
+
 export async function extractRequirements(documentText: string): Promise<ExtractionResult> {
   // Sanitize input to prevent prompt injection
   const sanitizedText = sanitizeForLLM(documentText);
@@ -879,41 +955,14 @@ export async function extractRequirements(documentText: string): Promise<Extract
       ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length]"
       : sanitizedText;
 
-  // Create abort controller for timeout (2 minutes)
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000);
-
-  let response;
-  try {
-    response = await openai.chat.completions.create(
-      {
-        model: MODELS.EXTRACTION,
-        messages: [
-          { role: "system", content: EXTRACTION_PROMPT },
-          {
-            role: "user",
-            content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
-          },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-      },
-      { signal: controller.signal }
-    );
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error("Extraction timed out after 2 minutes. Try a smaller document.");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("No response from OpenAI");
-  }
+  // Call OpenAI with retry logic
+  const content = await callOpenAIWithRetry([
+    { role: "system", content: EXTRACTION_PROMPT },
+    {
+      role: "user",
+      content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
+    },
+  ]);
 
   try {
     const parsed = JSON.parse(content);
