@@ -65,8 +65,30 @@ export async function POST(request: Request) {
 
     const fileName = file.name;
 
-    // Check for in-progress uploads (prevent concurrent processing of same file)
+    // Check for duplicate/in-progress uploads
     if (!allowDuplicate) {
+      // Check for existing successful projects (warn user about duplicate)
+      const existingProject = await prisma.project.findFirst({
+        where: {
+          userId: session.user.id,
+          fileName: fileName,
+          status: { in: ["READY", "COMPLETED"] },
+        },
+        select: { id: true, name: true, status: true },
+      });
+
+      if (existingProject) {
+        return NextResponse.json(
+          {
+            error: "duplicate",
+            message: `A project with the file "${fileName}" already exists: "${existingProject.name}"`,
+            existingProjectId: existingProject.id,
+            existingProjectName: existingProject.name,
+          },
+          { status: 409 }
+        );
+      }
+
       // Check for PROCESSING projects - handle stuck vs active
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       const processingProject = await prisma.project.findFirst({
