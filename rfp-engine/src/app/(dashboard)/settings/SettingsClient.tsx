@@ -18,6 +18,19 @@ interface BillingInfo {
   usage: {
     extractionsUsed: number;
     extractionsLimit: number;
+    draftsUsed: number;
+    draftsLimit: number;
+  };
+  limits?: {
+    canExportWord: boolean;
+    canUseLibrary: boolean;
+  };
+  singleUse?: {
+    hasCredits: boolean;
+    extractionsRemaining: number;
+    draftsRemaining: number;
+    expiresAt: string | null;
+    isExpired: boolean;
   };
 }
 
@@ -145,9 +158,10 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
   const getPlanName = (plan: string) => {
     const names: Record<string, string> = {
       FREE: "No Active Subscription",
-      SOLO: "Solo",
+      STARTER: "Starter",
       PRO: "Pro",
       TEAM: "Team",
+      BUSINESS: "Business",
     };
     return names[plan] || plan;
   };
@@ -294,15 +308,16 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
             {/* Usage */}
             <div className="border-t pt-4">
               <h3 className="font-medium mb-3">Usage This Month</h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* Extraction Usage */}
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">Document Extractions</span>
                     <span className="font-medium">
-                      {billingInfo.usage.extractionsUsed} / {billingInfo.usage.extractionsLimit === 999999 ? "Unlimited" : billingInfo.usage.extractionsLimit}
+                      {billingInfo.usage.extractionsUsed} / {billingInfo.usage.extractionsLimit === -1 ? "Unlimited" : billingInfo.usage.extractionsLimit}
                     </span>
                   </div>
-                  {billingInfo.usage.extractionsLimit !== 999999 && (
+                  {billingInfo.usage.extractionsLimit !== -1 && (
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${
@@ -319,8 +334,69 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
                     </div>
                   )}
                 </div>
+
+                {/* Draft Usage */}
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">AI Draft Generations</span>
+                    <span className="font-medium">
+                      {billingInfo.usage.draftsUsed} / {billingInfo.usage.draftsLimit === -1 ? "Unlimited" : billingInfo.usage.draftsLimit}
+                    </span>
+                  </div>
+                  {billingInfo.usage.draftsLimit !== -1 && (
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          billingInfo.usage.draftsUsed >= billingInfo.usage.draftsLimit
+                            ? "bg-red-500"
+                            : billingInfo.usage.draftsUsed >= billingInfo.usage.draftsLimit * 0.8
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
+                        }`}
+                        style={{
+                          width: `${Math.min(100, (billingInfo.usage.draftsUsed / billingInfo.usage.draftsLimit) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Single-Use Credits */}
+            {billingInfo.singleUse && (billingInfo.singleUse.hasCredits || billingInfo.singleUse.extractionsRemaining > 0 || billingInfo.singleUse.draftsRemaining > 0) && (
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    Single RFP
+                  </span>
+                  Credits
+                </h3>
+                {billingInfo.singleUse.isExpired ? (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-sm text-gray-500">Your single-use credits have expired.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-orange-50 rounded-lg p-3">
+                        <p className="text-sm text-gray-600">Extractions Remaining</p>
+                        <p className="text-2xl font-bold text-orange-600">{billingInfo.singleUse.extractionsRemaining}</p>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-3">
+                        <p className="text-sm text-gray-600">Drafts Remaining</p>
+                        <p className="text-2xl font-bold text-orange-600">{billingInfo.singleUse.draftsRemaining}</p>
+                      </div>
+                    </div>
+                    {billingInfo.singleUse.expiresAt && (
+                      <p className="text-sm text-gray-500">
+                        Expires on {formatDate(billingInfo.singleUse.expiresAt)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Billing Period */}
             {billingInfo.currentPeriodEnd && !billingInfo.cancelAtPeriodEnd && (

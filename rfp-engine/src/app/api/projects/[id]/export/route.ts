@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPlanLimits } from "@/lib/stripe";
 import {
   scanForPlaceholders,
   generateDocx,
@@ -135,6 +136,17 @@ export async function POST(request: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Invalid template." }, { status: 400 });
     }
 
+    // Check plan-based export restrictions
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { plan: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const planLimits = getPlanLimits(user.plan);
 
     const project = await prisma.project.findUnique({
       where: { id },
@@ -160,6 +172,14 @@ export async function POST(request: NextRequest, { params }: Props) {
 
     if (!project || project.userId !== session.user.id) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // STARTER and FREE cannot export Word format (unless it's a single-use project)
+    if (format === "docx" && !planLimits.canExportWord && !project.isSingleUseProject) {
+      return NextResponse.json(
+        { error: "Word export is not available on your plan. Please upgrade to Pro or higher, or export as PDF." },
+        { status: 403 }
+      );
     }
 
     // Check for placeholders

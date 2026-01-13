@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { PLAN_CONFIG, type PlanType } from "@/lib/stripe";
+import { PLAN_CONFIG, getPlanLimits, type PlanType } from "@/lib/stripe";
 
 export async function GET() {
   try {
@@ -30,7 +30,12 @@ export async function GET() {
         cancelAtPeriodEnd: true,
         monthlyExtractionsUsed: true,
         monthlyExtractionsLimit: true,
+        monthlyDraftsUsed: true,
         stripeCustomerId: true,
+        // Single-use credits
+        singleUseExtractionsRemaining: true,
+        singleUseDraftsRemaining: true,
+        singleUseExpiresAt: true,
       },
     });
 
@@ -38,8 +43,16 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get plan details
+    // Get plan details and limits
     const planConfig = user.plan !== "FREE" ? PLAN_CONFIG[user.plan as PlanType] : null;
+    const planLimits = getPlanLimits(user.plan);
+
+    // Calculate single-use status
+    const singleUseExpired = user.singleUseExpiresAt
+      ? new Date() > user.singleUseExpiresAt
+      : false;
+    const singleUseHasCredits =
+      user.singleUseExtractionsRemaining > 0 && !singleUseExpired;
 
     return NextResponse.json({
       plan: user.plan,
@@ -50,11 +63,25 @@ export async function GET() {
       usage: {
         extractionsUsed: user.monthlyExtractionsUsed,
         extractionsLimit: user.monthlyExtractionsLimit,
+        draftsUsed: user.monthlyDraftsUsed,
+        draftsLimit: planLimits.monthlyDrafts,
       },
       hasStripeAccount: !!user.stripeCustomerId,
       features: planConfig?.features || [
         "Subscribe to unlock features",
       ],
+      limits: {
+        canExportWord: planLimits.canExportWord,
+        canUseLibrary: planLimits.canUseLibrary,
+      },
+      // Single-use credits (separate from subscription)
+      singleUse: {
+        hasCredits: singleUseHasCredits,
+        extractionsRemaining: singleUseExpired ? 0 : user.singleUseExtractionsRemaining,
+        draftsRemaining: singleUseExpired ? 0 : user.singleUseDraftsRemaining,
+        expiresAt: user.singleUseExpiresAt?.toISOString() || null,
+        isExpired: singleUseExpired,
+      },
     });
   } catch (error) {
     console.error("Billing status error:", error);

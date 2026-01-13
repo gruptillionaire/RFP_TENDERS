@@ -76,7 +76,7 @@ export default async function Home() {
               </Button>
             </Link>
           </div>
-          <p className="text-sm text-gray-500 mt-4">Plans from £39/month.</p>
+          <p className="text-sm text-gray-500 mt-4">Plans from £49/month.</p>
         </div>
 
         {/* Features */}
@@ -131,155 +131,164 @@ export default async function Home() {
         <section id="pricing" className="mt-32">
           <h2 className="text-3xl font-bold text-center mb-12">Pricing</h2>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Solo */}
-            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
-              <h3 className="text-lg font-semibold text-gray-900">Solo</h3>
-              <p className="text-sm text-gray-500 mt-1">For freelancers and consultants</p>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            {/* Starter */}
+            <div className="p-6 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
+              <h3 className="text-lg font-semibold text-gray-900">Starter</h3>
+              <p className="text-sm text-gray-500 mt-1">For freelancers</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-gray-900">£39</span>
+                <span className="text-3xl font-bold text-gray-900">£49</span>
                 <span className="text-gray-500">/month</span>
               </div>
-              <ul className="mt-6 space-y-3 text-sm">
+              <ul className="mt-6 space-y-2 text-sm">
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>5 RFP extractions/month</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>100 AI draft responses</span>
+                  <span>250 AI drafts</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Compliance tracking</span>
+                  <span>Export to PDF</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  <span>Response library</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Export to Word</span>
+                  <span className="text-gray-400">No Word export</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-8">
+              <Link href="/signup" className="block mt-auto pt-6">
                 <Button variant="outline" className="w-full">Get Started</Button>
               </Link>
             </div>
 
             {/* Pro - Most Popular */}
-            <div className="p-8 rounded-2xl border-2 border-blue-500 bg-white relative flex flex-col">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
-                  Most Popular
+            <div className="p-6 rounded-2xl border-2 border-blue-500 bg-white relative flex flex-col">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-blue-500 text-white">
+                  Popular
                 </span>
               </div>
               <h3 className="text-lg font-semibold text-gray-900">Pro</h3>
-              <p className="text-sm text-gray-500 mt-1">For growing SMEs</p>
+              <p className="text-sm text-gray-500 mt-1">For SMEs</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-gray-900">£99</span>
+                <span className="text-3xl font-bold text-gray-900">£99</span>
                 <span className="text-gray-500">/month</span>
               </div>
-              <ul className="mt-6 space-y-3 text-sm">
+              <ul className="mt-6 space-y-2 text-sm">
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>15 RFP extractions/month</span>
+                  <span>10 RFP extractions/month</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>500 AI draft responses</span>
+                  <span>500 AI drafts</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Compliance tracking</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Response library</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Export to Word</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Priority support</span>
+                  <span>Export to Word & PDF</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-8">
+              <Link href="/signup" className="block mt-auto pt-6">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">Get Started</Button>
               </Link>
             </div>
 
             {/* Team */}
-            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
+            <div className="p-6 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
               <h3 className="text-lg font-semibold text-gray-900">Team</h3>
-              <p className="text-sm text-gray-500 mt-1">For agencies and high-volume</p>
+              <p className="text-sm text-gray-500 mt-1">For growing teams</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-gray-900">£249</span>
+                <span className="text-3xl font-bold text-gray-900">£179</span>
                 <span className="text-gray-500">/month</span>
               </div>
-              <ul className="mt-6 space-y-3 text-sm">
+              <ul className="mt-6 space-y-2 text-sm">
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="font-medium">Unlimited extractions</span>
+                  <span>25 RFP extractions/month</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="font-medium">Unlimited AI responses</span>
+                  <span>1,000 AI drafts</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Compliance tracking</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Response library</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Export to Word</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Priority support</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-8">
+              <Link href="/signup" className="block mt-auto pt-6">
+                <Button variant="outline" className="w-full">Get Started</Button>
+              </Link>
+            </div>
+
+            {/* Business */}
+            <div className="p-6 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
+              <h3 className="text-lg font-semibold text-gray-900">Business</h3>
+              <p className="text-sm text-gray-500 mt-1">For agencies</p>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-gray-900">£249</span>
+                <span className="text-gray-500">/month</span>
+              </div>
+              <ul className="mt-6 space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">Unlimited extractions</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">Unlimited AI drafts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Response library</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Priority support</span>
+                </li>
+              </ul>
+              <Link href="/signup" className="block mt-auto pt-6">
                 <Button variant="outline" className="w-full">Get Started</Button>
               </Link>
             </div>

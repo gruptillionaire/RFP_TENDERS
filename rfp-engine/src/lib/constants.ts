@@ -16,9 +16,18 @@ export const TOKEN_LIMITS = {
 
 export const QUOTA_LIMITS = {
   FREE: 2,
-  SOLO: 10,
-  PRO: -1, // -1 means unlimited
-  TEAM: -1, // -1 means unlimited
+  STARTER: 5,
+  PRO: 10,
+  TEAM: 25,
+  BUSINESS: -1, // -1 means unlimited
+} as const;
+
+export const DRAFT_LIMITS = {
+  FREE: 20,
+  STARTER: 250,
+  PRO: 500,
+  TEAM: 1000,
+  BUSINESS: -1, // -1 means unlimited
 } as const;
 
 export type RequirementType = keyof typeof TOKEN_LIMITS;

@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
+import { getPlanLimits } from "@/lib/stripe";
 
 // Rate limiting: max 50 requests per user per minute
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
@@ -166,6 +167,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
+      );
+    }
+
+    // Check plan-based library access
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { plan: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const planLimits = getPlanLimits(user.plan);
+
+    if (!planLimits.canUseLibrary) {
+      return NextResponse.json(
+        { error: "Response library is not available on your plan. Please upgrade to Pro or higher." },
+        { status: 403 }
       );
     }
 

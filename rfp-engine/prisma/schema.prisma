@@ -59,7 +59,15 @@ model User {
   cancelAtPeriodEnd       Boolean        @default(false) // User cancelled but access until period end
   monthlyExtractionsUsed  Int            @default(0)
   monthlyExtractionsLimit Int            @default(2)
+  monthlyDraftsUsed       Int            @default(0)
   lastUsageReset          DateTime       @default(now())
+
+  // Single-Use Purchase Tracking
+  singleUseExtractionsRemaining  Int       @default(0)
+  singleUseDraftsRemaining       Int       @default(0)
+  singleUsePurchasedAt           DateTime?
+  singleUseExpiresAt             DateTime?
+  singleUseStripePaymentId       String?
 
   // Consent tracking (GDPR compliance)
   termsAcceptedAt         DateTime?
@@ -88,6 +96,7 @@ model User {
   auditLogs               AuditLog[]
   dataExportRequests      DataExportRequest[]
   requirementVersions     RequirementVersion[]
+  singleUsePurchases      SingleUsePurchase[]
 
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
@@ -95,9 +104,10 @@ model User {
 
 enum Plan {
   FREE
-  SOLO
+  STARTER   // Entry tier (was SOLO)
   PRO
-  TEAM
+  TEAM      // Mid-high tier
+  BUSINESS  // Top tier (unlimited)
 }
 
 enum SubscriptionStatus {
@@ -128,6 +138,10 @@ model Project {
   lastReminderSent DateTime?       // When last reminder was sent
   lastReminderType String?         // "7d", "3d", "1d", "overdue"
 
+  // Single-use project tracking
+  expiresAt          DateTime?     // When this project will be deleted (single-use only)
+  isSingleUseProject Boolean       @default(false)
+
   // Custom evaluation criteria from RFP (array of {id, name, weight, linkedSections})
   evaluationCriteria Json?
 
@@ -136,6 +150,7 @@ model Project {
 
   @@index([userId])
   @@index([deadline])
+  @@index([expiresAt])
 }
 
 enum ProjectStatus {
@@ -335,6 +350,26 @@ model ProcessedWebhookEvent {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// =============================================================================
+// SINGLE-USE PURCHASES
+// =============================================================================
+
+// Tracks one-time RFP purchases for audit and support
+model SingleUsePurchase {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripePaymentId    String   @unique  // Stripe payment intent ID
+  amount             Int      // Amount in pence (4000 = 40 GBP)
+  currency           String   @default("gbp")
+  extractionsGranted Int      @default(1)
+  draftsGranted      Int      @default(60)
+  status             String   @default("completed") // "pending", "completed", "refunded"
+  createdAt          DateTime @default(now())
+
+  @@index([userId])
 }
 
 // =============================================================================

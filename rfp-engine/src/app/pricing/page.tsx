@@ -6,21 +6,44 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useSession } from "next-auth/react";
 
+// Single-use one-time purchase
+const singleUsePlan = {
+  id: "SINGLE_USE",
+  name: "Single RFP",
+  price: 40,
+  period: "one-time",
+  description: "Perfect for a single RFP project",
+  features: [
+    "1 RFP extraction",
+    "60 AI draft responses",
+    "Export to Word & PDF",
+    "30-day project access",
+  ],
+  limitations: [
+    "No response library",
+    "Project expires after 30 days",
+  ],
+  cta: "Buy Now",
+};
+
+// Subscription plans
 const plans = [
   {
-    id: "SOLO",
-    name: "Solo",
-    price: 39,
+    id: "STARTER",
+    name: "Starter",
+    price: 49,
     period: "/month",
     description: "For freelancers and individual consultants",
     features: [
       "5 RFP extractions per month",
-      "100 AI draft responses per month",
+      "250 AI draft responses per month",
       "AI-powered requirement detection",
-      "Response library",
-      "Export to Word",
+      "Export to PDF",
     ],
-    limitations: [],
+    limitations: [
+      "No Word export (PDF only)",
+      "No response library",
+    ],
     cta: "Get Started",
     popular: false,
   },
@@ -31,12 +54,11 @@ const plans = [
     period: "/month",
     description: "For SMEs and growing businesses",
     features: [
-      "15 RFP extractions per month",
+      "10 RFP extractions per month",
       "500 AI draft responses per month",
       "AI-powered requirement detection",
       "Response library",
-      "Export to Word",
-      "Priority support",
+      "Export to Word & PDF",
     ],
     limitations: [],
     cta: "Get Started",
@@ -45,6 +67,24 @@ const plans = [
   {
     id: "TEAM",
     name: "Team",
+    price: 179,
+    period: "/month",
+    description: "For growing teams",
+    features: [
+      "25 RFP extractions per month",
+      "1,000 AI draft responses per month",
+      "AI-powered requirement detection",
+      "Response library",
+      "Export to Word & PDF",
+      "Priority support",
+    ],
+    limitations: [],
+    cta: "Get Started",
+    popular: false,
+  },
+  {
+    id: "BUSINESS",
+    name: "Business",
     price: 249,
     period: "/month",
     description: "For agencies and high-volume users",
@@ -53,7 +93,7 @@ const plans = [
       "Unlimited AI draft responses",
       "AI-powered requirement detection",
       "Response library",
-      "Export to Word",
+      "Export to Word & PDF",
       "Priority support",
     ],
     limitations: [],
@@ -70,6 +110,7 @@ function PricingContent() {
   const [error, setError] = useState<string | null>(null);
 
   const cancelled = searchParams.get("subscription") === "cancelled";
+  const purchaseCancelled = searchParams.get("purchase") === "cancelled";
 
   async function handleSubscribe(planId: string) {
     if (!session) {
@@ -92,6 +133,36 @@ function PricingContent() {
 
       if (res.ok && data.url) {
         // Redirect to Stripe Checkout
+        window.location.href = data.url;
+      } else {
+        setError(data.error || "Failed to start checkout");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleSingleUsePurchase() {
+    if (!session) {
+      router.push(`/login?callbackUrl=/pricing`);
+      return;
+    }
+
+    setLoading("SINGLE_USE");
+    setError(null);
+
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "single_use" }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.url) {
         window.location.href = data.url;
       } else {
         setError(data.error || "Failed to start checkout");
@@ -144,7 +215,7 @@ function PricingContent() {
         </div>
 
         {/* Cancelled notice */}
-        {cancelled && (
+        {(cancelled || purchaseCancelled) && (
           <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
             <p className="text-yellow-800">
               Checkout was cancelled. Feel free to try again when you're ready.
@@ -159,8 +230,111 @@ function PricingContent() {
           </div>
         )}
 
+        {/* Single-use option */}
+        <div className="mb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900">Just need one RFP?</h2>
+            <p className="mt-2 text-gray-600">Pay once, no subscription required</p>
+          </div>
+          <div className="max-w-md mx-auto">
+            <div className="relative rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 p-8 shadow-sm border-2 border-orange-300 hover:shadow-lg transition-shadow">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-orange-500 text-white">
+                  One-Time Purchase
+                </span>
+              </div>
+
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900">{singleUsePlan.name}</h3>
+                <div className="mt-4 flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-bold text-gray-900">£{singleUsePlan.price}</span>
+                  <span className="text-gray-500">{singleUsePlan.period}</span>
+                </div>
+                <p className="mt-2 text-sm text-gray-500">{singleUsePlan.description}</p>
+              </div>
+
+              <ul className="mt-8 space-y-3">
+                {singleUsePlan.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <svg
+                      className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span className="text-sm text-gray-600">{feature}</span>
+                  </li>
+                ))}
+                {singleUsePlan.limitations.map((limitation, i) => (
+                  <li key={`lim-${i}`} className="flex items-start gap-3">
+                    <svg
+                      className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                    <span className="text-sm text-gray-400">{limitation}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8">
+                <Button
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={handleSingleUsePurchase}
+                  disabled={loading === "SINGLE_USE"}
+                >
+                  {loading === "SINGLE_USE" ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    `${singleUsePlan.cta} - £${singleUsePlan.price}`
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="relative mb-16">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-gradient-to-b from-gray-50 to-white px-4 text-gray-500">
+              Or subscribe for ongoing access
+            </span>
+          </div>
+        </div>
+
+        {/* Subscription plans header */}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-900">Monthly Subscriptions</h2>
+          <p className="mt-2 text-gray-600">For regular RFP responders - cancel anytime</p>
+        </div>
+
         {/* Pricing cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {plans.map((plan) => (
             <div
               key={plan.id}

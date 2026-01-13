@@ -6,6 +6,11 @@ import { RequirementType } from "@/lib/constants";
 import { DomainContext } from "@/lib/domain-context";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
+import {
+  checkAndIncrementDraftQuota,
+  getSingleUseQuotaStatus,
+  checkAndConsumeSingleUseDraft,
+} from "@/lib/quota";
 
 // Security constants
 const MAX_DRAFT_LENGTH = 50000; // 50KB
@@ -236,14 +241,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    // Verify ownership and get requirement with project's companyName
+    // Verify ownership and get requirement with project info
     const requirement = await prisma.requirement.findUnique({
       where: { id },
-      include: { project: { select: { userId: true, companyName: true } } },
+      include: { project: { select: { userId: true, companyName: true, isSingleUseProject: true } } },
     });
 
     if (!requirement || requirement.project.userId !== session.user.id) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Check draft quota - use single-use for single-use projects, otherwise subscription
+    const isSingleUseProject = requirement.project.isSingleUseProject;
+
+    if (isSingleUseProject) {
+      // Check single-use draft credits
+      const singleUseStatus = await getSingleUseQuotaStatus(session.user.id);
+      if (singleUseStatus.draftsRemaining <= 0 || singleUseStatus.isExpired) {
+        return NextResponse.json(
+          {
+            error: "No draft credits remaining for this single-use project.",
+            remaining: 0,
+          },
+          { status: 403 }
+        );
+      }
+    } else {
+      // Check subscription draft quota
+      const draftQuota = await checkAndIncrementDraftQuota(session.user.id, false);
+      if (!draftQuota.allowed) {
+        return NextResponse.json(
+          {
+            error: "Monthly draft generation limit reached. Please upgrade your plan.",
+            remaining: 0,
+            limit: draftQuota.limit,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Generate draft with requirement type and domain context
@@ -284,6 +319,13 @@ export async function POST(request: Request) {
         },
       });
     });
+
+    // Consume draft quota after successful generation
+    if (isSingleUseProject) {
+      await checkAndConsumeSingleUseDraft(session.user.id);
+    } else {
+      await checkAndIncrementDraftQuota(session.user.id, true);
+    }
 
     // Log the draft generation
     await logAudit({

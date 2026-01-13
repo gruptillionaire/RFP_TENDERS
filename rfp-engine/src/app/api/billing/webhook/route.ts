@@ -17,6 +17,7 @@ import {
   getPlanFromPriceId,
   mapSubscriptionStatus,
   getPlanLimits,
+  SINGLE_USE_CONFIG,
 } from "@/lib/stripe";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 import type Stripe from "stripe";
@@ -143,6 +144,14 @@ export async function POST(request: NextRequest) {
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const customerId = session.customer as string;
+
+  // Check if this is a single-use purchase
+  if (session.metadata?.type === "single_use") {
+    await handleSingleUsePurchase(session);
+    return;
+  }
+
+  // Handle subscription checkout
   const subscriptionId = session.subscription as string;
 
   if (!customerId || !subscriptionId) {
@@ -180,6 +189,76 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 
   console.log(`Checkout completed for user ${user.id}`);
+}
+
+/**
+ * Handle single-use purchase completion
+ * Credits user with 1 extraction and 60 drafts, sets 30-day expiration
+ */
+async function handleSingleUsePurchase(session: Stripe.Checkout.Session) {
+  const customerId = session.customer as string;
+  const paymentIntentId = session.payment_intent as string;
+
+  if (!customerId || !paymentIntentId) {
+    console.error("Single-use checkout missing customer or payment intent ID");
+    return;
+  }
+
+  // Find user by Stripe customer ID
+  const user = await prisma.user.findFirst({
+    where: { stripeCustomerId: customerId },
+  });
+
+  if (!user) {
+    console.error(`No user found for customer ${customerId}`);
+    return;
+  }
+
+  // Calculate expiration date (30 days from now)
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + SINGLE_USE_CONFIG.limits.expirationDays);
+
+  // Update user with single-use credits and create purchase record
+  await prisma.$transaction([
+    // Update user credits
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        singleUseExtractionsRemaining: { increment: SINGLE_USE_CONFIG.limits.extractions },
+        singleUseDraftsRemaining: { increment: SINGLE_USE_CONFIG.limits.drafts },
+        singleUsePurchasedAt: new Date(),
+        singleUseExpiresAt: expiresAt,
+        singleUseStripePaymentId: paymentIntentId,
+      },
+    }),
+    // Create purchase record for audit trail
+    prisma.singleUsePurchase.create({
+      data: {
+        userId: user.id,
+        stripePaymentId: paymentIntentId,
+        amount: session.amount_total || (SINGLE_USE_CONFIG.price * 100),
+        currency: session.currency || "gbp",
+        extractionsGranted: SINGLE_USE_CONFIG.limits.extractions,
+        draftsGranted: SINGLE_USE_CONFIG.limits.drafts,
+        status: "completed",
+      },
+    }),
+  ]);
+
+  await logAudit({
+    userId: user.id,
+    action: AuditAction.BILLING_PAYMENT_SUCCEEDED,
+    resource: AuditResource.SUBSCRIPTION,
+    resourceId: paymentIntentId,
+    details: {
+      type: "single_use",
+      extractionsGranted: SINGLE_USE_CONFIG.limits.extractions,
+      draftsGranted: SINGLE_USE_CONFIG.limits.drafts,
+      expiresAt: expiresAt.toISOString(),
+    },
+  });
+
+  console.log(`Single-use purchase completed for user ${user.id}: ${SINGLE_USE_CONFIG.limits.extractions} extractions, ${SINGLE_USE_CONFIG.limits.drafts} drafts, expires ${expiresAt.toISOString()}`);
 }
 
 /**

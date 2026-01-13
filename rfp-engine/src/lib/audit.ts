@@ -47,6 +47,7 @@ export const AuditAction = {
   BILLING_PAYMENT_SUCCEEDED: "billing.payment.succeeded",
   BILLING_PAYMENT_FAILED: "billing.payment.failed",
   BILLING_PORTAL_ACCESSED: "billing.portal.accessed",
+  BILLING_CREDITS_EXPIRED: "billing.credits.expired",
 
   // Library (Past Responses)
   LIBRARY_RESPONSE_CREATE: "library.response.create",

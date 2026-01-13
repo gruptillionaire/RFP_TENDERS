@@ -32,29 +32,36 @@ export { getStripeClient };
 // IMPORTANT: These must match your Stripe Dashboard price IDs
 // Warn if price IDs are not configured (only in development)
 if (process.env.NODE_ENV === "development") {
-  if (!process.env.STRIPE_SOLO_PRICE_ID) console.warn("Warning: STRIPE_SOLO_PRICE_ID not set - checkout will fail for Solo plan");
+  if (!process.env.STRIPE_STARTER_PRICE_ID) console.warn("Warning: STRIPE_STARTER_PRICE_ID not set - checkout will fail for Starter plan");
   if (!process.env.STRIPE_PRO_PRICE_ID) console.warn("Warning: STRIPE_PRO_PRICE_ID not set - checkout will fail for Pro plan");
   if (!process.env.STRIPE_TEAM_PRICE_ID) console.warn("Warning: STRIPE_TEAM_PRICE_ID not set - checkout will fail for Team plan");
+  if (!process.env.STRIPE_BUSINESS_PRICE_ID) console.warn("Warning: STRIPE_BUSINESS_PRICE_ID not set - checkout will fail for Business plan");
+  if (!process.env.STRIPE_SINGLE_USE_PRICE_ID) console.warn("Warning: STRIPE_SINGLE_USE_PRICE_ID not set - checkout will fail for Single RFP purchase");
 }
 
 export const PLAN_CONFIG = {
-  SOLO: {
-    name: "Solo",
-    priceId: process.env.STRIPE_SOLO_PRICE_ID || "",
-    monthlyPrice: 39,
+  STARTER: {
+    name: "Starter",
+    priceId: process.env.STRIPE_STARTER_PRICE_ID || "",
+    monthlyPrice: 49,
     currency: "gbp",
     features: [
       "5 RFP extractions per month",
-      "100 AI draft responses per month",
+      "250 AI draft responses per month",
       "AI-powered requirement detection",
-      "Response library",
-      "Export to Word",
+      "Export to PDF",
+    ],
+    limitations: [
+      "No Word export (PDF only)",
+      "No response library",
     ],
     limits: {
       monthlyExtractions: 5,
       activeProjects: 5,
-      monthlyDrafts: 100,
-      storedResponses: 50,
+      monthlyDrafts: 250,
+      storedResponses: 0, // No library access
+      canExportWord: false,
+      canUseLibrary: false,
     },
   },
   PRO: {
@@ -63,23 +70,48 @@ export const PLAN_CONFIG = {
     monthlyPrice: 99,
     currency: "gbp",
     features: [
-      "15 RFP extractions per month",
+      "10 RFP extractions per month",
       "500 AI draft responses per month",
       "AI-powered requirement detection",
       "Response library",
-      "Export to Word",
-      "Priority support",
+      "Export to Word & PDF",
     ],
+    limitations: [],
     limits: {
-      monthlyExtractions: 15,
+      monthlyExtractions: 10,
       activeProjects: 10,
       monthlyDrafts: 500,
       storedResponses: 200,
+      canExportWord: true,
+      canUseLibrary: true,
     },
   },
   TEAM: {
     name: "Team",
     priceId: process.env.STRIPE_TEAM_PRICE_ID || "",
+    monthlyPrice: 179,
+    currency: "gbp",
+    features: [
+      "25 RFP extractions per month",
+      "1,000 AI draft responses per month",
+      "AI-powered requirement detection",
+      "Response library",
+      "Export to Word & PDF",
+      "Priority support",
+    ],
+    limitations: [],
+    limits: {
+      monthlyExtractions: 25,
+      activeProjects: 25,
+      monthlyDrafts: 1000,
+      storedResponses: 500,
+      canExportWord: true,
+      canUseLibrary: true,
+    },
+  },
+  BUSINESS: {
+    name: "Business",
+    priceId: process.env.STRIPE_BUSINESS_PRICE_ID || "",
     monthlyPrice: 249,
     currency: "gbp",
     features: [
@@ -87,19 +119,48 @@ export const PLAN_CONFIG = {
       "Unlimited AI draft responses",
       "AI-powered requirement detection",
       "Response library",
-      "Export to Word",
+      "Export to Word & PDF",
       "Priority support",
     ],
+    limitations: [],
     limits: {
       monthlyExtractions: -1, // -1 = unlimited
       activeProjects: -1,
       monthlyDrafts: -1,
       storedResponses: -1,
+      canExportWord: true,
+      canUseLibrary: true,
     },
   },
 } as const;
 
 export type PlanType = keyof typeof PLAN_CONFIG;
+
+// Single-use (one-time payment) product configuration
+export const SINGLE_USE_CONFIG = {
+  priceId: process.env.STRIPE_SINGLE_USE_PRICE_ID || "",
+  price: 40,
+  currency: "gbp",
+  name: "Single RFP",
+  description: "One-time purchase for a single RFP project",
+  features: [
+    "1 RFP extraction",
+    "60 AI draft responses",
+    "Export to Word & PDF",
+    "30-day project access",
+  ],
+  limitations: [
+    "No response library",
+    "Project expires after 30 days",
+  ],
+  limits: {
+    extractions: 1,
+    drafts: 60,
+    expirationDays: 30,
+    canExportWord: true,
+    canUseLibrary: false,
+  },
+} as const;
 
 // Map Stripe price ID to plan type
 export function getPlanFromPriceId(priceId: string): PlanType | null {
@@ -118,10 +179,12 @@ export function getPlanLimits(plan: string) {
       monthlyExtractions: 2,
       activeProjects: 2,
       monthlyDrafts: 20,
-      storedResponses: 10,
+      storedResponses: 0,
+      canExportWord: false,
+      canUseLibrary: false,
     };
   }
-  return PLAN_CONFIG[plan as PlanType]?.limits || PLAN_CONFIG.SOLO.limits;
+  return PLAN_CONFIG[plan as PlanType]?.limits || PLAN_CONFIG.STARTER.limits;
 }
 
 // Create or retrieve Stripe customer
@@ -192,6 +255,50 @@ export async function createCheckoutSession(
       metadata: {
         customerId,
       },
+    },
+  });
+
+  return session;
+}
+
+// Create checkout session for one-time single-use purchase
+export async function createSingleUseCheckoutSession(
+  customerId: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<Stripe.Checkout.Session> {
+  const stripe = getStripeClient();
+
+  if (!SINGLE_USE_CONFIG.priceId) {
+    throw new Error("STRIPE_SINGLE_USE_PRICE_ID is not configured");
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: "payment", // One-time payment, NOT subscription
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price: SINGLE_USE_CONFIG.priceId,
+        quantity: 1,
+      },
+    ],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    allow_promotion_codes: true,
+    billing_address_collection: "required",
+    customer_update: {
+      address: "auto",
+    },
+    automatic_tax: { enabled: true },
+    payment_intent_data: {
+      metadata: {
+        type: "single_use",
+        customerId,
+      },
+    },
+    metadata: {
+      type: "single_use", // Used in webhook to identify payment type
     },
   });
 

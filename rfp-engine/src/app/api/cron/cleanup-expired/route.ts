@@ -1,0 +1,141 @@
+/**
+ * GET /api/cron/cleanup-expired
+ *
+ * Daily cron job to clean up expired single-use projects and credits.
+ * Runs at 2 AM daily.
+ *
+ * Actions:
+ * 1. Delete projects where isSingleUseProject = true AND expiresAt < now
+ * 2. Reset expired single-use credits to 0 for users
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
+
+// Cron secret for security
+const CRON_SECRET = process.env.CRON_SECRET;
+
+export async function GET(req: NextRequest) {
+  // Verify cron secret
+  const authHeader = req.headers.get("authorization");
+  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+    console.log("Unauthorized cron request");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const now = new Date();
+
+    // Find and delete expired single-use projects
+    const expiredProjects = await prisma.project.findMany({
+      where: {
+        isSingleUseProject: true,
+        expiresAt: {
+          lt: now,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        userId: true,
+        expiresAt: true,
+      },
+    });
+
+    // Delete expired projects (cascade will handle requirements, exports, etc.)
+    if (expiredProjects.length > 0) {
+      await prisma.project.deleteMany({
+        where: {
+          id: {
+            in: expiredProjects.map((p) => p.id),
+          },
+        },
+      });
+
+      // Log each deletion
+      for (const project of expiredProjects) {
+        await logAudit({
+          userId: project.userId,
+          action: AuditAction.PROJECT_DELETE,
+          resource: AuditResource.PROJECT,
+          resourceId: project.id,
+          details: {
+            reason: "single_use_expired",
+            projectName: project.name,
+            expiresAt: project.expiresAt?.toISOString(),
+          },
+        });
+      }
+    }
+
+    // Reset expired single-use credits
+    const usersWithExpiredCredits = await prisma.user.findMany({
+      where: {
+        singleUseExpiresAt: {
+          lt: now,
+        },
+        OR: [
+          { singleUseExtractionsRemaining: { gt: 0 } },
+          { singleUseDraftsRemaining: { gt: 0 } },
+        ],
+      },
+      select: {
+        id: true,
+        singleUseExtractionsRemaining: true,
+        singleUseDraftsRemaining: true,
+        singleUseExpiresAt: true,
+      },
+    });
+
+    // Reset expired credits
+    if (usersWithExpiredCredits.length > 0) {
+      await prisma.user.updateMany({
+        where: {
+          id: {
+            in: usersWithExpiredCredits.map((u) => u.id),
+          },
+        },
+        data: {
+          singleUseExtractionsRemaining: 0,
+          singleUseDraftsRemaining: 0,
+        },
+      });
+
+      // Log each credit expiration
+      for (const user of usersWithExpiredCredits) {
+        await logAudit({
+          userId: user.id,
+          action: AuditAction.BILLING_CREDITS_EXPIRED,
+          resource: AuditResource.USER,
+          resourceId: user.id,
+          details: {
+            extractionsExpired: user.singleUseExtractionsRemaining,
+            draftsExpired: user.singleUseDraftsRemaining,
+            expiresAt: user.singleUseExpiresAt?.toISOString(),
+          },
+        });
+      }
+    }
+
+    console.log(
+      `Cleanup completed: ${expiredProjects.length} projects deleted, ${usersWithExpiredCredits.length} users' credits reset`
+    );
+
+    return NextResponse.json({
+      success: true,
+      projectsDeleted: expiredProjects.length,
+      deletedProjects: expiredProjects.map((p) => ({
+        id: p.id,
+        name: p.name,
+      })),
+      creditsReset: usersWithExpiredCredits.length,
+    });
+  } catch (error) {
+    console.error("Cleanup expired cron error:", error);
+    return NextResponse.json(
+      { error: "Failed to cleanup expired content" },
+      { status: 500 }
+    );
+  }
+}

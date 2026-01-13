@@ -4,7 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { parsePDF } from "@/lib/parsers/pdf";
 import { parseDOCX } from "@/lib/parsers/docx";
 import { extractRequirements } from "@/lib/openai";
-import { checkAndIncrementQuota } from "@/lib/quota";
+import {
+  checkAndIncrementQuota,
+  getSingleUseQuotaStatus,
+  checkAndConsumeSingleUseExtraction,
+} from "@/lib/quota";
 import fileType from "file-type";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
@@ -33,14 +37,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Quota check - re-enabled for security
-    const quotaCheck = await checkAndIncrementQuota(session.user.id, false);
-    if (!quotaCheck.allowed) {
+    // Check quota - single-use credits first, then subscription
+    const singleUseStatus = await getSingleUseQuotaStatus(session.user.id);
+    const subscriptionQuota = await checkAndIncrementQuota(session.user.id, false);
+
+    const usingSingleUse = singleUseStatus.hasCredits && singleUseStatus.extractionsRemaining > 0;
+    const hasSubscriptionQuota = subscriptionQuota.allowed;
+
+    if (!usingSingleUse && !hasSubscriptionQuota) {
       return NextResponse.json(
         {
-          error: "Monthly extraction limit reached. Please upgrade your plan.",
+          error: "No extraction credits available. Please purchase a Single RFP or upgrade your plan.",
           remaining: 0,
-          limit: quotaCheck.limit,
+          limit: subscriptionQuota.limit,
+          singleUseRemaining: singleUseStatus.extractionsRemaining,
         },
         { status: 403 }
       );
@@ -181,6 +191,7 @@ export async function POST(request: Request) {
     }
 
     // Create project in processing state
+    // Set expiration for single-use projects
     const project = await prisma.project.create({
       data: {
         name: name || fileName.replace(/\.[^/.]+$/, ""),
@@ -188,6 +199,9 @@ export async function POST(request: Request) {
         rawText,
         userId: session.user.id,
         status: "PROCESSING",
+        // Single-use project tracking
+        isSingleUseProject: usingSingleUse,
+        expiresAt: usingSingleUse ? singleUseStatus.expiresAt : null,
       },
     });
 
@@ -254,8 +268,12 @@ export async function POST(request: Request) {
           },
         });
 
-        // Increment quota on successful extraction
-        await checkAndIncrementQuota(session.user.id, true);
+        // Consume quota on successful extraction
+        if (usingSingleUse) {
+          await checkAndConsumeSingleUseExtraction(session.user.id);
+        } else {
+          await checkAndIncrementQuota(session.user.id, true);
+        }
       } catch (error) {
         console.error("Extraction failed:", error);
         await prisma.project.update({
