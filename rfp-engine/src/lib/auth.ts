@@ -49,6 +49,7 @@ function resetLoginAttempts(email: string): void {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true, // Required for Vercel preview deployments - uses request host instead of NEXTAUTH_URL
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",

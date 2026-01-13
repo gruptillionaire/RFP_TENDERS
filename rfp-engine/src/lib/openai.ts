@@ -886,9 +886,9 @@ async function callOpenAIWithRetry(
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Create abort controller for timeout (2 minutes per attempt)
+    // Create abort controller for timeout (3 minutes per attempt - large docs need more time)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
 
     try {
       const response = await openai.chat.completions.create(
@@ -915,7 +915,7 @@ async function callOpenAIWithRetry(
 
       // Don't retry on abort (timeout)
       if (lastError.name === 'AbortError') {
-        throw new Error("Extraction timed out after 2 minutes. Try a smaller document.");
+        throw new Error("Extraction timed out after 3 minutes. Try a smaller document.");
       }
 
       // Check if it's a retryable error (rate limit, server error, network error)

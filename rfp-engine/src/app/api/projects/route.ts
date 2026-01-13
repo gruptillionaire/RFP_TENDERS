@@ -65,13 +65,14 @@ export async function POST(request: Request) {
 
     const fileName = file.name;
 
-    // Check for duplicate file name (exclude FAILED and PROCESSING projects - they can be re-uploaded)
+    // Check for duplicate file name
     if (!allowDuplicate) {
+      // Check for successful projects (READY/COMPLETED)
       const existingProject = await prisma.project.findFirst({
         where: {
           userId: session.user.id,
           fileName: fileName,
-          status: { in: ["READY", "COMPLETED"] }, // Only block if a successful project exists
+          status: { in: ["READY", "COMPLETED"] },
         },
         select: { id: true, name: true, status: true },
       });
@@ -88,13 +89,38 @@ export async function POST(request: Request) {
         );
       }
 
-      // Clean up failed or processing projects with same filename before creating new one
-      // This allows immediate retry without waiting
+      // Check for PROCESSING projects - handle stuck vs active
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const processingProject = await prisma.project.findFirst({
+        where: {
+          userId: session.user.id,
+          fileName: fileName,
+          status: "PROCESSING",
+        },
+        select: { id: true, createdAt: true },
+      });
+
+      if (processingProject) {
+        if (processingProject.createdAt > fiveMinutesAgo) {
+          // Still processing - tell user to wait
+          return NextResponse.json(
+            {
+              error: "processing",
+              message: "This file is currently being processed. Please wait a few minutes and refresh the page.",
+            },
+            { status: 409 }
+          );
+        }
+        // Stuck for >5 minutes - delete it
+        await prisma.project.delete({ where: { id: processingProject.id } });
+      }
+
+      // Clean up FAILED projects
       await prisma.project.deleteMany({
         where: {
           userId: session.user.id,
           fileName: fileName,
-          status: { in: ["FAILED", "PROCESSING"] },
+          status: "FAILED",
         },
       });
     }
