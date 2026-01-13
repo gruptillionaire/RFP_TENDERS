@@ -826,9 +826,9 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 
   // Match patterns like "# A: REQUIRED BANKING SERVICES" or "# 3: Technical Requirements"
   // Also matches "# A. REQUIRED BANKING" (period instead of colon)
+  // Use matchAll() to avoid stateful regex issues (exec() with global flag retains lastIndex)
   const headingPattern = /#+\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*(?:\s*[:\-.\s]\s*)([A-Z][A-Za-z\s]+)/gi;
-  let match;
-  while ((match = headingPattern.exec(documentText)) !== null) {
+  for (const match of documentText.matchAll(headingPattern)) {
     const num = match[1].toUpperCase();
     const title = match[2].trim();
     if (title.length > 2 && !sectionTitleMap.has(num)) {
