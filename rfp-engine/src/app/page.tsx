@@ -76,7 +76,7 @@ export default async function Home() {
               </Button>
             </Link>
           </div>
-          <p className="text-sm text-gray-500 mt-4">Plans from £49/month.</p>
+          <p className="text-sm text-gray-500 mt-4">Plans from £49/month or £40 one-time.</p>
         </div>
 
         {/* Features */}
@@ -290,6 +290,75 @@ export default async function Home() {
               </ul>
               <Link href="/signup" className="block mt-auto pt-6">
                 <Button variant="outline" className="w-full">Get Started</Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-12">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-gradient-to-b from-gray-50 to-white px-4 text-gray-500">
+                Or pay once for a single project
+              </span>
+            </div>
+          </div>
+
+          {/* Single RFP */}
+          <div className="text-center mb-8">
+            <h3 className="text-xl font-bold text-gray-900">Just need one RFP?</h3>
+            <p className="mt-2 text-gray-600">Pay once, no subscription required</p>
+          </div>
+
+          <div className="max-w-md mx-auto">
+            <div className="relative p-6 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-300">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-orange-500 text-white">
+                  One-Time Purchase
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center">Single RFP</h3>
+              <p className="text-sm text-gray-500 mt-1 text-center">Perfect for a single project</p>
+              <div className="mt-4 flex items-baseline gap-1 justify-center">
+                <span className="text-3xl font-bold text-gray-900">£40</span>
+                <span className="text-gray-500">one-time</span>
+              </div>
+              <ul className="mt-6 space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>1 RFP extraction</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>60 AI draft responses</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Export to Word & PDF</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>30-day project access</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span className="text-gray-400">No response library</span>
+                </li>
+              </ul>
+              <Link href="/pricing" className="block mt-6">
+                <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">Buy Now - £40</Button>
               </Link>
             </div>
           </div>

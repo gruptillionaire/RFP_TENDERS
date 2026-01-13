@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useSession } from "next-auth/react";
+
+// Plan hierarchy for determining upgrades
+const PLAN_HIERARCHY = ["FREE", "STARTER", "PRO", "TEAM", "BUSINESS"];
 
 // Single-use one-time purchase
 const singleUsePlan = {
@@ -44,7 +47,6 @@ const plans = [
       "No Word export (PDF only)",
       "No response library",
     ],
-    cta: "Get Started",
     popular: false,
   },
   {
@@ -61,7 +63,6 @@ const plans = [
       "Export to Word & PDF",
     ],
     limitations: [],
-    cta: "Get Started",
     popular: true,
   },
   {
@@ -79,7 +80,6 @@ const plans = [
       "Priority support",
     ],
     limitations: [],
-    cta: "Get Started",
     popular: false,
   },
   {
@@ -97,7 +97,6 @@ const plans = [
       "Priority support",
     ],
     limitations: [],
-    cta: "Get Started",
     popular: false,
   },
 ];
@@ -108,14 +107,60 @@ function PricingContent() {
   const { data: session, status } = useSession();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userPlan, setUserPlan] = useState<string>("FREE");
+  const [loadingBilling, setLoadingBilling] = useState(false);
 
   const cancelled = searchParams.get("subscription") === "cancelled";
   const purchaseCancelled = searchParams.get("purchase") === "cancelled";
 
+  // Fetch user's current plan
+  useEffect(() => {
+    if (session) {
+      fetch("/api/billing/status")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.plan) {
+            setUserPlan(data.plan);
+          }
+        })
+        .catch(() => {
+          // Ignore errors, default to FREE
+        });
+    }
+  }, [session]);
+
+  const isUpgrade = (planId: string) => {
+    const currentIndex = PLAN_HIERARCHY.indexOf(userPlan);
+    const targetIndex = PLAN_HIERARCHY.indexOf(planId);
+    return targetIndex > currentIndex;
+  };
+
+  const isCurrentPlan = (planId: string) => {
+    return userPlan === planId;
+  };
+
   async function handleSubscribe(planId: string) {
     if (!session) {
-      // Redirect to login with return URL
       router.push(`/login?callbackUrl=/pricing`);
+      return;
+    }
+
+    // If user has an active subscription, redirect to billing portal
+    if (userPlan !== "FREE") {
+      setLoadingBilling(true);
+      try {
+        const res = await fetch("/api/billing/portal", { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          window.location.href = data.url;
+        } else {
+          setError(data.error || "Failed to open billing portal");
+          setLoadingBilling(false);
+        }
+      } catch {
+        setError("Something went wrong. Please try again.");
+        setLoadingBilling(false);
+      }
       return;
     }
 
@@ -132,7 +177,6 @@ function PricingContent() {
       const data = await res.json();
 
       if (res.ok && data.url) {
-        // Redirect to Stripe Checkout
         window.location.href = data.url;
       } else {
         setError(data.error || "Failed to start checkout");
@@ -173,6 +217,13 @@ function PricingContent() {
       setLoading(null);
     }
   }
+
+  const getButtonText = (planId: string) => {
+    if (isCurrentPlan(planId)) return "Current Plan";
+    if (userPlan !== "FREE" && isUpgrade(planId)) return "Upgrade";
+    if (userPlan === "FREE") return "Get Started";
+    return null; // Don't show button for downgrades
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -229,6 +280,135 @@ function PricingContent() {
             <p className="text-red-800">{error}</p>
           </div>
         )}
+
+        {/* Subscription plans header */}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-900">Monthly Subscriptions</h2>
+          <p className="mt-2 text-gray-600">For regular RFP responders - cancel anytime</p>
+        </div>
+
+        {/* Pricing cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          {plans.map((plan) => {
+            const buttonText = getButtonText(plan.id);
+            const isCurrent = isCurrentPlan(plan.id);
+            const showButton = buttonText !== null;
+
+            return (
+              <div
+                key={plan.id}
+                className={`relative rounded-2xl bg-white p-8 shadow-sm border-2 transition-shadow hover:shadow-lg flex flex-col ${
+                  plan.popular ? "border-blue-500" : isCurrent ? "border-green-500" : "border-gray-200"
+                }`}
+              >
+                {plan.popular && !isCurrent && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
+                {isCurrent && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-green-500 text-white">
+                      Current Plan
+                    </span>
+                  </div>
+                )}
+
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
+                  <div className="mt-4 flex items-baseline justify-center gap-1">
+                    <span className="text-4xl font-bold text-gray-900">
+                      £{plan.price}
+                    </span>
+                    <span className="text-gray-500">{plan.period}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">{plan.description}</p>
+                </div>
+
+                <ul className="mt-8 space-y-3">
+                  {plan.features.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <svg
+                        className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      <span className="text-sm text-gray-600">{feature}</span>
+                    </li>
+                  ))}
+                  {plan.limitations.map((limitation, i) => (
+                    <li key={`lim-${i}`} className="flex items-start gap-3">
+                      <svg
+                        className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                      <span className="text-sm text-gray-400">{limitation}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-auto pt-8">
+                  {showButton && (
+                    <Button
+                      className={`w-full ${
+                        isCurrent
+                          ? "bg-green-600 hover:bg-green-600 cursor-default"
+                          : plan.popular
+                          ? "bg-blue-600 hover:bg-blue-700"
+                          : ""
+                      }`}
+                      onClick={() => !isCurrent && handleSubscribe(plan.id)}
+                      disabled={isCurrent || loading === plan.id || loadingBilling}
+                    >
+                      {loading === plan.id || (loadingBilling && !isCurrent && isUpgrade(plan.id)) ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : (
+                        buttonText
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Divider */}
+        <div className="relative my-16">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-gradient-to-b from-gray-50 to-white px-4 text-gray-500">
+              Or pay once for a single project
+            </span>
+          </div>
+        </div>
 
         {/* Single-use option */}
         <div className="mb-16">
@@ -313,116 +493,6 @@ function PricingContent() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Divider */}
-        <div className="relative mb-16">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-gradient-to-b from-gray-50 to-white px-4 text-gray-500">
-              Or subscribe for ongoing access
-            </span>
-          </div>
-        </div>
-
-        {/* Subscription plans header */}
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Monthly Subscriptions</h2>
-          <p className="mt-2 text-gray-600">For regular RFP responders - cancel anytime</p>
-        </div>
-
-        {/* Pricing cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative rounded-2xl bg-white p-8 shadow-sm border-2 transition-shadow hover:shadow-lg flex flex-col ${
-                plan.popular ? "border-blue-500" : "border-gray-200"
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
-                    Most Popular
-                  </span>
-                </div>
-              )}
-
-              <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                <div className="mt-4 flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold text-gray-900">
-                    {plan.price === 0 ? "Free" : `£${plan.price}`}
-                  </span>
-                  {plan.period && (
-                    <span className="text-gray-500">{plan.period}</span>
-                  )}
-                </div>
-                <p className="mt-2 text-sm text-gray-500">{plan.description}</p>
-              </div>
-
-              <ul className="mt-8 space-y-3">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <svg
-                      className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span className="text-sm text-gray-600">{feature}</span>
-                  </li>
-                ))}
-                {plan.limitations.map((limitation, i) => (
-                  <li key={`lim-${i}`} className="flex items-start gap-3">
-                    <svg
-                      className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                    <span className="text-sm text-gray-400">{limitation}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-auto pt-8">
-                <Button
-                  className={`w-full ${plan.popular ? "bg-blue-600 hover:bg-blue-700" : ""}`}
-                  onClick={() => handleSubscribe(plan.id)}
-                  disabled={loading === plan.id}
-                >
-                  {loading === plan.id ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </span>
-                  ) : (
-                    plan.cta
-                  )}
-                </Button>
-              </div>
-            </div>
-          ))}
         </div>
 
         {/* FAQ or trust indicators */}
