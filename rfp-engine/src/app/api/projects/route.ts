@@ -65,14 +65,15 @@ export async function POST(request: Request) {
 
     const fileName = file.name;
 
-    // Check for duplicate file name
+    // Check for duplicate file name (exclude FAILED projects - they can be re-uploaded)
     if (!allowDuplicate) {
       const existingProject = await prisma.project.findFirst({
         where: {
           userId: session.user.id,
           fileName: fileName,
+          status: { not: "FAILED" }, // Allow re-upload if previous extraction failed
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, status: true },
       });
 
       if (existingProject) {
@@ -86,6 +87,20 @@ export async function POST(request: Request) {
           { status: 409 }
         );
       }
+
+      // Clean up failed or stuck projects with same filename before creating new one
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      await prisma.project.deleteMany({
+        where: {
+          userId: session.user.id,
+          fileName: fileName,
+          OR: [
+            { status: "FAILED" },
+            // Also clean up PROCESSING projects stuck for more than 5 minutes
+            { status: "PROCESSING", createdAt: { lt: fiveMinutesAgo } },
+          ],
+        },
+      });
     }
     // Read file buffer
     const arrayBuffer = await file.arrayBuffer();
