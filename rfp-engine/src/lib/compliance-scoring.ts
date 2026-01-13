@@ -85,24 +85,37 @@ export function getMajorCategory(section: string | null | undefined): string {
     return justNumber[1];
   }
 
-  // Pattern 4: "A.1.2" or "B.2.3" - extract the letter
-  const letterMatch = trimmed.match(/^([A-Z])\./i);
+  // Pattern 4: "A.1.2" or "A15" or "A-1" - extract the letter
+  // Matches letter followed by dot, number, or dash
+  const letterMatch = trimmed.match(/^([A-Z])[.\-\d]/i);
   if (letterMatch) {
     return letterMatch[1].toUpperCase();
   }
 
-  // Pattern 5: Roman numerals "III.2.1" - extract the numeral
-  const romanMatch = trimmed.match(/^([IVX]+)\./i);
+  // Pattern 5: Single letter "A" or "B"
+  const singleLetter = trimmed.match(/^([A-Z])$/i);
+  if (singleLetter) {
+    return singleLetter[1].toUpperCase();
+  }
+
+  // Pattern 6: Roman numerals "III.2.1" or "III-1" - extract the numeral
+  const romanMatch = trimmed.match(/^([IVX]+)[.\-\d]/i);
   if (romanMatch) {
     return romanMatch[1].toUpperCase();
   }
 
-  // Pattern 6: Contains comma separation like "Part III, Section 2.1" - take first part
+  // Pattern 7: Contains comma separation like "Part III, Section 2.1" - take first part
   if (trimmed.includes(",")) {
     return trimmed.split(",")[0].trim();
   }
 
-  // Fallback: return the original section (it's likely already a major category)
+  // Pattern 8: Starts with a letter - extract just the first letter
+  const firstLetter = trimmed.match(/^([A-Z])/i);
+  if (firstLetter) {
+    return firstLetter[1].toUpperCase();
+  }
+
+  // Fallback: return the original section
   return trimmed;
 }
 
