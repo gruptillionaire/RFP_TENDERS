@@ -179,6 +179,10 @@ export async function createCheckoutSession(
     allow_promotion_codes: true,
     // Collect billing address for tax compliance
     billing_address_collection: "required",
+    // Save billing address to customer for tax calculation
+    customer_update: {
+      address: "auto",
+    },
     // Automatic tax calculation (if configured in Stripe)
     automatic_tax: { enabled: true },
     // Customer can update payment method
