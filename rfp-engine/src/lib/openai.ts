@@ -197,13 +197,19 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   TRIGGER KEYWORDS (if ANY present, strongly consider STAFFING):
   personnel, staff, team, resource, FTE, headcount, resume, CV, qualifications,
   project manager, key personnel, roles, responsibilities, org chart, bio,
-  experience of staff, dedicated resource
+  experience of staff, dedicated resource, contact person, contact details,
+  name and address, email address, telephone number, individual with authority
 
-  USE WHEN: About team composition, individual qualifications, or personnel
+  USE WHEN: About team composition, individual qualifications, personnel, OR contact information
   Examples:
   • "Identify key personnel for this project" → STAFFING
   • "Provide CVs of proposed team members" → STAFFING
   • "Describe your project manager's qualifications" → STAFFING
+  • "Submit the name, address, email, and telephone of an individual with authority to answer questions" → STAFFING (asking for contact info of a PERSON)
+
+  CRITICAL: Requests for CONTACT INFORMATION of a person are STAFFING, not CONTEXTUAL:
+  • "Provide name and contact details of your project lead" → STAFFING
+  • "Submit contact information for clarification questions" → STAFFING
 
 ■ CONTEXTUAL
   ==============================================================================
@@ -856,17 +862,23 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 
     if (!majorCategory) continue;
 
-    // Check if sectionGroup needs enrichment
+    // Check if sectionGroup needs enrichment:
+    // - Missing entirely
+    // - Just a letter/number (no title): "A", "3", "IV"
+    // - A subsection reference (should be parent section): "A15", "A.1.2", "3.4"
     const needsEnrichment =
       !req.sectionGroup ||
-      /^([A-Z]|\d+|[IVXLC]+)[.:\)]*$/i.test(req.sectionGroup.trim()); // Just a number, no title
+      /^([A-Z]|\d+|[IVXLC]+)[.:\)\s]*$/i.test(req.sectionGroup.trim()) || // Just a number/letter
+      /^[A-Z]\d+$/i.test(req.sectionGroup.trim()) || // Letter+number like "A15"
+      /^[A-Z][.\-]\d/i.test(req.sectionGroup.trim()) || // Subsection like "A.1" or "A-1"
+      /^\d+\.\d/i.test(req.sectionGroup.trim()); // Numeric subsection like "3.4"
 
     if (needsEnrichment) {
       const title = sectionTitleMap.get(majorCategory.toUpperCase());
       if (title) {
         req.sectionGroup = `${majorCategory}: ${title}`;
-      } else if (!req.sectionGroup) {
-        // No title found, at least set the category
+      } else if (!req.sectionGroup || !req.sectionGroup.includes(':')) {
+        // No title found, at least set the major category
         req.sectionGroup = majorCategory;
       }
     }
