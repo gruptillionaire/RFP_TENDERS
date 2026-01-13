@@ -188,6 +188,7 @@ export async function POST(request: Request) {
             projectId: project.id,
             text: req.text,
             section: req.section,
+            sectionGroup: req.sectionGroup,
             isMandatory: req.isMandatory,
             type: req.type,
             domainContext: req.domainContext || "FEATURE",

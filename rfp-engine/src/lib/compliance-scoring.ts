@@ -142,15 +142,20 @@ export function getMajorCategoryTitle(section: string | null | undefined): { key
 
 /**
  * Build a map of major category keys to their display titles.
- * Scans all sections to find the best title for each major category.
+ * Prefers sectionGroup field (which contains parent section with title).
+ * Falls back to section field if sectionGroup is not available.
  */
-export function buildCategoryTitleMap(sections: (string | null | undefined)[]): Map<string, string> {
+export function buildCategoryTitleMap(
+  requirements: Array<{ section?: string | null; sectionGroup?: string | null }>
+): Map<string, string> {
   const titleMap = new Map<string, string>();
 
-  for (const section of sections) {
-    if (!section) continue;
+  // First pass: try to get titles from sectionGroup (preferred)
+  for (const req of requirements) {
+    const source = req.sectionGroup || req.section;
+    if (!source) continue;
 
-    const { key, title } = getMajorCategoryTitle(section);
+    const { key, title } = getMajorCategoryTitle(source);
 
     // If we found a title and don't have one for this key yet, use it
     if (title && !titleMap.has(key)) {
@@ -158,10 +163,11 @@ export function buildCategoryTitleMap(sections: (string | null | undefined)[]): 
     }
   }
 
-  // For any keys without titles, just use the key itself
-  for (const section of sections) {
-    if (!section) continue;
-    const key = getMajorCategory(section);
+  // Second pass: for any keys without titles, just use the key itself
+  for (const req of requirements) {
+    const source = req.sectionGroup || req.section;
+    if (!source) continue;
+    const key = getMajorCategory(source);
     if (!titleMap.has(key)) {
       titleMap.set(key, key);
     }
@@ -185,7 +191,8 @@ export interface RequirementForScoring {
   isMandatory: boolean;
   domainContext: DomainContext;
   requiresReview: boolean;
-  section?: string | null;
+  section?: string | null;           // Specific subsection: "A.1.2"
+  sectionGroup?: string | null;      // Parent section with title: "A: REQUIRED BANKING SERVICES"
   draftAnswer?: string | null;
   wordLimit?: number | null;
   characterLimit?: number | null;

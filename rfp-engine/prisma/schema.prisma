@@ -150,7 +150,8 @@ model Requirement {
   projectId      String
   project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   text           String               @db.Text
-  section        String?
+  section        String?              // Specific subsection: "A.1.2"
+  sectionGroup   String?              // Parent section with title: "A: REQUIRED BANKING SERVICES"
   isMandatory    Boolean              @default(false)
   draftAnswer    String?              @db.Text
   internalNotes  String?              @db.Text  // Private notes, not exported

@@ -45,7 +45,8 @@ type SortOption = "order" | "mandatory" | "status" | "section" | "type";
 interface Requirement {
   id: string;
   text: string;
-  section: string | null;
+  section: string | null;           // Specific subsection: "A.1.2"
+  sectionGroup?: string | null;     // Parent section with title: "A: REQUIRED BANKING SERVICES"
   isMandatory: boolean;
   draftAnswer: string | null;
   internalNotes: string | null;
@@ -747,8 +748,12 @@ export function ComplianceMatrix({
   }, [requirements]);
 
   // Build category title map for display - MEMOIZED
+  // Uses sectionGroup (parent section with title) when available, falls back to section
   const categoryTitleMap = useMemo(() => {
-    return buildCategoryTitleMap(requirements.map(r => r.section));
+    return buildCategoryTitleMap(requirements.map(r => ({
+      section: r.section,
+      sectionGroup: r.sectionGroup
+    })));
   }, [requirements]);
 
   // Copy to clipboard handler

@@ -26,7 +26,8 @@ type ComplianceStatus = "PENDING" | "COMPLIANT" | "NON_COMPLIANT" | "NOT_APPLICA
 interface Requirement {
   id: string;
   text: string;
-  section: string | null;
+  section: string | null;           // Specific subsection: "A.1.2"
+  sectionGroup?: string | null;     // Parent section with title: "A: REQUIRED BANKING SERVICES"
   isMandatory: boolean;
   draftAnswer: string | null;
   internalNotes: string | null;
@@ -423,8 +424,11 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
       return a.localeCompare(b);
     });
-    // Build title map for display
-    const titleMap = buildCategoryTitleMap(requirements.map(r => r.section));
+    // Build title map for display (uses sectionGroup when available)
+    const titleMap = buildCategoryTitleMap(requirements.map(r => ({
+      section: r.section,
+      sectionGroup: r.sectionGroup
+    })));
     return unique.map(key => titleMap.get(key) || key);
   }, [requirements]);
 
@@ -440,6 +444,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       domainContext: r.domainContext || "FEATURE",
       requiresReview: r.requiresReview || false,
       section: r.section,
+      sectionGroup: r.sectionGroup,
       draftAnswer: r.draftAnswer,
       wordLimit: r.wordLimit,
       characterLimit: r.characterLimit,

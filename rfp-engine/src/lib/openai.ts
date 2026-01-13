@@ -97,28 +97,37 @@ For each item extracted, identify:
    - "failure to X may result in Y" = MANDATORY (consequence warning)
    - "respondents may" without consequence = OPTIONAL (permission)
    - Always check the full sentence context for "may"
-3. The FULL section reference WITH TITLE:
+3. Section references - TWO SEPARATE FIELDS:
    ==============================================================================
-   CRITICAL: ALWAYS include the section TITLE, not just the number!
+   You must provide BOTH "section" AND "sectionGroup" for each requirement:
    ==============================================================================
 
-   WRONG: "2" or "5" or "8" (bare numbers are almost never correct)
-   RIGHT: "2: Background", "5: Specification", "8: Pricing Requirements"
+   a) "section" - The SPECIFIC subsection reference where this requirement appears:
+      • This is the exact location/number in the document
+      • Examples: "A.1.2", "3.4.1", "B.2", "5.1.3", "II.A"
+      • Just the number/reference, NOT the title
+      • If the requirement appears under "A.1.2 Staffing Requirements", use "A.1.2"
 
-   HOW TO EXTRACT:
-   1. Find the section number (e.g., "2", "5.1", "A")
-   2. Look for the title text that follows or precedes it in the document
-   3. Combine as "NUMBER: TITLE"
+   b) "sectionGroup" - The PARENT/MAJOR section with its TITLE:
+      • Look for the nearest major heading (A, B, 1, 2, etc.) and include its title
+      • Format: "NUMBER: TITLE"
+      • Examples: "A: REQUIRED BANKING SERVICES", "3: TECHNICAL REQUIREMENTS"
+      • This is used for grouping/filtering requirements by major category
 
-   Examples:
-   • Document says "2. Background Information" → extract "2: Background Information"
-   • Document says "Section 5 - SPECIFICATION" → extract "5: SPECIFICATION"
-   • Document says "PART III: Requirements" → extract "III: Requirements"
-   • Document says "A25 Pricing" → extract "A25: Pricing"
-   • Document says just "3" with truly no title anywhere → extract "3" (rare exception)
+   EXAMPLES:
+   • Document has "A. REQUIRED BANKING SERVICES" then "A.1.2 Staffing" underneath:
+     → section: "A.1.2"
+     → sectionGroup: "A: REQUIRED BANKING SERVICES"
 
-   PRIORITY: Always try to include the title. A bare number like "2" is ONLY
-   acceptable if there is truly no title anywhere near that section in the document.
+   • Document has "3. Technical Requirements" then "3.4.1 Security":
+     → section: "3.4.1"
+     → sectionGroup: "3: Technical Requirements"
+
+   • Document has just "5. Pricing" with no subsections:
+     → section: "5"
+     → sectionGroup: "5: Pricing"
+
+   IMPORTANT: sectionGroup should ALWAYS include the title if one exists.
 4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
 
 ==============================================================================
@@ -456,7 +465,8 @@ Return your response as a JSON object with this structure:
     {
       "text": "The COMPLETE requirement text including context, numbered questions, and word limits. Example: if document says 'We have a budget of £150k. 1. Does your total come in under this? (Max 2500 words)' then text should be 'We have a budget of £150k. 1. Does your total come in under this? (Max 2500 words)' - never truncate to just the first sentence.",
       "isMandatory": true/false,
-      "section": "Full section reference (e.g., 'A25', 'B2.4', 'Section 3.1.2') or descriptive name, or null",
+      "section": "Specific subsection reference (e.g., 'A.1.2', '3.4.1', 'B.2') - just the number, NOT the title",
+      "sectionGroup": "Parent section with title (e.g., 'A: REQUIRED BANKING SERVICES', '3: Technical Requirements')",
       "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING",
       "domainContext": "FEATURE" | "PROCESS" | "LEGAL",
       "wordLimit": number or null,
@@ -764,7 +774,8 @@ CRITICAL: NEVER wrap response in quotation marks.`,
 export interface ExtractedRequirement {
   text: string;
   isMandatory: boolean;
-  section: string | null;
+  section: string | null;        // Specific subsection: "A.1.2"
+  sectionGroup: string | null;   // Parent section with title: "A: REQUIRED BANKING SERVICES"
   type: RequirementType;
   domainContext: DomainContext;
   wordLimit: number | null;
@@ -779,42 +790,76 @@ export interface ExtractionResult {
 }
 
 // =============================================================================
-// POST-PROCESSING: SECTION TITLE ENRICHMENT
+// POST-PROCESSING: SECTION DATA ENRICHMENT
 // =============================================================================
 
 /**
- * Post-process to fix bare section numbers by looking up titles from the document.
- * When the LLM returns just "3" instead of "3: COMPANY BACKGROUND", this function
- * finds the title from the structured document text and enriches the section field.
+ * Extract the major category from a section reference.
+ * "A.1.2" → "A", "3.4.1" → "3", "II.A" → "II"
  */
-function enrichSectionTitles(requirements: ExtractedRequirement[], documentText: string): void {
-  // Build a map of section numbers to their titles from the document
+function extractMajorCategory(section: string): string {
+  const trimmed = section.trim();
+
+  // Pattern: "A.1.2" → "A"
+  const letterMatch = trimmed.match(/^([A-Z])\./i);
+  if (letterMatch) return letterMatch[1].toUpperCase();
+
+  // Pattern: "3.4.1" → "3"
+  const numericMatch = trimmed.match(/^(\d+)[.\s]/);
+  if (numericMatch) return numericMatch[1];
+
+  // Pattern: "II.A" → "II"
+  const romanMatch = trimmed.match(/^([IVXLC]+)\./i);
+  if (romanMatch) return romanMatch[1].toUpperCase();
+
+  // Fallback: return as-is (might be just "A" or "3")
+  return trimmed.replace(/[.:\)]+$/, '');
+}
+
+/**
+ * Post-process to enrich sectionGroup with titles from document structure.
+ * If LLM didn't provide a sectionGroup or it lacks a title, derive it from the document.
+ */
+function enrichSectionData(requirements: ExtractedRequirement[], documentText: string): void {
+  // Build a map of major section numbers to their titles from document headings
   const sectionTitleMap = new Map<string, string>();
 
-  // Match patterns like "# 3: COMPANY BACKGROUND" or "## 5.1: SPECIFICATION"
-  // Also matches "# 3 COMPANY BACKGROUND" (space instead of colon)
-  const headingPattern = /#+\s*(\d+(?:\.\d+)*|[A-Z]\d*|[IVXLC]+)[.:\)]*(?:\s*[:\-]\s*|\s+)([A-Z][A-Za-z\s]+)/g;
+  // Match patterns like "# A: REQUIRED BANKING SERVICES" or "# 3: Technical Requirements"
+  // Also matches "# A. REQUIRED BANKING" (period instead of colon)
+  const headingPattern = /#+\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*(?:\s*[:\-.\s]\s*)([A-Z][A-Za-z\s]+)/gi;
   let match;
   while ((match = headingPattern.exec(documentText)) !== null) {
-    const num = match[1].replace(/[.:\)]+$/, '');
+    const num = match[1].toUpperCase();
     const title = match[2].trim();
-    if (title.length > 2) {
+    if (title.length > 2 && !sectionTitleMap.has(num)) {
       sectionTitleMap.set(num, title);
     }
   }
 
-  // Fix requirements with bare section numbers
+  // Enrich each requirement's sectionGroup
   for (const req of requirements) {
-    if (!req.section) continue;
+    // Skip if no section reference at all
+    if (!req.section && !req.sectionGroup) continue;
 
-    const section = req.section.trim();
+    // Extract major category from section (A.1.2 → A)
+    const majorCategory = req.section
+      ? extractMajorCategory(req.section)
+      : (req.sectionGroup ? extractMajorCategory(req.sectionGroup) : null);
 
-    // Check if section is just a number (no title)
-    if (/^(\d+(?:\.\d+)*|[A-Z]\d*|[IVXLC]+)[.:\)]*$/i.test(section)) {
-      const numOnly = section.replace(/[.:\)]+$/, '');
-      const title = sectionTitleMap.get(numOnly);
+    if (!majorCategory) continue;
+
+    // Check if sectionGroup needs enrichment
+    const needsEnrichment =
+      !req.sectionGroup ||
+      /^([A-Z]|\d+|[IVXLC]+)[.:\)]*$/i.test(req.sectionGroup.trim()); // Just a number, no title
+
+    if (needsEnrichment) {
+      const title = sectionTitleMap.get(majorCategory.toUpperCase());
       if (title) {
-        req.section = `${numOnly}: ${title}`;
+        req.sectionGroup = `${majorCategory}: ${title}`;
+      } else if (!req.sectionGroup) {
+        // No title found, at least set the category
+        req.sectionGroup = majorCategory;
       }
     }
   }
@@ -879,6 +924,8 @@ export async function extractRequirements(documentText: string): Promise<Extract
       deadlineText: parsed.deadlineText || null,
       requirements: (parsed.requirements || []).map((req: ExtractedRequirement) => ({
         ...req,
+        section: req.section || null,
+        sectionGroup: req.sectionGroup || null,
         type: validateRequirementType(req.type),
         // Always use heuristic detection for domain context (more reliable than LLM)
         domainContext: detectDomainContext(req.text),
@@ -888,8 +935,8 @@ export async function extractRequirements(documentText: string): Promise<Extract
       })),
     };
 
-    // Enrich bare section numbers with titles from document
-    enrichSectionTitles(result.requirements, documentText);
+    // Enrich section data: fill in missing sectionGroup titles from document structure
+    enrichSectionData(result.requirements, documentText);
 
     return result;
   } catch {
