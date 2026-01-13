@@ -227,7 +227,14 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
      • "Respondents are [required/expected/advised] to [process action]..."
      • "[Submissions/Responses] must be [delivered/received/sent/submitted] [by/to]..."
      • "[Submissions/Responses] shall include [document X]" (instruction, not asking for content)
+     • "[Entity] shall/must/should answer/respond to ALL [questions/requirements]..."
      These TELL you what to do procedurally; they don't ask for written proposal content.
+
+     CRITICAL: Meta-instructions about HOW to respond to the RFP are CONTEXTUAL:
+     • "Banks shall answer ALL questions in this RFP" → CONTEXTUAL (tells you to answer OTHER questions, not THIS one)
+     • "Respondents must address each requirement" → CONTEXTUAL (instruction about process)
+     • "Failure to respond to each requirement may result in rejection" → CONTEXTUAL (warning)
+     These are INSTRUCTIONS ABOUT the RFP process, not questions requiring answers themselves.
 
   C. DEADLINE/TIMING INSTRUCTIONS (ALWAYS CONTEXTUAL when not asking a question):
      • "[Action] by [date]" - e.g., "Submit by Friday 7 February"
@@ -319,6 +326,7 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
   • "We require a fixed, permanent ESP to cover the next three years." → CONTEXTUAL (buyer requirement)
   • "The chosen provider is expected to offer a robust set of omnichannel marketing tools." → CONTEXTUAL (buyer expectation)
   • "We are looking for a solution that integrates with our existing systems." → CONTEXTUAL (buyer need)
+  • "Banks shall answer ALL questions in this RFP. Failure to respond to each of the requirements in this RFP may be the basis for rejecting a response." → CONTEXTUAL (meta-instruction + warning about process, NOT a question itself)
 
 ■ DESCRIPTIVE
   INDICATORS (classify as DESCRIPTIVE if ANY apply):
