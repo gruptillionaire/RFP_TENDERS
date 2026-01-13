@@ -133,7 +133,7 @@ export default async function Home() {
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {/* Solo */}
-            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white">
+            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
               <h3 className="text-lg font-semibold text-gray-900">Solo</h3>
               <p className="text-sm text-gray-500 mt-1">For freelancers and consultants</p>
               <div className="mt-4 flex items-baseline gap-1">
@@ -172,13 +172,13 @@ export default async function Home() {
                   <span>Export to Word</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-8">
+              <Link href="/signup" className="block mt-auto pt-8">
                 <Button variant="outline" className="w-full">Get Started</Button>
               </Link>
             </div>
 
             {/* Pro - Most Popular */}
-            <div className="p-8 rounded-2xl border-2 border-blue-500 bg-white relative">
+            <div className="p-8 rounded-2xl border-2 border-blue-500 bg-white relative flex flex-col">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                 <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
                   Most Popular
@@ -228,13 +228,13 @@ export default async function Home() {
                   <span>Priority support</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-8">
+              <Link href="/signup" className="block mt-auto pt-8">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">Get Started</Button>
               </Link>
             </div>
 
             {/* Team */}
-            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white">
+            <div className="p-8 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
               <h3 className="text-lg font-semibold text-gray-900">Team</h3>
               <p className="text-sm text-gray-500 mt-1">For agencies and high-volume</p>
               <div className="mt-4 flex items-baseline gap-1">
@@ -279,7 +279,7 @@ export default async function Home() {
                   <span>Priority support</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-8">
+              <Link href="/signup" className="block mt-auto pt-8">
                 <Button variant="outline" className="w-full">Get Started</Button>
               </Link>
             </div>

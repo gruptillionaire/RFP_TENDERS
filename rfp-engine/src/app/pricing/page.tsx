@@ -164,7 +164,7 @@ function PricingContent() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`relative rounded-2xl bg-white p-8 shadow-sm border-2 transition-shadow hover:shadow-lg ${
+              className={`relative rounded-2xl bg-white p-8 shadow-sm border-2 transition-shadow hover:shadow-lg flex flex-col ${
                 plan.popular ? "border-blue-500" : "border-gray-200"
               }`}
             >
@@ -228,7 +228,7 @@ function PricingContent() {
                 ))}
               </ul>
 
-              <div className="mt-8">
+              <div className="mt-auto pt-8">
                 <Button
                   className={`w-full ${plan.popular ? "bg-blue-600 hover:bg-blue-700" : ""}`}
                   onClick={() => handleSubscribe(plan.id)}
