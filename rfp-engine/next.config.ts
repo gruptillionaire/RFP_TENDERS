@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'", // Tailwind requires inline styles
               "img-src 'self' data: https:",
               "font-src 'self'",
-              "connect-src 'self' https://api.openai.com https://*.sentry.io https://*.ingest.sentry.io https://api.stripe.com https://checkout.stripe.com https://*.vercel-insights.com",
+              "connect-src 'self' https://*.vercel.app https://api.openai.com https://*.sentry.io https://*.ingest.sentry.io https://api.stripe.com https://checkout.stripe.com https://*.vercel-insights.com",
               "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
