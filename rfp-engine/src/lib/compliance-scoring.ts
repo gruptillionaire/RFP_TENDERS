@@ -132,22 +132,33 @@ export function getMajorCategoryTitle(section: string | null | undefined): { key
   const trimmed = section.trim();
   const key = getMajorCategory(trimmed);
 
-  // Try to extract title from patterns like "2. Title" or "2: Title" or "2 - Title"
-  // Only if this is a top-level section (not a subsection like 2.1.1)
+  // Try to extract title from various patterns
 
-  // Pattern: "X. Title" or "X: Title" or "X - Title" where X matches the key
-  const titleMatch = trimmed.match(/^(\d+)[.\s:\-]+\s*([A-Za-z].+)$/);
-  if (titleMatch && titleMatch[1] === key) {
-    return { key, title: titleMatch[2].trim() };
+  // Pattern 1: "A: TITLE" or "A. TITLE" or "A - TITLE" (letter-based sections)
+  const letterTitleMatch = trimmed.match(/^([A-Z])[.:\-]\s*(.+)$/i);
+  if (letterTitleMatch && letterTitleMatch[1].toUpperCase() === key) {
+    return { key, title: letterTitleMatch[2].trim() };
   }
 
-  // Pattern: "Section X: Title" or "Section X. Title"
+  // Pattern 2: "2: Title" or "2. Title" or "2 - Title" (numeric sections)
+  const numericTitleMatch = trimmed.match(/^(\d+)[.\s:\-]+\s*([A-Za-z].+)$/);
+  if (numericTitleMatch && numericTitleMatch[1] === key) {
+    return { key, title: numericTitleMatch[2].trim() };
+  }
+
+  // Pattern 3: "Section X: Title" or "Section X. Title"
   const sectionTitleMatch = trimmed.match(/^(Section|Part|Chapter|Article)\s+(\d+|[A-Z]+|[IVX]+)[.\s:\-]+\s*([A-Za-z].+)$/i);
   if (sectionTitleMatch) {
     const matchKey = `${sectionTitleMatch[1]} ${sectionTitleMatch[2]}`;
     if (matchKey.toLowerCase() === key.toLowerCase()) {
       return { key, title: sectionTitleMatch[3].trim() };
     }
+  }
+
+  // Pattern 4: "III: Title" or "IV. Title" (Roman numeral sections)
+  const romanTitleMatch = trimmed.match(/^([IVX]+)[.:\-]\s*(.+)$/i);
+  if (romanTitleMatch && romanTitleMatch[1].toUpperCase() === key) {
+    return { key, title: romanTitleMatch[2].trim() };
   }
 
   return { key, title: null };
