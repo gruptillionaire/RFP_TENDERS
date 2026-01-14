@@ -54,7 +54,7 @@ export default async function SettingsPage() {
         hasStripeAccount: !!user?.stripeCustomerId,
         usage: {
           extractionsUsed: user?.monthlyExtractionsUsed || 0,
-          extractionsLimit: user?.monthlyExtractionsLimit || 2,
+          extractionsLimit: planLimits.monthlyExtractions,
           draftsUsed: user?.monthlyDraftsUsed || 0,
           draftsLimit: planLimits.monthlyDrafts,
         },
