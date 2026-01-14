@@ -1,6 +1,7 @@
 import mammoth from "mammoth";
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
+import { preprocessRFPText } from "./text-preprocessor";
 
 /**
  * Parse DOCX file with improved table structure preservation.
@@ -31,7 +32,17 @@ export async function parseDOCX(buffer: Buffer): Promise<string> {
     // Parse HTML and convert to structured text
     const structuredText = htmlToStructuredText(result.value);
 
-    return structuredText;
+    // Pre-process text to enhance structure detection for LLM
+    const processedText = preprocessRFPText(structuredText, {
+      addMarkers: true,
+      normalizeBullets: true,
+      preserveLists: true,
+      separateReqs: true,
+      markTables: false, // DOCX parser already handles tables
+      verbose: true,
+    });
+
+    return processedText;
   } catch (error) {
     console.error("DOCX parsing error:", error);
     throw new Error("Failed to parse Word document");

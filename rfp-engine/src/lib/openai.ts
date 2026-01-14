@@ -4,6 +4,12 @@ import { MODELS, TOKEN_LIMITS, RequirementType } from "./constants";
 import { sanitizeForLLM } from "./security";
 import { matchTemplate } from "./templates";
 import { DomainContext, detectDomainContext, getDomainPromptModifier, applyDomainRules, DOMAIN_RULES } from "./domain-context";
+import {
+  detectConcatenatedRequirements,
+  splitConcatenatedRequirement,
+  isSectionHeader,
+  formatListInRequirement,
+} from "./parsers/text-preprocessor";
 
 // =============================================================================
 // OPENAI RETRY WRAPPER WITH EXPONENTIAL BACKOFF
@@ -90,7 +96,8 @@ async function withRetry<T>(
 
 // Increment this version when EXTRACTION_PROMPT or extraction logic changes
 // This ensures stale cached results are not returned after prompt updates
-const EXTRACTION_VERSION = "v2";
+// v3: Added hierarchical section handling, concatenation splitting, list preservation
+const EXTRACTION_VERSION = "v3";
 
 interface CacheEntry<T> {
   result: T;
@@ -671,18 +678,95 @@ CRITICAL INSTRUCTIONS:
 - DEADLINE: Search the ENTIRE document for submission deadline. Look for: "submit by", "due date", "deadline", "responses due", "closing date", "must be received by". Extract the most specific deadline found.
 - Be thorough - extract ALL questions, requirements, deliverables, and compliance items
 - Include direct questions, mandatory requirements, deliverables, timelines, compliance requirements, technical specifications, and pricing requirements
+
+==============================================================================
+HIERARCHICAL SECTION HANDLING (CRITICAL - READ CAREFULLY)
+==============================================================================
+Documents often use multi-level numbering systems. You MUST understand the hierarchy:
+
+LEVEL 1 - Major Section (X.0 or X):
+  Examples: "3.0 Direct Query Questions" or "4. Technical Requirements"
+  → Extract as type: CONTEXTUAL (provides context, no response needed)
+  → This is a SECTION HEADER introducing what follows
+
+LEVEL 2 - Subsection (X.Y):
+  Examples: "3.1 Design, Form, and Templates" or "4.2 Security Requirements"
+  → Extract as type: CONTEXTUAL (subsection header, no response needed)
+  → This is a SUBSECTION HEADER grouping related requirements
+  → The text is typically SHORT (just a title)
+
+LEVEL 3 - Individual Requirement (X.Y.Z):
+  Examples: "3.1.1 Does the solution provide..." or "4.2.3 Describe your approach..."
+  → Extract as INDIVIDUAL requirements with appropriate type
+  → Each numbered item (3.1.1, 3.1.2, 3.1.3...) is a SEPARATE requirement
+
+*** CRITICAL ERROR TO AVOID ***
+NEVER combine a subsection header with its requirements into one item.
+WRONG: "3.1 Design, Form, and Templates: 3.1.1 Does the solution... 3.1.2 Does the WCMS..."
+RIGHT: Extract THREE separate items:
+  1. "3.1 Design, Form, and Templates" (section: "3.1", type: CONTEXTUAL)
+  2. "Does the solution provide..." (section: "3.1.1", type: DESCRIPTIVE or appropriate)
+  3. "Does the WCMS provide..." (section: "3.1.2", type: DESCRIPTIVE or appropriate)
+
+How to detect subsection headers:
+- Short text (usually under 50 characters)
+- Contains only a title, no question marks
+- Followed by multiple X.Y.Z numbered items
+- Marked with [SUBSECTION] tag in preprocessed text
+
+==============================================================================
+REQUIREMENT SEPARATION (NEVER CONCATENATE)
+==============================================================================
+Each numbered item must be its own requirement. When you see:
+  "3.1.1 First question? 3.1.2 Second question? 3.1.3 Third question?"
+You MUST create THREE separate requirements, NOT one requirement with all text.
+
+Signs you're incorrectly concatenating:
+- Your requirement text contains multiple X.Y.Z patterns (e.g., "3.1.1...3.1.2...3.1.3")
+- Your requirement text has multiple question marks with numbered items between them
+- The text is extremely long (>500 characters) with multiple distinct questions
+
+If you see multiple numbered items in one text block, SPLIT THEM.
+
+==============================================================================
+LIST PRESERVATION IN REQUIREMENTS
+==============================================================================
+When a requirement contains a list (bullets or numbers), preserve the formatting:
+- Keep bullet points (•, -, *) on separate lines
+- Keep numbered sub-items (a), b), 1., 2.) on separate lines
+- Preserve the list structure in your extracted text
+
+EXAMPLE:
+Original: "Please describe your approach to: • Security measures • Access controls • Audit logging"
+Extracted text should be:
+"Please describe your approach to:
+• Security measures
+• Access controls
+• Audit logging"
+
+NOT flattened to: "Please describe your approach to: • Security measures • Access controls • Audit logging"
+
+==============================================================================
+
 - COMPLETE TEXT EXTRACTION (CRITICAL):
   * Extract the ENTIRE requirement text, including ALL parts
   * If a paragraph introduces context followed by a numbered question (e.g., "1. Does your..."), include BOTH the context AND the question
   * Never truncate at the preamble - always include the actual question being asked
   * If there's a word count limit mentioned (e.g., "Maximum word count 2,500"), include that in the extracted text
   * The "text" field must contain everything the responder needs to understand and answer the requirement
+  * BUT: If you see multiple X.Y.Z numbered items, extract each as a SEPARATE requirement
 - TABLE FORMAT: Documents may contain structured tables in this format:
   * [TABLE START] / [TABLE END] markers indicate table boundaries
   * [HEADER] indicates column headers
   * [ROW N] indicates data rows
   * [Col N] indicates column values
   * When extracting from tables, combine relevant columns into a coherent requirement (e.g., if Col 1 is "Ref" and Col 2 is "Requirement", combine them logically)
+- STRUCTURE MARKERS: The document may contain preprocessing markers:
+  * [PAGE N] indicates page boundaries
+  * [SUBSECTION] indicates a subsection header (extract as CONTEXTUAL)
+  * ════════ lines indicate major section boundaries
+  * ────── lines indicate subsection boundaries
+  Use these markers to understand document structure, but do not include them in extracted text.
 - Do not summarize or paraphrase - extract the actual text from the document
 - Classify EVERY requirement with the most appropriate type
 - When uncertain between types, default to DESCRIPTIVE`;
@@ -1184,6 +1268,87 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 }
 
 // =============================================================================
+// POST-EXTRACTION: SPLIT CONCATENATED REQUIREMENTS
+// =============================================================================
+
+/**
+ * Post-process extracted requirements to split any that were incorrectly concatenated.
+ * The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one.
+ * This function detects and splits them.
+ */
+function splitConcatenatedRequirementsPostProcess(
+  requirements: ExtractedRequirement[]
+): ExtractedRequirement[] {
+  const result: ExtractedRequirement[] = [];
+  let splitCount = 0;
+
+  for (const req of requirements) {
+    // Check for multiple requirement numbers in the text
+    const detectedNumbers = detectConcatenatedRequirements(req.text);
+
+    // If 2+ requirement numbers found, this needs splitting
+    if (detectedNumbers.length >= 2) {
+      console.log(`[splitConcatenatedRequirements] Detected ${detectedNumbers.length} concatenated requirements in section ${req.section}:`, detectedNumbers);
+
+      const splitParts = splitConcatenatedRequirement(req.text);
+
+      for (const part of splitParts) {
+        // Skip empty parts
+        if (!part.text.trim()) continue;
+
+        // Check if this part is actually a section header (not a requirement)
+        if (isSectionHeader(part.text)) {
+          result.push({
+            ...req,
+            text: part.text,
+            section: part.section || req.section,
+            type: "CONTEXTUAL", // Section headers are contextual
+          });
+        } else {
+          result.push({
+            ...req,
+            text: formatListInRequirement(part.text), // Preserve list formatting
+            section: part.section || req.section,
+            // Re-detect type based on the actual requirement text
+            type: validateRequirementType(req.type),
+          });
+        }
+        splitCount++;
+      }
+    } else {
+      // No concatenation detected, but still format lists
+      result.push({
+        ...req,
+        text: formatListInRequirement(req.text),
+      });
+    }
+  }
+
+  if (splitCount > 0) {
+    console.log(`[splitConcatenatedRequirements] Split ${splitCount} concatenated requirements. Total requirements: ${result.length}`);
+  }
+
+  return result;
+}
+
+/**
+ * Detect and classify section headers that the LLM might have missed marking as CONTEXTUAL.
+ * Subsection titles (e.g., "3.1 Design, Form, and Templates") should be CONTEXTUAL, not DESCRIPTIVE.
+ */
+function reclassifySectionHeaders(requirements: ExtractedRequirement[]): void {
+  for (const req of requirements) {
+    // Skip if already CONTEXTUAL
+    if (req.type === "CONTEXTUAL") continue;
+
+    // Check if this looks like a section header
+    if (isSectionHeader(req.text)) {
+      console.log(`[reclassifySectionHeaders] Reclassifying "${req.text.substring(0, 50)}..." from ${req.type} to CONTEXTUAL`);
+      req.type = "CONTEXTUAL";
+    }
+  }
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -1191,12 +1356,23 @@ export async function extractRequirements(documentText: string): Promise<Extract
   // Sanitize input to prevent prompt injection
   const sanitizedText = sanitizeForLLM(documentText);
 
-  // Truncate if too long
-  const maxLength = 100000;
-  const truncatedText =
-    sanitizedText.length > maxLength
-      ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length]"
-      : sanitizedText;
+  // Truncate if too long - increased limit to handle larger documents
+  // gpt-4o-mini supports 128k tokens (~400-500k characters), so 250k is safe
+  const maxLength = 250000;
+  const wasTruncated = sanitizedText.length > maxLength;
+  const truncatedText = wasTruncated
+    ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length - some sections may be missing]"
+    : sanitizedText;
+
+  // Log truncation warning for debugging
+  if (wasTruncated) {
+    console.warn("[extractRequirements] Document truncated:", {
+      originalLength: sanitizedText.length,
+      truncatedLength: maxLength,
+      charactersLost: sanitizedText.length - maxLength,
+      percentageLost: ((sanitizedText.length - maxLength) / sanitizedText.length * 100).toFixed(1) + "%",
+    });
+  }
 
   // Check cache first (saves API costs for duplicate uploads)
   const contentHash = getContentHash(truncatedText);
@@ -1278,8 +1454,25 @@ export async function extractRequirements(documentText: string): Promise<Extract
       })),
     };
 
-    // Enrich section data: fill in missing sectionGroup titles from document structure
+    // Post-processing Step 1: Split any concatenated requirements
+    // The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one
+    result.requirements = splitConcatenatedRequirementsPostProcess(result.requirements);
+
+    // Post-processing Step 2: Reclassify any section headers that weren't marked CONTEXTUAL
+    reclassifySectionHeaders(result.requirements);
+
+    // Post-processing Step 3: Enrich section data (fill in missing sectionGroup titles)
     enrichSectionData(result.requirements, documentText);
+
+    // Log extraction stats for debugging
+    console.log("[extractRequirements] Extraction complete:", {
+      totalRequirements: result.requirements.length,
+      byType: result.requirements.reduce((acc, req) => {
+        acc[req.type] = (acc[req.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      deadline: result.deadline,
+    });
 
     // Cache the result for future duplicate uploads
     setCachedExtraction(contentHash, result);
