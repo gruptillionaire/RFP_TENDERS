@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,34 @@ interface DuplicateWarning {
   pendingFile: File;
 }
 
+interface SingleUseStatus {
+  hasCredits: boolean;
+  extractionsRemaining: number;
+  draftsRemaining: number;
+  expiresAt: string | null;
+}
+
 export default function NewProjectPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateWarning | null>(null);
+  const [singleUseStatus, setSingleUseStatus] = useState<SingleUseStatus | null>(null);
+
+  // Fetch billing status to check for single-use credits
+  useEffect(() => {
+    fetch("/api/billing/status")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.singleUse?.hasCredits) {
+          setSingleUseStatus(data.singleUse);
+        }
+      })
+      .catch(() => {
+        // Ignore errors - just won't show the banner
+      });
+  }, []);
 
   const handleUpload = async (file: File, allowDuplicate = false) => {
     setError("");
@@ -113,6 +135,30 @@ export default function NewProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Single-Use Credit Notice */}
+            {singleUseStatus && (
+              <div className="p-4 rounded-lg border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-orange-800">Using Single RFP Credit</p>
+                    <p className="text-sm text-orange-700 mt-1">
+                      This project will use your single-use credit. You have {singleUseStatus.extractionsRemaining} extraction{singleUseStatus.extractionsRemaining !== 1 ? 's' : ''} and {singleUseStatus.draftsRemaining} AI drafts remaining.
+                    </p>
+                    {singleUseStatus.expiresAt && (
+                      <p className="text-xs text-orange-600 mt-1">
+                        Credit expires {new Date(singleUseStatus.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
                 {error}

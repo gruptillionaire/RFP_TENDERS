@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getQuotaStatus } from "@/lib/quota";
+import { getQuotaStatus, getSingleUseQuotaStatus } from "@/lib/quota";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,7 @@ export default async function DashboardPage() {
 
   // Fetch quota status
   const quota = await getQuotaStatus(session.user.id);
+  const singleUseQuota = await getSingleUseQuotaStatus(session.user.id);
 
   const projects = await prisma.project.findMany({
     where: { userId: session.user.id },
@@ -103,6 +104,32 @@ export default async function DashboardPage() {
 
       {/* Main */}
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Single-Use Credit Banner - Show when user has active single-use credits */}
+        {singleUseQuota.hasCredits && (
+          <div className="mb-4 p-4 rounded-lg border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-orange-800">
+                  Single RFP Credit Active
+                </p>
+                <p className="text-sm text-orange-700">
+                  Your next project will use your single-use credit ({singleUseQuota.extractionsRemaining} extraction{singleUseQuota.extractionsRemaining !== 1 ? 's' : ''}, {singleUseQuota.draftsRemaining} drafts remaining).
+                  {singleUseQuota.expiresAt && (
+                    <span className="ml-1">
+                      Expires {new Date(singleUseQuota.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quota Banner */}
         <div className={`mb-6 p-4 rounded-lg border ${
           quota.remaining === 0
@@ -157,7 +184,7 @@ export default async function DashboardPage() {
             <p className="text-gray-600">Manage your RFP and tender responses</p>
           </div>
           <Link href="/projects/new">
-            <Button disabled={quota.remaining === 0}>
+            <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits}>
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
