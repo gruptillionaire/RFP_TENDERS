@@ -266,7 +266,7 @@ export default async function DashboardPage() {
 
                   {/* Show message if all projects are completed */}
                   {activeProjects.length === 0 && completedProjects.length > 0 && (
-                    <div className="text-center px-6 py-8 mb-8 bg-green-50 rounded-lg border border-green-200">
+                    <div className="text-center px-6 py-12 mb-8 bg-green-50 rounded-lg border border-green-200">
                       <div className="w-12 h-12 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-3">
                         <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
