@@ -105,7 +105,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-2 group">
+              <div className="flex items-center gap-2 group pr-4">
                 <Link href={`/projects/${project.id}`} className="flex-1 min-w-0">
                   <CardTitle className="text-lg truncate hover:text-blue-600">{title}</CardTitle>
                 </Link>
