@@ -24,7 +24,6 @@ export default async function SettingsPage() {
       cancelAtPeriodEnd: true,
       stripeCustomerId: true,
       monthlyExtractionsUsed: true,
-      monthlyExtractionsLimit: true,
       monthlyDraftsUsed: true,
       // Single-use credits
       singleUseExtractionsRemaining: true,

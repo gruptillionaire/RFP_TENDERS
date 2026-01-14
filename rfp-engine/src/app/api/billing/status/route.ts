@@ -29,7 +29,6 @@ export async function GET() {
         currentPeriodEnd: true,
         cancelAtPeriodEnd: true,
         monthlyExtractionsUsed: true,
-        monthlyExtractionsLimit: true,
         monthlyDraftsUsed: true,
         stripeCustomerId: true,
         // Single-use credits
@@ -62,7 +61,7 @@ export async function GET() {
       cancelAtPeriodEnd: user.cancelAtPeriodEnd,
       usage: {
         extractionsUsed: user.monthlyExtractionsUsed,
-        extractionsLimit: user.monthlyExtractionsLimit,
+        extractionsLimit: planLimits.monthlyExtractions,
         draftsUsed: user.monthlyDraftsUsed,
         draftsLimit: planLimits.monthlyDrafts,
       },

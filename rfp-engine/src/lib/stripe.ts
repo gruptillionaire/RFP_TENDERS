@@ -176,9 +176,9 @@ export function getPlanFromPriceId(priceId: string): PlanType | null {
 export function getPlanLimits(plan: string) {
   if (plan === "FREE") {
     return {
-      monthlyExtractions: 2,
-      activeProjects: 2,
-      monthlyDrafts: 20,
+      monthlyExtractions: 0,
+      activeProjects: 0,
+      monthlyDrafts: 0,
       storedResponses: 0,
       canExportWord: false,
       canUseLibrary: false,

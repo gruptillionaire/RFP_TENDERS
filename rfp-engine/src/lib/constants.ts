@@ -15,7 +15,7 @@ export const TOKEN_LIMITS = {
 } as const;
 
 export const QUOTA_LIMITS = {
-  FREE: 2,
+  FREE: 0,
   STARTER: 5,
   PRO: 10,
   TEAM: 25,
@@ -23,7 +23,7 @@ export const QUOTA_LIMITS = {
 } as const;
 
 export const DRAFT_LIMITS = {
-  FREE: 20,
+  FREE: 0,
   STARTER: 250,
   PRO: 500,
   TEAM: 1000,
