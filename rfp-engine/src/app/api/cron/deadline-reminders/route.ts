@@ -81,7 +81,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    // Use production domain for email links, strip trailing slashes
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://rfpmatrix.com").replace(/\/+$/, "");
 
     // Find projects with deadlines that need reminders
     // Look for projects with deadlines between -1 day (overdue) and +8 days from now

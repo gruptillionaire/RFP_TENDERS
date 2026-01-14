@@ -1,8 +1,9 @@
 import { Resend } from "resend";
 import { deadlineReminderEmail } from "./email-templates";
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@rfpengine.com";
+const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@rfpmatrix.com";
 const APP_NAME = "RFP Matrix";
+const APP_URL = "https://rfpmatrix.com";
 
 // Lazy initialization to avoid errors during build when API key is not set
 let resend: Resend | null = null;
@@ -60,7 +61,8 @@ export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // Use APP_URL for emails (always production domain), strip trailing slashes
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || APP_URL).replace(/\/+$/, "");
   const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
   const html = `
