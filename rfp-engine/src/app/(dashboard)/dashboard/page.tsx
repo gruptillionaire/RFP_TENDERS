@@ -146,8 +146,9 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Quota Banner - Different for free vs paid users */}
+        {/* Quota Banner - Different for free, unlimited, and limited paid users */}
         {userPlan === "FREE" && !singleUseQuota.hasCredits ? (
+          /* Free tier - prompt to subscribe */
           <div className="mb-6 p-4 rounded-lg border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -172,7 +173,27 @@ export default async function DashboardPage() {
               </Link>
             </div>
           </div>
+        ) : quota.limit === -1 ? (
+          /* Business tier - unlimited extractions */
+          <div className="mb-6 p-4 rounded-lg border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">
+                  Unlimited extractions
+                </p>
+                <p className="text-sm text-gray-600">
+                  {quota.used} extraction{quota.used === 1 ? "" : "s"} used this month
+                </p>
+              </div>
+            </div>
+          </div>
         ) : (
+          /* Limited paid tiers - show quota */
           <div className={`mb-6 p-4 rounded-lg border ${
             quota.remaining === 0
               ? "bg-red-50 border-red-200"
