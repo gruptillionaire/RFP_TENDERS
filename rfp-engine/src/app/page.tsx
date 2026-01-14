@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Metadata } from "next";
 import { Button } from "@/components/ui/button";
+import { CheckoutButton } from "@/components/CheckoutButton";
 import { JsonLd, organizationSchema, softwareApplicationSchema } from "@/components/JsonLd";
 import { auth } from "@/lib/auth";
 
@@ -166,9 +167,11 @@ export default async function Home() {
                   <span className="text-gray-400">No Word export</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-6">
-                <Button variant="outline" className="w-full">Get Started</Button>
-              </Link>
+              <div className="mt-auto pt-6">
+                <CheckoutButton plan="STARTER" isSignedIn={isSignedIn} variant="outline" className="w-full">
+                  Buy Now - £49/mo
+                </CheckoutButton>
+              </div>
             </div>
 
             {/* Pro - Most Popular */}
@@ -210,9 +213,11 @@ export default async function Home() {
                   <span>Export to Word & PDF</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-6">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">Get Started</Button>
-              </Link>
+              <div className="mt-auto pt-6">
+                <CheckoutButton plan="PRO" isSignedIn={isSignedIn} className="w-full bg-blue-600 hover:bg-blue-700">
+                  Buy Now - £99/mo
+                </CheckoutButton>
+              </div>
             </div>
 
             {/* Team */}
@@ -249,9 +254,11 @@ export default async function Home() {
                   <span>Priority support</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-6">
-                <Button variant="outline" className="w-full">Get Started</Button>
-              </Link>
+              <div className="mt-auto pt-6">
+                <CheckoutButton plan="TEAM" isSignedIn={isSignedIn} variant="outline" className="w-full">
+                  Buy Now - £179/mo
+                </CheckoutButton>
+              </div>
             </div>
 
             {/* Business */}
@@ -288,9 +295,11 @@ export default async function Home() {
                   <span>Priority support</span>
                 </li>
               </ul>
-              <Link href="/signup" className="block mt-auto pt-6">
-                <Button variant="outline" className="w-full">Get Started</Button>
-              </Link>
+              <div className="mt-auto pt-6">
+                <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full">
+                  Buy Now - £249/mo
+                </CheckoutButton>
+              </div>
             </div>
           </div>
 
@@ -357,9 +366,11 @@ export default async function Home() {
                   <span className="text-gray-400">No response library</span>
                 </li>
               </ul>
-              <Link href="/pricing" className="block mt-6">
-                <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">Buy Now - £40</Button>
-              </Link>
+              <div className="mt-6">
+                <CheckoutButton plan="SINGLE_USE" isSignedIn={isSignedIn} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
+                  Buy Now - £40
+                </CheckoutButton>
+              </div>
             </div>
           </div>
         </section>

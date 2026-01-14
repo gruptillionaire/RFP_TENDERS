@@ -108,6 +108,7 @@ function PricingContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userPlan, setUserPlan] = useState<string>("FREE");
+  const [planLoading, setPlanLoading] = useState(true);
   const [loadingBilling, setLoadingBilling] = useState(false);
 
   const cancelled = searchParams.get("subscription") === "cancelled";
@@ -115,6 +116,8 @@ function PricingContent() {
 
   // Fetch user's current plan
   useEffect(() => {
+    if (status === "loading") return; // Wait for session to load
+
     if (session) {
       fetch("/api/billing/status")
         .then((res) => res.json())
@@ -125,9 +128,14 @@ function PricingContent() {
         })
         .catch(() => {
           // Ignore errors, default to FREE
+        })
+        .finally(() => {
+          setPlanLoading(false);
         });
+    } else {
+      setPlanLoading(false);
     }
-  }, [session]);
+  }, [session, status]);
 
   const isUpgrade = (planId: string) => {
     const currentIndex = PLAN_HIERARCHY.indexOf(userPlan);
@@ -298,17 +306,17 @@ function PricingContent() {
               <div
                 key={plan.id}
                 className={`relative rounded-2xl bg-white p-8 shadow-sm border-2 transition-shadow hover:shadow-lg flex flex-col ${
-                  plan.popular ? "border-blue-500" : isCurrent ? "border-green-500" : "border-gray-200"
+                  plan.popular ? "border-blue-500" : (isCurrent && !planLoading) ? "border-green-500" : "border-gray-200"
                 }`}
               >
-                {plan.popular && !isCurrent && (
+                {plan.popular && (!isCurrent || planLoading) && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                     <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
                       Most Popular
                     </span>
                   </div>
                 )}
-                {isCurrent && (
+                {isCurrent && !planLoading && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                     <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-green-500 text-white">
                       Current Plan
@@ -367,7 +375,10 @@ function PricingContent() {
                 </ul>
 
                 <div className="mt-auto pt-8">
-                  {showButton && (
+                  {planLoading && status === "authenticated" ? (
+                    // Loading skeleton while fetching user's plan
+                    <div className="w-full h-10 bg-gray-200 rounded-md animate-pulse" />
+                  ) : showButton && (
                     <Button
                       className={`w-full ${
                         isCurrent
