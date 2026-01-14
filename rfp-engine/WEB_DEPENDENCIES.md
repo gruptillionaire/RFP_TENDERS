@@ -96,15 +96,21 @@ External services and platforms that power RFP Matrix.
 
 ## Authentication
 
-### Google OAuth
-- **Purpose:** "Sign in with Google" authentication
-- **URL:** [console.cloud.google.com](https://console.cloud.google.com)
-- **Dashboard:** Google Cloud Console → APIs & Services → Credentials
+### NextAuth.js (Credentials)
+- **Purpose:** Email/password authentication
+- **Type:** Self-hosted (no external service)
 - **Used for:**
-  - Social login (Sign in with Google)
+  - User signup with email/password
+  - Login with email/password
+  - Password reset flow
+  - Session management (JWT)
+- **Features:**
+  - Rate limiting (5 attempts, 15-min lockout)
+  - "Remember me" (30-day sessions)
+  - 2FA support (TOTP)
 - **Env vars:**
-  - `GOOGLE_CLIENT_ID`
-  - `GOOGLE_CLIENT_SECRET`
+  - `NEXTAUTH_URL`
+  - `NEXTAUTH_SECRET`
 
 ---
 
@@ -132,8 +138,6 @@ DATABASE_URL=
 # Auth
 NEXTAUTH_URL=https://rfpmatrix.com
 NEXTAUTH_SECRET=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
 
 # Stripe
 STRIPE_SECRET_KEY=
@@ -164,4 +168,3 @@ OPENAI_API_KEY=
 | Resend | Free tier | Free (3,000 emails/month) |
 | Zoho Mail | Free | Free (5 users) |
 | OpenAI | Pay-as-you-go | ~$0.01-0.03 per extraction |
-| Google OAuth | Free | Free |
