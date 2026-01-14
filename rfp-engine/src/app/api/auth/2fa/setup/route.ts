@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptTOTPSecret } from "@/lib/crypto";
+import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 
@@ -21,6 +22,15 @@ export async function POST() {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting
+    const rateLimit = rateLimiters.twoFactorSetup(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
     }
 
     // Check if 2FA is already enabled

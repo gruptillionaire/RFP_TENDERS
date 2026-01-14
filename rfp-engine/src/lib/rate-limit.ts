@@ -125,4 +125,16 @@ export const rateLimiters = {
   // 2FA regeneration: 5 per hour
   twoFactorRegenerate: (userId: string) =>
     rateLimit({ key: "2fa-regenerate", identifier: userId, windowMs: 60 * 60 * 1000, max: 5 }),
+
+  // 2FA setup: 5 per hour (prevent abuse of secret generation)
+  twoFactorSetup: (userId: string) =>
+    rateLimit({ key: "2fa-setup", identifier: userId, windowMs: 60 * 60 * 1000, max: 5 }),
+
+  // 2FA verify: 5 per 15 minutes (6-digit TOTP = 1M combinations, 5 attempts = 0.0005% chance)
+  twoFactorVerify: (userId: string) =>
+    rateLimit({ key: "2fa-verify", identifier: userId, windowMs: 15 * 60 * 1000, max: 5 }),
+
+  // 2FA disable: 5 per hour (sensitive action)
+  twoFactorDisable: (userId: string) =>
+    rateLimit({ key: "2fa-disable", identifier: userId, windowMs: 60 * 60 * 1000, max: 5 }),
 };

@@ -40,13 +40,24 @@ export default async function DashboardPage() {
 
   // Auto-recovery: Fix projects marked FAILED that actually have requirements
   // This can happen when user navigates away during extraction but extraction succeeded
-  for (const project of projects) {
-    if (project.status === "FAILED" && project._count.requirements > 0) {
-      await prisma.project.update({
-        where: { id: project.id },
-        data: { status: "READY" },
-      });
-      project.status = "READY"; // Update local state too
+  // Use batch update to avoid N+1 query pattern
+  const failedWithRequirements = projects
+    .filter((p) => p.status === "FAILED" && p._count.requirements > 0)
+    .map((p) => p.id);
+
+  if (failedWithRequirements.length > 0) {
+    // Use Set for O(1) lookup instead of includes() which is O(n)
+    const failedIdsSet = new Set(failedWithRequirements);
+
+    await prisma.project.updateMany({
+      where: { id: { in: failedWithRequirements } },
+      data: { status: "READY" },
+    });
+    // Update local state to match
+    for (const p of projects) {
+      if (failedIdsSet.has(p.id)) {
+        p.status = "READY";
+      }
     }
   }
 

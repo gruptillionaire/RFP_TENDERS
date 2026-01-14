@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptTOTPSecret, generateBackupCodes } from "@/lib/crypto";
+import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 import * as OTPAuth from "otpauth";
 import bcrypt from "bcryptjs";
 
@@ -22,6 +23,15 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting - prevent brute force attacks on TOTP codes
+    const rateLimit = rateLimiters.twoFactorVerify(session.user.id);
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: "Too many verification attempts. Please try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
     }
 
     const body = await request.json();

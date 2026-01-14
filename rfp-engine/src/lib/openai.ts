@@ -1,8 +1,139 @@
 import OpenAI from "openai";
+import crypto from "crypto";
 import { MODELS, TOKEN_LIMITS, RequirementType } from "./constants";
 import { sanitizeForLLM } from "./security";
 import { matchTemplate } from "./templates";
 import { DomainContext, detectDomainContext, getDomainPromptModifier, applyDomainRules, DOMAIN_RULES } from "./domain-context";
+
+// =============================================================================
+// OPENAI RETRY WRAPPER WITH EXPONENTIAL BACKOFF
+// =============================================================================
+interface RetryOptions {
+  maxRetries?: number;
+  initialDelay?: number;
+  maxDelay?: number;
+  timeout?: number;
+}
+
+const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
+  maxRetries: 3,
+  initialDelay: 1000,  // 1 second
+  maxDelay: 10000,     // 10 seconds
+  timeout: 120000,     // 2 minutes
+};
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const opts = { ...DEFAULT_RETRY_OPTIONS, ...options };
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    try {
+      // Create timeout promise with clearable timer
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("OpenAI request timed out")), opts.timeout);
+      });
+
+      // Race between the operation and timeout
+      const result = await Promise.race([fn(), timeoutPromise]);
+
+      // Clear timeout on success to prevent memory leak
+      if (timeoutId) clearTimeout(timeoutId);
+
+      return result;
+    } catch (error) {
+      // Clear timeout on failure to prevent memory leak
+      if (timeoutId) clearTimeout(timeoutId);
+
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry on non-retryable errors
+      const errorMessage = lastError.message.toLowerCase();
+      if (
+        errorMessage.includes("invalid api key") ||
+        errorMessage.includes("authentication") ||
+        errorMessage.includes("quota exceeded") ||
+        errorMessage.includes("insufficient_quota") ||
+        errorMessage.includes("billing") ||
+        errorMessage.includes("rate_limit_exceeded")
+      ) {
+        throw lastError;
+      }
+
+      // If we've exhausted retries, throw
+      if (attempt >= opts.maxRetries) {
+        console.error(`OpenAI call failed after ${opts.maxRetries + 1} attempts:`, lastError.message);
+        throw lastError;
+      }
+
+      // Calculate delay with exponential backoff + jitter
+      const delay = Math.min(
+        opts.initialDelay * Math.pow(2, attempt) + Math.random() * 1000,
+        opts.maxDelay
+      );
+
+      console.warn(`OpenAI call failed (attempt ${attempt + 1}/${opts.maxRetries + 1}), retrying in ${Math.round(delay)}ms:`, lastError.message);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError || new Error("Unknown error in retry logic");
+}
+
+// =============================================================================
+// CONTENT-HASH CACHING FOR EXTRACTIONS
+// =============================================================================
+
+// Increment this version when EXTRACTION_PROMPT or extraction logic changes
+// This ensures stale cached results are not returned after prompt updates
+const EXTRACTION_VERSION = "v2";
+
+interface CacheEntry<T> {
+  result: T;
+  timestamp: number;
+}
+
+// Simple in-memory cache with TTL (1 hour)
+const extractionCache = new Map<string, CacheEntry<ExtractionResult>>();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const CACHE_MAX_SIZE = 50; // Limit memory usage
+
+function getContentHash(content: string): string {
+  // Include version in hash to invalidate cache when extraction logic changes
+  return crypto.createHash("sha256").update(`${EXTRACTION_VERSION}:${content}`).digest("hex").substring(0, 16);
+}
+
+function getCachedExtraction(hash: string): ExtractionResult | null {
+  const entry = extractionCache.get(hash);
+  if (!entry) return null;
+
+  // Check if expired
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    extractionCache.delete(hash);
+    return null;
+  }
+
+  return entry.result;
+}
+
+function setCachedExtraction(hash: string, result: ExtractionResult): void {
+  // Simple LRU-like eviction: if at capacity, remove oldest entries
+  if (extractionCache.size >= CACHE_MAX_SIZE) {
+    const entries = Array.from(extractionCache.entries());
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    // Remove oldest 25%
+    const toRemove = Math.ceil(CACHE_MAX_SIZE * 0.25);
+    for (let i = 0; i < toRemove; i++) {
+      extractionCache.delete(entries[i][0]);
+    }
+  }
+
+  extractionCache.set(hash, { result, timestamp: Date.now() });
+}
 
 // Validate OpenAI API key
 const apiKey = process.env.OPENAI_API_KEY;
@@ -1067,19 +1198,30 @@ export async function extractRequirements(documentText: string): Promise<Extract
       ? sanitizedText.substring(0, maxLength) + "\n\n[Document truncated due to length]"
       : sanitizedText;
 
-  // Simple direct OpenAI call (no retries - keeps it simple and fast)
-  const response = await openai.chat.completions.create({
-    model: MODELS.EXTRACTION,
-    messages: [
-      { role: "system", content: EXTRACTION_PROMPT },
-      {
-        role: "user",
-        content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
-      },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.1,
-  });
+  // Check cache first (saves API costs for duplicate uploads)
+  const contentHash = getContentHash(truncatedText);
+  const cachedResult = getCachedExtraction(contentHash);
+  if (cachedResult) {
+    console.log("[extractRequirements] Cache hit, returning cached result");
+    return cachedResult;
+  }
+
+  // OpenAI call with retry logic and timeout
+  const response = await withRetry(
+    () => openai.chat.completions.create({
+      model: MODELS.EXTRACTION,
+      messages: [
+        { role: "system", content: EXTRACTION_PROMPT },
+        {
+          role: "user",
+          content: `Please extract all requirements and questions from this RFP document:\n\n${truncatedText}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    }),
+    { timeout: 120000 } // 2 minutes for extraction
+  );
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
@@ -1138,6 +1280,9 @@ export async function extractRequirements(documentText: string): Promise<Extract
 
     // Enrich section data: fill in missing sectionGroup titles from document structure
     enrichSectionData(result.requirements, documentText);
+
+    // Cache the result for future duplicate uploads
+    setCachedExtraction(contentHash, result);
 
     return result;
   } catch (error) {
@@ -1350,12 +1495,16 @@ export async function generateDraft(
     content: `Generate a draft response for this RFP requirement:\n\n"${requirement}"\n\nREMEMBER: Do NOT repeat this requirement text in your response. Do NOT write an email. Be concise and direct.`,
   });
 
-  const response = await openai.chat.completions.create({
-    model: MODELS.DRAFTING,
-    messages,
-    temperature: 0.7,
-    max_tokens: tokenLimits.max * 2, // Allow buffer, prompts guide actual length
-  });
+  // OpenAI call with retry logic and timeout
+  const response = await withRetry(
+    () => openai.chat.completions.create({
+      model: MODELS.DRAFTING,
+      messages,
+      temperature: 0.7,
+      max_tokens: tokenLimits.max * 2, // Allow buffer, prompts guide actual length
+    }),
+    { timeout: 60000 } // 1 minute for drafting
+  );
 
   let content = response.choices[0]?.message?.content;
   if (!content) {

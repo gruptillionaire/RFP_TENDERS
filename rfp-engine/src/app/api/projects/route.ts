@@ -38,8 +38,11 @@ export async function POST(request: Request) {
     }
 
     // Check quota - single-use credits first, then subscription
-    const singleUseStatus = await getSingleUseQuotaStatus(session.user.id);
-    const subscriptionQuota = await checkAndIncrementQuota(session.user.id, false);
+    // Use Promise.all to parallelize independent database queries
+    const [singleUseStatus, subscriptionQuota] = await Promise.all([
+      getSingleUseQuotaStatus(session.user.id),
+      checkAndIncrementQuota(session.user.id, false),
+    ]);
 
     const usingSingleUse = singleUseStatus.hasCredits && singleUseStatus.extractionsRemaining > 0;
     const hasSubscriptionQuota = subscriptionQuota.allowed;

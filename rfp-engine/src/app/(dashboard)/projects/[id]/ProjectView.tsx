@@ -112,22 +112,63 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   );
   const [isWeightsSaving, setIsWeightsSaving] = useState(false);
 
-  // Poll for updates if processing
+  // Poll for updates if processing - with exponential backoff
   useEffect(() => {
-    if (project.status === "PROCESSING") {
-      const interval = setInterval(async () => {
-        const res = await fetch(`/api/projects/${project.id}`);
-        if (res.ok) {
+    if (project.status !== "PROCESSING") {
+      return;
+    }
+
+    let retryCount = 0;
+    let timeoutId: NodeJS.Timeout;
+    const abortController = new AbortController();
+    const MAX_RETRIES = 30; // ~3-4 minutes with backoff
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/projects/${project.id}`, {
+          signal: abortController.signal,
+        });
+
+        // Guard against state updates after abort
+        if (abortController.signal.aborted) return;
+
+        if (!res.ok) {
+          console.error(`Project polling failed: ${res.status}`);
+        } else {
           const data = await res.json();
           if (data.status !== "PROCESSING") {
             setProject(data);
             setRequirements(data.requirements || []);
-            clearInterval(interval);
+            return; // Success - stop polling
           }
         }
-      }, 2000);
-      return () => clearInterval(interval);
-    }
+      } catch (err) {
+        // Cleanup triggered - exit gracefully
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        console.error("Project polling error:", err);
+      }
+
+      // Schedule retry with exponential backoff
+      retryCount++;
+      if (retryCount >= MAX_RETRIES) {
+        console.error("Project polling exceeded max retries");
+        return;
+      }
+
+      // Exponential backoff: 2s, 3s, 4.5s, 6.75s... capped at 10s
+      const delay = Math.min(2000 * Math.pow(1.5, retryCount - 1), 10000);
+      timeoutId = setTimeout(poll, delay);
+    };
+
+    // Initial poll after 2 seconds
+    timeoutId = setTimeout(poll, 2000);
+
+    return () => {
+      abortController.abort();
+      clearTimeout(timeoutId);
+    };
   }, [project.id, project.status]);
 
   const handleStatusChange = useCallback(async (id: string, status: Requirement["status"]) => {
