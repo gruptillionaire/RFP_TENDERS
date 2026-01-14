@@ -14,7 +14,12 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Fetch quota status
+  // Fetch user plan and quota status
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { plan: true },
+  });
+  const userPlan = user?.plan || "FREE";
   const quota = await getQuotaStatus(session.user.id);
   const singleUseQuota = await getSingleUseQuotaStatus(session.user.id);
 
@@ -141,53 +146,80 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Quota Banner */}
-        <div className={`mb-6 p-4 rounded-lg border ${
-          quota.remaining === 0
-            ? "bg-red-50 border-red-200"
-            : quota.remaining === 1
-            ? "bg-yellow-50 border-yellow-200"
-            : "bg-blue-50 border-blue-200"
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                quota.remaining === 0
-                  ? "bg-red-100"
-                  : quota.remaining === 1
-                  ? "bg-yellow-100"
-                  : "bg-blue-100"
-              }`}>
-                <svg className={`w-5 h-5 ${
-                  quota.remaining === 0
-                    ? "text-red-600"
-                    : quota.remaining === 1
-                    ? "text-yellow-600"
-                    : "text-blue-600"
-                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+        {/* Quota Banner - Different for free vs paid users */}
+        {userPlan === "FREE" && !singleUseQuota.hasCredits ? (
+          <div className="mb-6 p-4 rounded-lg border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    Get started with RFP Matrix
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Subscribe to extract requirements and generate AI drafts for your RFPs
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">
-                  {quota.remaining === 0
-                    ? "Monthly limit reached"
-                    : `${quota.remaining} extraction${quota.remaining === 1 ? "" : "s"} remaining`}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {quota.used} of {quota.limit} extractions used this month
-                </p>
-              </div>
-            </div>
-            {quota.remaining === 0 && (
               <Link href="/pricing">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                  Upgrade Plan
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  View Plans
                 </Button>
               </Link>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className={`mb-6 p-4 rounded-lg border ${
+            quota.remaining === 0
+              ? "bg-red-50 border-red-200"
+              : quota.remaining <= 2
+              ? "bg-yellow-50 border-yellow-200"
+              : "bg-blue-50 border-blue-200"
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  quota.remaining === 0
+                    ? "bg-red-100"
+                    : quota.remaining <= 2
+                    ? "bg-yellow-100"
+                    : "bg-blue-100"
+                }`}>
+                  <svg className={`w-5 h-5 ${
+                    quota.remaining === 0
+                      ? "text-red-600"
+                      : quota.remaining <= 2
+                      ? "text-yellow-600"
+                      : "text-blue-600"
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {quota.remaining === 0
+                      ? "Monthly limit reached"
+                      : `${quota.remaining} extraction${quota.remaining === 1 ? "" : "s"} remaining`}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {quota.used} of {quota.limit} extractions used this month
+                  </p>
+                </div>
+              </div>
+              {quota.remaining === 0 && (
+                <Link href="/pricing">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                    Upgrade Plan
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-between items-center mb-8">
           <div>
