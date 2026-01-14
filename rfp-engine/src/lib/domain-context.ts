@@ -29,8 +29,17 @@ const PROCESS_KEYWORDS = [
   "workflow", "timeline", "phase", "stage", "onboarding", "implementation",
   "migration", "transition", "training", "support", "escalation",
   "deployment", "rollout", "project", "plan", "schedule",
-  // Added more process terms
-  "documentation", "testing", "acceptance", "deliverable"
+  "documentation", "testing", "acceptance", "deliverable",
+  // Additional process terms - governance & handoffs
+  "governance", "handover", "handoff", "setup", "configuration",
+  // Lifecycle & methodology terms
+  "lifecycle", "sprint", "iteration", "agile", "waterfall", "scrum",
+  // Project milestones
+  "kickoff", "kick-off", "milestone", "checkpoint", "go-live", "cutover",
+  // Management processes
+  "change management", "risk management", "quality assurance",
+  // Sequence indicators
+  "sequence", "order", "flow"
 ];
 
 // =============================================================================
@@ -58,6 +67,15 @@ const STRONG_LEGAL_TERMS = [
   "liability", "subprocessor", "data controller", "data processor"
 ];
 
+// Patterns that strongly indicate PROCESS domain (verb + process noun)
+// These override the keyword count requirement
+const STRONG_PROCESS_PATTERNS = [
+  /\b(describe|explain|outline|detail|provide)\s+(your|the|a)?\s*(process|approach|methodology|steps|timeline|procedure|workflow)/i,
+  /\b(how)\s+(do|does|will|would|can|should)\s+(you|your|the|we)/i,
+  /\bhow\s+(you|your|the|we)\s+(will|would|can|handle|manage|approach)/i,
+  /\b(what)\s+(is|are)\s+(your|the)\s*(process|approach|methodology|procedure|steps)/i,
+];
+
 /**
  * Detect the domain context of a requirement using heuristic keyword matching
  * Legal takes precedence due to risk, then Process, then Feature (default)
@@ -78,8 +96,27 @@ export function detectDomainContext(requirementText: string): DomainContext {
   // STEP 2: Legal with 2+ keywords (lowered from 3 - legal terms are specific)
   if (legalScore >= 2) return "LEGAL";
 
-  // STEP 3: Process if keywords match or starts with "how"
-  if (processScore >= 2 || text.startsWith("how ") || text.includes("how do") || text.includes("how would")) {
+  // STEP 3: Check for strong process patterns (verb + process noun combinations)
+  // These override the keyword count requirement
+  if (STRONG_PROCESS_PATTERNS.some(pattern => pattern.test(text))) {
+    return "PROCESS";
+  }
+
+  // STEP 4: Process if ANY keyword matches (lowered from 2 - process keywords are specific)
+  // Also check for "how" appearing anywhere in the text (not just at start)
+  const hasHowPattern =
+    text.startsWith("how ") ||
+    text.includes(" how ") ||
+    text.includes("how you") ||
+    text.includes("how your") ||
+    text.includes("how the") ||
+    text.includes("how will") ||
+    text.includes("how would") ||
+    text.includes("how do") ||
+    text.includes("how does") ||
+    text.includes("how can");
+
+  if (processScore >= 1 || hasHowPattern) {
     return "PROCESS";
   }
 

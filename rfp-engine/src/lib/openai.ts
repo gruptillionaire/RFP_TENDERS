@@ -425,19 +425,27 @@ If ANY of the above match (and STEP 0 didn't match) → classify as CONTEXTUAL a
 >>> STEP 2: IF NOT CONTEXTUAL, check other types in order <<<
 
 IMPORTANT: Check subject-specific types BEFORE generic ones to avoid false positives!
+CRITICAL: Classification is based on WHAT you're asking for (subject), NOT HOW you're asking (verb).
 
 3. EVIDENCE_BASED: Asks to attach/include/submit/upload a file, sample, or document
 4. REFERENCE_BASED: Asks for references, past performance, client contacts, case studies
 5. STAFFING: Asks for team, personnel, staff, qualifications, CVs, FTEs
-6. DESCRIPTIVE: Contains "describe/explain/outline/how do you" or lists items to address
-7. QUANTITATIVE: Asks for ACTUAL PRICES, COSTS, PERCENTAGES (strict - must have £/$/%/pricing terms)
+6. QUANTITATIVE: Subject matter is NUMERICAL - asking for rates, fees, prices, costs, percentages, or specific numeric data
+   QUANTITATIVE TRIGGERS (if ANY present, classify as QUANTITATIVE regardless of verb):
+   - Financial terms: rate, rates, earnings, interest, fee, fees, pricing, cost, price, charge, charges, index
+   - Currency/percentage symbols: £, $, €, %
+   - Temporal numeric requests: "last X months", "monthly rates", "annual", "quarterly figures"
+   - Numeric listing requests: "list the rates", "provide the figures", "state the percentages"
+   Example: "Describe what index the earnings rate would be pegged to, listing the last six months' rates" → QUANTITATIVE (subject: rates/numbers)
+7. DESCRIPTIVE: Contains "describe/explain/outline/how do you" about NON-NUMERICAL topics (processes, approaches, capabilities)
+   Example: "Describe your approach to customer service" → DESCRIPTIVE (subject: approach, not numbers)
 8. DECLARATIVE: Yes/no compliance question (about policy/status, NOT pricing)
 9. PROCEDURAL: Simple confirmation or acknowledgment needed
 10. Default → DESCRIPTIVE
 
-NOTE: QUANTITATIVE is intentionally AFTER DESCRIPTIVE because questions like
-"Describe your metrics" should be DESCRIPTIVE, not QUANTITATIVE. Only use
-QUANTITATIVE when asking for ACTUAL NUMBERS (prices, costs, percentages).
+NOTE: The verb "describe" does NOT automatically mean DESCRIPTIVE. Check the SUBJECT first:
+- "Describe your rates" → QUANTITATIVE (subject: rates = numbers)
+- "Describe your process" → DESCRIPTIVE (subject: process = narrative)
 
 ==============================================================================
 CRITICAL: CONTEXTUAL vs DECLARATIVE - The "shall/should" Trap
@@ -1118,7 +1126,8 @@ export async function extractRequirements(documentText: string): Promise<Extract
         ...req,
         section: req.section || null,
         sectionGroup: req.sectionGroup || null,
-        type: validateRequirementType(req.type),
+        // Validate type, then apply heuristic correction for DESCRIPTIVE→QUANTITATIVE
+        type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
         // Always use heuristic detection for domain context (more reliable than LLM)
         domainContext: detectDomainContext(req.text),
         wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
@@ -1394,4 +1403,50 @@ function validateDomainContext(domain: string | undefined): DomainContext | null
     return domain as DomainContext;
   }
   return null; // Will fallback to heuristic detection
+}
+
+/**
+ * Heuristic correction: DESCRIPTIVE → QUANTITATIVE when financial/numeric terms are present
+ * This catches cases where the LLM incorrectly classifies based on verb ("describe") rather than subject (rates/numbers)
+ */
+function correctQuantitativeType(text: string, llmType: RequirementType): RequirementType {
+  // Only correct DESCRIPTIVE classifications
+  if (llmType !== "DESCRIPTIVE") return llmType;
+
+  const lowerText = text.toLowerCase();
+
+  // Financial/numeric terms that indicate QUANTITATIVE
+  const quantitativeTerms = [
+    "rate", "rates", "earnings", "interest rate", "fee", "fees",
+    "pricing", "price", "cost", "costs", "charge", "charges",
+    "index", "percentage", "percentages", "figure", "figures",
+    "amount", "amounts", "budget", "quotation", "quote"
+  ];
+
+  // Patterns that indicate asking for specific numbers
+  const quantitativePatterns = [
+    /last\s+\d+\s+(month|year|quarter|week)/i,          // "last 6 months"
+    /\b(monthly|annual|quarterly|yearly)\s+(rate|fee|cost|charge)/i,
+    /\blist(ing)?\s+(the|your|all)?\s*(rate|fee|cost|price)/i,
+    /\bprovide\s+(the|your|all)?\s*(rate|fee|cost|figure)/i,
+    /\bstate\s+(the|your)?\s*(rate|fee|percentage|amount)/i,
+    /[£$€]\s*\d/,                                        // Currency followed by number
+    /\d+\s*%/,                                           // Percentage
+  ];
+
+  // Check for quantitative terms
+  const hasQuantitativeTerm = quantitativeTerms.some(term =>
+    lowerText.includes(term)
+  );
+
+  // Check for quantitative patterns
+  const hasQuantitativePattern = quantitativePatterns.some(pattern =>
+    pattern.test(lowerText)
+  );
+
+  if (hasQuantitativeTerm || hasQuantitativePattern) {
+    return "QUANTITATIVE";
+  }
+
+  return llmType;
 }
