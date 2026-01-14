@@ -14,7 +14,8 @@ import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 
 // Security constants
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Note: Vercel Pro tier has 4.5MB body limit for serverless functions
+const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel Pro limit)
 const ALLOWED_MIME_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
     // Security: Validate file size
     if (buffer.length > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "File too large. Maximum file size is 10MB." },
+        { error: "File too large. Maximum file size is 4.5MB." },
         { status: 400 }
       );
     }
@@ -171,24 +172,38 @@ export async function POST(request: Request) {
     let rawText: string;
     const detectedMime = detectedType?.mime;
 
-    if (detectedMime === "application/pdf" || fileExtension === "pdf") {
-      rawText = await parsePDF(buffer);
-    } else if (
-      detectedMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      fileExtension === "docx" ||
-      fileExtension === "doc"
-    ) {
-      rawText = await parseDOCX(buffer);
-    } else {
+    try {
+      if (detectedMime === "application/pdf" || fileExtension === "pdf") {
+        rawText = await parsePDF(buffer);
+      } else if (
+        detectedMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        fileExtension === "docx" ||
+        fileExtension === "doc"
+      ) {
+        rawText = await parseDOCX(buffer);
+      } else {
+        return NextResponse.json(
+          { error: "Unsupported file type. Please upload a PDF or Word document." },
+          { status: 400 }
+        );
+      }
+    } catch (parseError) {
+      // Return specific parsing errors to the user
+      const errorMessage = parseError instanceof Error ? parseError.message : "Failed to parse document";
+      console.error("Document parsing failed:", {
+        fileName,
+        fileType: detectedMime || fileExtension,
+        error: errorMessage,
+      });
       return NextResponse.json(
-        { error: "Unsupported file type. Please upload a PDF or Word document." },
+        { error: errorMessage },
         { status: 400 }
       );
     }
 
     if (!rawText || rawText.trim().length === 0) {
       return NextResponse.json(
-        { error: "Could not extract text from document" },
+        { error: "Could not extract text from document. The file may be empty or contain only images." },
         { status: 400 }
       );
     }

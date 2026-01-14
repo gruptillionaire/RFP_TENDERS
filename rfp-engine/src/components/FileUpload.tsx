@@ -4,7 +4,8 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 
 // File validation constants
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+// Note: Vercel Pro tier has 4.5MB body limit for serverless functions
+const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel Pro limit)
 const ALLOWED_MIME_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
@@ -199,7 +200,7 @@ export function FileUpload({ onUpload, isUploading = false, accept = ".pdf,.docx
               </Button>
             </label>
             <p className="text-xs text-gray-400">
-              Supported formats: PDF, Word (.docx, .doc) &middot; Max 20MB
+              Supported formats: PDF, Word (.docx, .doc) &middot; Max 4.5MB
             </p>
           </div>
         )}

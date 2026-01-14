@@ -65,7 +65,27 @@ export default function NewProjectPage() {
         body: formData,
       });
 
-      const data = await response.json();
+      // Handle 413 (Payload Too Large) - Vercel returns HTML, not JSON
+      if (response.status === 413) {
+        setError("File too large. Maximum file size is 4.5MB. Please compress your document or split it into smaller files.");
+        return;
+      }
+
+      // Handle 500 errors with a more helpful message
+      if (response.status === 500) {
+        setError("Server error processing your document. This may be due to an unsupported PDF format. Please try a different file or contact support.");
+        return;
+      }
+
+      // Try to parse JSON response
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        // Response wasn't JSON (e.g., HTML error page)
+        setError("Unexpected server error. Please try again or contact support.");
+        return;
+      }
 
       if (!response.ok) {
         // Handle duplicate file warning
@@ -79,14 +99,21 @@ export default function NewProjectPage() {
           setIsUploading(false);
           return;
         }
+        // Handle processing in progress
+        if (response.status === 409 && data.error === "processing") {
+          setError(data.message || "This file is currently being processed. Please wait a few minutes.");
+          return;
+        }
         setError(data.error || "Failed to create project");
         return;
       }
 
       // Redirect to project page
       router.push(`/projects/${data.id}`);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      // Network error or other unexpected error
+      console.error("Upload error:", err);
+      setError("Connection error. Please check your internet and try again.");
     } finally {
       setIsUploading(false);
     }
