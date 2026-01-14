@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://rfpengine.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://rfpmatrix.com'),
   title: {
     default: "RFP Matrix - AI-Powered RFP Management Software",
     template: "%s | RFP Matrix"

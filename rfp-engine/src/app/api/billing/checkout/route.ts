@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    // Use canonical production domain for Stripe redirects
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://rfpmatrix.com").replace(/\/+$/, "");
 
     // Handle single-use purchase
     if (type === "single_use") {

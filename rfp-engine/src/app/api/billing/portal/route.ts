@@ -73,9 +73,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build return URL
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const returnUrl = `${baseUrl}/settings/billing`;
+    // Build return URL - use canonical production domain
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://rfpmatrix.com").replace(/\/+$/, "");
+    const returnUrl = `${baseUrl}/settings`;
 
     // Create portal session
     const portalSession = await createBillingPortalSession(
