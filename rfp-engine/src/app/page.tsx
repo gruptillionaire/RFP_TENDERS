@@ -76,7 +76,7 @@ export default async function Home() {
               </Button>
             </Link>
           </div>
-          <p className="text-sm text-gray-500 mt-4">Plans from £49/month or £40 one-time.</p>
+          <p className="text-sm text-gray-500 mt-4">Plans from £49/month.</p>
         </div>
 
         {/* Features */}
