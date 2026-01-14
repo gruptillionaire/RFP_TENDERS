@@ -40,7 +40,6 @@
     "openai": "^6.15.0",
     "otpauth": "^9.4.1",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^2.4.5",
     "posthog-js": "^1.318.1",
     "prisma": "^6.19.1",
     "qrcode": "^1.5.4",
@@ -51,6 +50,7 @@
     "sonner": "^2.0.7",
     "stripe": "^20.1.2",
     "tailwind-merge": "^3.4.0",
+    "unpdf": "^1.4.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {
