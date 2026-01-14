@@ -548,9 +548,9 @@ function PricingContent() {
             Join businesses saving hours on every RFP response with AI-powered extraction and drafting.
           </p>
           <div className="mt-8">
-            <Link href="/signup">
+            <Link href={status === "authenticated" ? "/dashboard" : "/signup"}>
               <Button size="lg" className="px-8">
-                Get Started
+                {status === "authenticated" ? "Go to Dashboard" : "Get Started"}
               </Button>
             </Link>
           </div>

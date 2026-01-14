@@ -66,9 +66,9 @@ export default async function Home() {
             tracks your compliance status, and drafts responses—so you can focus on winning.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <Link href="/signup">
+            <Link href={isSignedIn ? "/dashboard" : "/signup"}>
               <Button size="lg" className="text-lg px-8">
-                Get Started
+                {isSignedIn ? "Go to Dashboard" : "Get Started"}
               </Button>
             </Link>
             <Link href="#features">
@@ -423,9 +423,9 @@ export default async function Home() {
             Join SMEs who are responding to RFPs faster and never missing a requirement.
           </p>
           <div className="mt-8">
-            <Link href="/signup">
+            <Link href={isSignedIn ? "/dashboard" : "/signup"}>
               <Button size="lg" className="px-8">
-                Get Started
+                {isSignedIn ? "Go to Dashboard" : "Get Started"}
               </Button>
             </Link>
           </div>
