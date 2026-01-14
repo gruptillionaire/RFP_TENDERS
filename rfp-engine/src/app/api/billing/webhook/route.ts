@@ -21,6 +21,7 @@ import {
 } from "@/lib/stripe";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 import type Stripe from "stripe";
+import { sendSubscriptionStartedEmail, sendSubscriptionCancelledEmail } from "@/lib/email";
 
 // Disable body parsing to get raw body for signature verification
 export const dynamic = "force-dynamic";
@@ -340,6 +341,19 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     },
   });
 
+  // Send welcome email for new active subscriptions (user upgrading from FREE)
+  if (subscription.status === "active" && user.plan === "FREE" && user.email) {
+    const planNames: Record<string, string> = {
+      STARTER: "Starter",
+      PRO: "Pro",
+      TEAM: "Team",
+      BUSINESS: "Business",
+    };
+    sendSubscriptionStartedEmail(user.email, planNames[plan] || plan).catch((err) =>
+      console.error("Failed to send subscription started email:", err)
+    );
+  }
+
   console.log(`Subscription updated for user ${user.id}: ${plan} (${subscription.status})`);
 }
 
@@ -387,6 +401,22 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       previousPlan: user.plan,
     },
   });
+
+  // Send cancellation email
+  if (user.email && user.plan !== "FREE") {
+    const planNames: Record<string, string> = {
+      STARTER: "Starter",
+      PRO: "Pro",
+      TEAM: "Team",
+      BUSINESS: "Business",
+    };
+    const endDate = user.currentPeriodEnd
+      ? user.currentPeriodEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      : "today";
+    sendSubscriptionCancelledEmail(user.email, planNames[user.plan] || user.plan, endDate).catch((err) =>
+      console.error("Failed to send subscription cancelled email:", err)
+    );
+  }
 
   console.log(`Subscription cancelled for user ${user.id}, reverted to FREE`);
 }

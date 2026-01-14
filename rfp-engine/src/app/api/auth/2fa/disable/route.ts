@@ -13,6 +13,7 @@ import { decryptTOTPSecret } from "@/lib/crypto";
 import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 import * as OTPAuth from "otpauth";
 import bcrypt from "bcryptjs";
+import { sendTwoFactorDisabledEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -116,6 +117,13 @@ export async function POST(request: NextRequest) {
         twoFactorVerifiedAt: null,
       },
     });
+
+    // Send notification email (don't await - fire and forget)
+    if (session.user.email) {
+      sendTwoFactorDisabledEmail(session.user.email).catch((err) =>
+        console.error("Failed to send 2FA disabled email:", err)
+      );
+    }
 
     return NextResponse.json({
       success: true,

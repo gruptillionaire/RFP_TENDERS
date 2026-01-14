@@ -17,6 +17,7 @@ import { decryptTOTPSecret, generateBackupCodes } from "@/lib/crypto";
 import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 import * as OTPAuth from "otpauth";
 import bcrypt from "bcryptjs";
+import { sendTwoFactorEnabledEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -110,6 +111,13 @@ export async function POST(request: NextRequest) {
         twoFactorBackupCodes: hashedBackupCodes,
       },
     });
+
+    // Send notification email (don't await - fire and forget)
+    if (session.user.email) {
+      sendTwoFactorEnabledEmail(session.user.email).catch((err) =>
+        console.error("Failed to send 2FA enabled email:", err)
+      );
+    }
 
     return NextResponse.json({
       success: true,

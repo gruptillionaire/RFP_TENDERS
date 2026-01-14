@@ -12,6 +12,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimiters, rateLimitHeaders } from "@/lib/rate-limit";
 import { logAudit, AuditActions } from "@/lib/audit";
+import { sendPasswordChangedEmail } from "@/lib/email";
 
 // Password requirements (same as signup/reset)
 const PASSWORD_MIN_LENGTH = 8;
@@ -143,6 +144,11 @@ export async function POST(request: NextRequest) {
       details: { success: true },
       request,
     });
+
+    // Send notification email (don't await - fire and forget)
+    sendPasswordChangedEmail(user.email).catch((err) =>
+      console.error("Failed to send password changed email:", err)
+    );
 
     return NextResponse.json({
       success: true,
