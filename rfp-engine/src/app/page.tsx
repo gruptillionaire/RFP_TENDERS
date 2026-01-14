@@ -468,6 +468,11 @@ export default async function Home() {
               </ul>
             </div>
           </div>
+          <div className="border-t pt-8 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-gray-600 text-sm">
+              Need help? <a href="mailto:help@rfpmatrix.com" className="text-blue-600 hover:underline">help@rfpmatrix.com</a>
+            </p>
+          </div>
           <div className="border-t pt-8 text-center text-gray-500 text-sm">
             © {new Date().getFullYear()} RFP Matrix. All rights reserved.
           </div>

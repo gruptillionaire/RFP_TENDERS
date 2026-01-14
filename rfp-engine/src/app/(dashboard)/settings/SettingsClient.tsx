@@ -535,6 +535,32 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
           </CardContent>
         </Card>
 
+        {/* Help & Support */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Help & Support</CardTitle>
+            <CardDescription>Get help with your account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">
+                  Have a question or need assistance? We&apos;re here to help.
+                </p>
+              </div>
+              <a
+                href="mailto:help@rfpmatrix.com"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Contact Support
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Danger Zone */}
         <Card className="border-red-200">
           <CardHeader>
