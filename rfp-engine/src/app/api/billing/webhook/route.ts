@@ -388,7 +388,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       cancelAtPeriodEnd: false,
       stripeSubscriptionId: null, // Clear subscription ID
       // Reset to free tier limits
-      monthlyExtractionsLimit: 2,
+      monthlyExtractionsLimit: 0,
     },
   });
 

@@ -58,7 +58,7 @@ model User {
   currentPeriodEnd        DateTime?      // When current billing period ends
   cancelAtPeriodEnd       Boolean        @default(false) // User cancelled but access until period end
   monthlyExtractionsUsed  Int            @default(0)
-  monthlyExtractionsLimit Int            @default(2)
+  monthlyExtractionsLimit Int            @default(0)
   monthlyDraftsUsed       Int            @default(0)
   lastUsageReset          DateTime       @default(now())
 
