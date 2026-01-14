@@ -137,4 +137,8 @@ export const rateLimiters = {
   // 2FA disable: 5 per hour (sensitive action)
   twoFactorDisable: (userId: string) =>
     rateLimit({ key: "2fa-disable", identifier: userId, windowMs: 60 * 60 * 1000, max: 5 }),
+
+  // Password change: 5 per hour (sensitive action, prevent brute force on current password)
+  passwordChange: (userId: string) =>
+    rateLimit({ key: "password-change", identifier: userId, windowMs: 60 * 60 * 1000, max: 5 }),
 };

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TwoFactorSettings } from "@/components/TwoFactorSettings";
+import { ChangePasswordSettings } from "@/components/ChangePasswordSettings";
 
 interface BillingInfo {
   plan: string;
@@ -261,6 +262,11 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
             </div>
           </CardContent>
         </Card>
+
+        {/* Security - Password */}
+        <div className="mb-6">
+          <ChangePasswordSettings />
+        </div>
 
         {/* Security - 2FA */}
         <div className="mb-6">
