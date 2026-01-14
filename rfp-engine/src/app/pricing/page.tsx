@@ -375,8 +375,8 @@ function PricingContent() {
                 </ul>
 
                 <div className="mt-auto pt-8">
-                  {planLoading && status === "authenticated" ? (
-                    // Loading skeleton while fetching user's plan
+                  {(status === "loading" || (planLoading && status === "authenticated")) ? (
+                    // Loading skeleton while determining session or fetching user's plan
                     <div className="w-full h-10 bg-gray-200 rounded-md animate-pulse" />
                   ) : showButton && (
                     <Button
