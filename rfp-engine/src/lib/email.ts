@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import crypto from "crypto";
 import { deadlineReminderEmail } from "./email-templates";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@rfpmatrix.com";
@@ -42,10 +43,14 @@ export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
   try {
     const { data, error } = await client.emails.send({
       from: `${APP_NAME} <${FROM_EMAIL}>`,
+      replyTo: FROM_EMAIL,
       to,
       subject,
       html,
       text: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for plain text
+      headers: {
+        "X-Entity-Ref-ID": crypto.randomUUID(), // Prevent threading/grouping
+      },
     });
 
     if (error) {
@@ -102,7 +107,8 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
         </div>
 
         <p style="text-align: center; color: #888; font-size: 12px; margin-top: 24px;">
-          &copy; ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.
+          &copy; ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.<br>
+          This is a transactional email from RFP Matrix.
         </p>
       </body>
     </html>
@@ -123,7 +129,7 @@ ${APP_NAME}
 
   return sendEmail({
     to: email,
-    subject: `Reset your ${APP_NAME} password`,
+    subject: `${APP_NAME}: Password reset request`,
     html,
     text,
   });
