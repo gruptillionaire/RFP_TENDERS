@@ -121,7 +121,7 @@ export default async function Home() {
               <div className="text-sm font-medium text-purple-600 mb-1">Step 3</div>
               <h3 className="text-lg font-semibold mb-2">Generate Draft Responses</h3>
               <p className="text-gray-600">
-                AI drafts compliant responses for each requirement. Reuse winning answers from your library. Export to Word when you're ready.
+                AI drafts compliant responses for each requirement. Reuse winning answers from your library. Export to Word/PDF when you're ready.
               </p>
             </div>
           </div>
