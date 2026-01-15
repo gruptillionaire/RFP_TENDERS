@@ -1035,48 +1035,70 @@ async function classifyBatch(
 }
 
 /**
- * Classify all requirement candidates in batches.
+ * Classify all requirement candidates in batches with PARALLELISM.
  * Main entry point for Phase 2 of two-phase extraction.
  */
 async function classifyRequirementsBatched(
   candidates: RequirementCandidate[],
   majorSections: Map<string, { number: string; title: string }>
 ): Promise<ExtractedRequirement[]> {
-  const BATCH_SIZE = 15; // 15 candidates per batch for reliability
-  const results: ExtractedRequirement[] = [];
-  const totalBatches = Math.ceil(candidates.length / BATCH_SIZE);
+  const BATCH_SIZE = 25; // 25 candidates per API call (was 15)
+  const CONCURRENCY = 5; // Process 5 batches in parallel
+  const allResults: ExtractedRequirement[] = [];
 
-  console.log(`[classifyBatched] Classifying ${candidates.length} candidates in ${totalBatches} batches`);
+  // Split candidates into batches
+  const batches: RequirementCandidate[][] = [];
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    batches.push(candidates.slice(i, i + BATCH_SIZE));
+  }
+
+  const totalBatches = batches.length;
+  const totalRounds = Math.ceil(totalBatches / CONCURRENCY);
+
+  console.log(`[classifyBatched] Classifying ${candidates.length} candidates: ${totalBatches} batches, ${totalRounds} rounds (${CONCURRENCY} concurrent)`);
   const startTime = Date.now();
 
-  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-    const batch = candidates.slice(i, i + BATCH_SIZE);
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+  // Process batches in parallel rounds
+  for (let round = 0; round < totalRounds; round++) {
+    const roundStart = round * CONCURRENCY;
+    const roundBatches = batches.slice(roundStart, roundStart + CONCURRENCY);
+    const roundNum = round + 1;
 
-    console.log(`[classifyBatched] Processing batch ${batchNum}/${totalBatches} (${batch.length} candidates)`);
+    console.log(`[classifyBatched] Round ${roundNum}/${totalRounds}: processing ${roundBatches.length} batches in parallel`);
 
-    const classified = await classifyBatch(batch);
+    // Run this round's batches in parallel
+    const roundResults = await Promise.all(
+      roundBatches.map(async (batch, idx) => {
+        const batchNum = roundStart + idx + 1;
+        console.log(`[classifyBatched] Starting batch ${batchNum}/${totalBatches} (${batch.length} candidates)`);
+        const classified = await classifyBatch(batch);
+        console.log(`[classifyBatched] Batch ${batchNum} complete: ${classified.length} requirements`);
+        return classified;
+      })
+    );
 
-    // Add sectionGroup from major sections map
-    const enriched = classified.map(req => {
-      const majorNum = req.section?.split('.')[0];
-      const majorSection = majorNum ? majorSections.get(majorNum) : null;
-      return {
-        ...req,
-        sectionGroup: majorSection
-          ? `${majorSection.number}: ${majorSection.title}`
-          : null,
-      };
-    });
+    // Flatten and enrich with sectionGroup
+    for (const classified of roundResults) {
+      const enriched = classified.map(req => {
+        const majorNum = req.section?.split('.')[0];
+        const majorSection = majorNum ? majorSections.get(majorNum) : null;
+        return {
+          ...req,
+          sectionGroup: majorSection
+            ? `${majorSection.number}: ${majorSection.title}`
+            : null,
+        };
+      });
+      allResults.push(...enriched);
+    }
 
-    results.push(...enriched);
-    console.log(`[classifyBatched] Batch ${batchNum} complete: ${classified.length} requirements`);
+    console.log(`[classifyBatched] Round ${roundNum} complete, total so far: ${allResults.length}`);
   }
 
   const elapsed = Date.now() - startTime;
-  console.log(`[classifyBatched] All batches complete in ${elapsed}ms: ${results.length} total requirements`);
+  console.log(`[classifyBatched] All batches complete in ${elapsed}ms: ${allResults.length} total requirements`);
 
-  return results;
+  return allResults;
 }
 
 /**
