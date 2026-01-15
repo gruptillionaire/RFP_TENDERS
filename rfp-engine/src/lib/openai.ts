@@ -901,70 +901,232 @@ Extract ALL requirements from the section below - especially the LAST few items.
  * The LLM's job is ONLY to classify pre-identified candidates, not to find them.
  * This is much faster and more accurate than hunting + classifying in one pass.
  */
-const CLASSIFICATION_PROMPT = `You are classifying RFP requirement candidates that have already been identified.
+/**
+ * CLASSIFICATION_PROMPT - Full detailed prompt for classifying pre-found candidates.
+ * Uses the same detailed rules as EXTRACTION_PROMPT but adapted for classification.
+ *
+ * CRITICAL: This prompt must include ALL the detailed type definitions and
+ * mandatory/optional classification rules. A condensed version caused major
+ * quality regressions in type classification and mandatory detection.
+ */
+const CLASSIFICATION_PROMPT = `You are classifying RFP requirement candidates that have ALREADY been identified by their section numbers.
 
-For each candidate, determine:
-1. type - The requirement type (see list below)
-2. isMandatory - true if contains: shall, must, required, mandatory, will, should (in RFP context)
+Your job is to classify each candidate - DO NOT change or reformat the section numbers.
+
+For each candidate (identified by [index]), determine:
+1. type - The requirement type (see detailed rules below)
+2. isMandatory - Use the 6-step classification rules below
 3. text - Clean the raw text: fix formatting, remove artifacts, preserve lists with newlines
 4. wordLimit - Extract if mentioned (e.g., "maximum 500 words" → 500)
 5. characterLimit - Extract if mentioned
 6. isAttestation - true if it's an attestation/acknowledgment statement
 
-REQUIREMENT TYPES (choose ONE):
+==============================================================================
+MANDATORY/OPTIONAL CLASSIFICATION (CHECK IN THIS ORDER - FIRST MATCH WINS)
+==============================================================================
 
-STAFFING - Questions about team, personnel, qualifications
-  Triggers: personnel, staff, team, FTE, CV, resume, qualifications, key personnel,
-            project manager, contact person, name and address, email, telephone
-  Examples: "Identify key personnel", "Provide CVs", "Who will be the project lead?"
+=== STEP 1: CHECK FOR EXPLICIT OPTIONAL SIGNALS ===
+Set isMandatory: false ONLY IF the text contains EXPLICIT optional language:
+- "optional", "if desired", "if applicable", "where applicable"
+- "at your discretion", "you may choose to", "not required"
+- "bonus points", "nice to have", "desirable but not essential"
+- "preferred but not mandatory", "encouraged but not required"
+- "you may include" (permissive language, not consequence)
 
-REFERENCE_BASED - Requests for past work, client contacts, case studies
-  Triggers: reference, client reference, past performance, similar project, case study,
-            track record, previous client, customer contact
-  Examples: "Provide 3 client references", "Describe similar projects completed"
+If ANY of these are present → isMandatory: false, STOP.
 
-EVIDENCE_BASED - Requests for documents, certificates, attachments
-  Triggers: attach, submit, include, provide copy, certificate, certification, insurance,
-            proof, documentation, evidence, sample, template
-  Examples: "Attach proof of insurance", "Provide ISO certification"
+=== STEP 2: CHECK FOR WARNING/CONSEQUENCE PATTERNS ===
+Set isMandatory: true IF the text contains consequence warnings:
+- "Failure to [X] may/will result in..."
+- "Failure to [X] may render [submission/response] invalid"
+- "If not [provided/submitted/included], [consequence]..."
+- "Non-compliance with [X] may/will result in..."
+- "Proposals/submissions that do not [X] will be [rejected/disqualified]"
+- "Incomplete [submissions/responses] may be [rejected/not considered]"
 
-QUANTITATIVE - Requests for specific numbers, prices, percentages
-  Triggers: price, pricing, cost, fee, rate, budget, $, £, €, %, percentage, how much,
-            what is the cost, provide figures
-  Examples: "Provide pricing breakdown", "What is your cost per user?"
+WARNING PATTERNS OVERRIDE "should" and "may" - these are MANDATORY.
+If ANY warning pattern is present → isMandatory: true, STOP.
 
-PROCEDURAL - Yes/no compliance questions
-  Triggers: do you, does your, can you, will you, please confirm, are you able,
-            is your system, can your solution
-  Examples: "Does your system support SSO?", "Can you confirm compliance?"
+=== STEP 3: CHECK FOR STRONG MANDATORY SIGNALS ===
+Set isMandatory: true IF the text contains:
+- "must", "shall", "required", "mandatory", "essential", "critical", "obligatory"
+- "will" as commitment: "Respondents will provide...", "Proposals will include..."
+- "are required to", "is required", "must be provided", "shall include"
 
-DECLARATIVE - Attestations, acknowledgments, agreements
-  Triggers: by submitting, acknowledges, agrees, certifies, attests, understands,
-            declaration, warrant
-  Examples: "By submitting, bidder acknowledges...", "The respondent certifies..."
-  Note: Set isAttestation: true for these
+If ANY of these are present → isMandatory: true, STOP.
 
-DESCRIPTIVE - Requests to explain, describe, outline approach
-  Triggers: describe, explain, outline, detail, how do you, what is your approach,
-            provide an overview, discuss
-  Examples: "Describe your methodology", "Explain your security approach"
+=== STEP 4: CHECK FOR STRUCTURAL MANDATORY SIGNALS ===
+Set isMandatory: true IF the text contains:
+- Word/character limits: "maximum X words", "X word limit", "not to exceed X"
+- Direct questions (contains "?") requesting specific information
+- Request language: "Please provide...", "Describe your...", "Explain your...",
+  "State your...", "Outline your...", "Detail your..."
 
-CONTEXTUAL - Background info, section headers, non-answerable content
-  Triggers: section headers (just "3.1 Technical Requirements"), background info,
-            context without a question
-  Examples: "3.1 Technical Requirements", "The following section describes..."
+If ANY structural signal is present → isMandatory: true, STOP.
 
-PRIORITY RULES:
-1. STAFFING beats CONTEXTUAL for contact info requests
-2. REFERENCE_BASED beats DESCRIPTIVE for past project requests
-3. EVIDENCE_BASED beats DESCRIPTIVE for document requests
-4. When in doubt, use DESCRIPTIVE
+=== STEP 5: CONTEXT-AWARE "should" INTERPRETATION ===
+"should" in RFP context is typically a POLITE IMPERATIVE (mandatory):
 
-OUTPUT FORMAT (JSON):
+"should" is MANDATORY when:
+- Requests specific information: "should state", "should provide", "should describe"
+- Precedes deadline/action: "should notify by", "should submit by"
+- Describes expected content: "should include", "should address"
+- No explicit optional alternative is provided
+
+"should" is OPTIONAL only when:
+- Paired with optional language: "should, if possible, include"
+- Alternative provided: "should do X, but may do Y instead"
+- Explicit preference: "Ideally, respondents should..."
+
+If "should" is present without optional context → isMandatory: true
+
+=== STEP 6: DEFAULT TO MANDATORY ===
+If none of the above rules determined classification:
+→ isMandatory: true (DEFAULT)
+
+RATIONALE: In professional RFPs, all questions and requirements expect a response.
+Optional items are the EXCEPTION and are explicitly marked as such.
+
+==============================================================================
+REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
+==============================================================================
+
+■ STAFFING
+  ==============================================================================
+  STAFFING HAS PRIORITY OVER CONTEXTUAL when asking for person contact info!
+  ==============================================================================
+
+  TRIGGER KEYWORDS:
+  personnel, staff, team, resource, FTE, headcount, resume, CV, qualifications,
+  project manager, key personnel, roles, responsibilities, org chart, bio,
+  experience of staff, dedicated resource, contact person, contact details,
+  name and address, email address, telephone number, individual with authority
+
+  USE WHEN: About team composition, individual qualifications, personnel, OR contact information
+
+  STAFFING BEATS CONTEXTUAL - Even if text contains "shall submit" or "must provide":
+  When asking for a PERSON'S name/email/phone/contact info → ALWAYS use STAFFING
+
+  Examples:
+  • "Identify key personnel for this project" → STAFFING
+  • "Provide CVs of proposed team members" → STAFFING
+  • "Describe your project manager's qualifications" → STAFFING
+  • "Submit the name, address, email, and telephone of an individual" → STAFFING
+
+■ REFERENCE_BASED
+  TRIGGER KEYWORDS:
+  reference, references, past performance, similar project, previous client,
+  client contact, customer reference, case study, track record, experience with
+
+  USE WHEN: Asks for client contacts, project history, or verifiable references
+
+  REFERENCE_BASED beats DESCRIPTIVE for past project requests.
+
+  Examples:
+  • "Provide 3 client references" → REFERENCE_BASED
+  • "Describe similar projects completed" → REFERENCE_BASED
+  • "List your experience with comparable implementations" → REFERENCE_BASED
+
+■ EVIDENCE_BASED
+  TRIGGER KEYWORDS:
+  attach, attached, include, included, submit, upload, enclose, provide copy,
+  sample, example, specimen, mock-up, template, certificate, certification,
+  license, insurance, bond, evidence, proof, documentation, appendix
+
+  USE WHEN: Response requires a FILE or ATTACHMENT, not just written text
+
+  EVIDENCE_BASED beats DESCRIPTIVE for document requests.
+
+  Examples:
+  • "Include a sample monthly report" → EVIDENCE_BASED
+  • "Attach proof of insurance" → EVIDENCE_BASED
+  • "Provide copies of certifications" → EVIDENCE_BASED
+
+■ QUANTITATIVE
+  ==============================================================================
+  ACID TEST: Is the PRIMARY PURPOSE to obtain ACTUAL NUMBERS (prices, %, values)?
+  → If YES (asking for specific prices, costs, percentages) → QUANTITATIVE
+  → If NO (numbers are incidental, or asking about process) → Other type
+  ==============================================================================
+
+  STRICT TRIGGER KEYWORDS (MUST contain at least one):
+  £, $, €, ¥, price, pricing, cost, costing, fee, fees, rate, rates,
+  budget, tender sum, quote, quotation, TCO, ROI, %, percent, percentage
+
+  USE WHEN: Asking for ACTUAL PRICES, COSTS, PERCENTAGES, or NUMERIC VALUES
+
+  Examples - QUANTITATIVE:
+  • "Provide detailed pricing breakdown" → QUANTITATIVE
+  • "What is your cost per user per month?" → QUANTITATIVE
+  • "What percentage uptime do you guarantee?" → QUANTITATIVE
+
+  NOT QUANTITATIVE - Common False Positives:
+  • "Describe your approach to metrics" → DESCRIPTIVE (asks HOW, not values)
+  • "How do you measure success?" → DESCRIPTIVE (asks for explanation)
+  • "Provide 3 client references" → REFERENCE_BASED (count is incidental)
+  • "How many FTEs will be dedicated?" → STAFFING (personnel question)
+
+■ DECLARATIVE
+  TRIGGER KEYWORDS:
+  by submitting, acknowledges, agrees, certifies, attests, understands,
+  declaration, warrant, confirm that, acknowledge that
+
+  USE WHEN: Attestations, acknowledgments, agreements
+  Note: Set isAttestation: true for DECLARATIVE types
+
+  Examples:
+  • "By submitting, bidder acknowledges..." → DECLARATIVE (isAttestation: true)
+  • "The respondent certifies that..." → DECLARATIVE (isAttestation: true)
+
+■ PROCEDURAL
+  TRIGGER KEYWORDS:
+  do you, does your, can you, will you, please confirm, are you able,
+  is your system, can your solution, does the system
+
+  USE WHEN: Yes/no compliance or capability questions
+
+  IMPORTANT: Only use PROCEDURAL for questions that expect a YES/NO answer.
+  If the question asks "how" or "describe", use DESCRIPTIVE instead.
+
+  Examples:
+  • "Does your system support SSO?" → PROCEDURAL (yes/no)
+  • "Can you meet the deadline of March 1?" → PROCEDURAL (yes/no)
+  • "Do you comply with GDPR?" → PROCEDURAL (yes/no)
+
+  NOT PROCEDURAL:
+  • "Can you describe your approach?" → DESCRIPTIVE (asks for description)
+  • "Do you have experience? Describe it." → DESCRIPTIVE (asks for description)
+
+■ DESCRIPTIVE
+  TRIGGER KEYWORDS:
+  describe, explain, outline, detail, how do you, what is your approach,
+  provide an overview, discuss, elaborate, methodology
+
+  USE WHEN: Asks for explanations, descriptions, approaches, methodologies
+  DEFAULT: When in doubt between types, use DESCRIPTIVE.
+
+  Examples:
+  • "Describe your methodology" → DESCRIPTIVE
+  • "Explain your security approach" → DESCRIPTIVE
+  • "Provide an overview of your solution" → DESCRIPTIVE
+
+■ CONTEXTUAL
+  USE WHEN: Background info, section headers, non-answerable content
+
+  Examples:
+  • Section headers: "3.1 Technical Requirements"
+  • Introductory text: "The following section describes..."
+  • Context without a question
+
+  IMPORTANT: STAFFING beats CONTEXTUAL for contact info requests!
+
+==============================================================================
+OUTPUT FORMAT (JSON) - CRITICAL: Include the index for each result
+==============================================================================
 {
-  "requirements": [
+  "results": [
     {
-      "section": "3.1.2",
+      "index": 1,
       "text": "cleaned requirement text with proper formatting",
       "type": "DESCRIPTIVE",
       "isMandatory": true,
@@ -975,6 +1137,11 @@ OUTPUT FORMAT (JSON):
   ]
 }
 
+IMPORTANT:
+- Return one result for each input candidate
+- The "index" MUST match the [index] from the input
+- DO NOT include "section" in output - it will be preserved from input
+
 Classify the following candidates:`;
 
 // =============================================================================
@@ -984,11 +1151,14 @@ Classify the following candidates:`;
 /**
  * Classify a batch of requirement candidates.
  * This is Phase 2 of two-phase extraction.
+ *
+ * CRITICAL: Section numbers are preserved from candidates, NOT from LLM output.
+ * The LLM only provides classification (type, isMandatory, etc.), not section numbers.
  */
 async function classifyBatch(
   candidates: RequirementCandidate[]
 ): Promise<ExtractedRequirement[]> {
-  // Format candidates for the prompt
+  // Format candidates for the prompt with index numbers for mapping
   const candidateText = candidates
     .map((c, i) => `[${i + 1}] Section ${c.sectionNumber}:\n${c.rawText}`)
     .join('\n\n---\n\n');
@@ -1005,7 +1175,7 @@ async function classifyBatch(
         temperature: 0.1,
         max_tokens: 8000,
       }),
-      { timeout: 90000 } // 90 seconds per batch (classification is faster)
+      { timeout: 90000 } // 90 seconds per batch
     );
 
     const content = response.choices[0]?.message?.content;
@@ -1015,19 +1185,62 @@ async function classifyBatch(
     }
 
     const parsed = JSON.parse(content);
-    const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+    // Support both "results" (new format) and "requirements" (fallback)
+    const results = Array.isArray(parsed.results)
+      ? parsed.results
+      : Array.isArray(parsed.requirements)
+        ? parsed.requirements
+        : [];
 
-    // Validate and fix types
-    return requirements.map((req: ExtractedRequirement) => ({
-      ...req,
-      section: req.section || null,
-      type: validateRequirementType(req.type),
-      domainContext: detectDomainContext(req.text || ''),
-      isMandatory: req.isMandatory !== false, // Default to true
-      wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
-      characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
-      isAttestation: req.isAttestation === true,
-    }));
+    // Build a map of index -> LLM result for fast lookup
+    const resultMap = new Map<number, Record<string, unknown>>();
+    for (const result of results) {
+      if (typeof result.index === 'number') {
+        resultMap.set(result.index, result);
+      }
+    }
+
+    // Map candidates to requirements, preserving ORIGINAL section numbers
+    const requirements: ExtractedRequirement[] = [];
+
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      const llmResult = resultMap.get(i + 1); // LLM uses 1-based index
+
+      if (!llmResult) {
+        // LLM didn't return this index - use candidate data with defaults
+        console.warn(`[classifyBatch] Missing result for index ${i + 1}, using defaults`);
+        requirements.push({
+          section: candidate.sectionNumber, // PRESERVE original section number
+          sectionGroup: null, // Will be enriched later in classifyRequirementsBatched
+          text: candidate.rawText.trim(),
+          type: "DESCRIPTIVE",
+          isMandatory: true,
+          domainContext: detectDomainContext(candidate.rawText),
+          wordLimit: null,
+          characterLimit: null,
+          isAttestation: false,
+        });
+        continue;
+      }
+
+      // Use LLM classification but PRESERVE original section number
+      requirements.push({
+        section: candidate.sectionNumber, // CRITICAL: Use original, not LLM output
+        sectionGroup: null, // Will be enriched later in classifyRequirementsBatched
+        text: typeof llmResult.text === 'string' ? llmResult.text : candidate.rawText.trim(),
+        type: validateRequirementType(llmResult.type as string),
+        isMandatory: llmResult.isMandatory !== false, // Default to true
+        domainContext: detectDomainContext(
+          typeof llmResult.text === 'string' ? llmResult.text : candidate.rawText
+        ),
+        wordLimit: typeof llmResult.wordLimit === 'number' ? llmResult.wordLimit : null,
+        characterLimit: typeof llmResult.characterLimit === 'number' ? llmResult.characterLimit : null,
+        isAttestation: llmResult.isAttestation === true,
+      });
+    }
+
+    return requirements;
   } catch (error) {
     console.error(`[classifyBatch] Failed:`, error instanceof Error ? error.message : error);
     return [];
