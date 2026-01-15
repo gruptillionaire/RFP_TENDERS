@@ -71,8 +71,9 @@ const MIN_SECTION_CHARS = 500;
 
 /**
  * Target chunk size for fallback character-based chunking.
+ * Smaller chunks process faster and are less likely to timeout.
  */
-const FALLBACK_CHUNK_SIZE = 25000; // ~6K tokens per chunk
+const FALLBACK_CHUNK_SIZE = 15000; // ~4K tokens per chunk - faster processing
 
 // =============================================================================
 // REQUIREMENT ESTIMATION
@@ -103,21 +104,30 @@ export function estimateRequirementCount(text: string): number {
 function detectMajorSectionsByRequirementNumbers(text: string): number[] {
   const boundaries: number[] = [];
 
-  // Find all X.Y or X.Y.Z patterns with their positions
-  const pattern = /(?:^|\n)\s*(\d+)\.(\d+)(?:\.(\d+))?\b/g;
+  // Find all X.Y or X.Y.Z patterns - more flexible pattern that doesn't require line start
+  // This catches "3.1.1" even when inline or after spaces
+  const pattern = /\b(\d+)\.(\d+)(?:\.(\d+))?\b/g;
   let match;
   let lastMajorNumber = -1;
+  let matchCount = 0;
 
   while ((match = pattern.exec(text)) !== null) {
     const majorNumber = parseInt(match[1], 10);
+    matchCount++;
 
     // When the major number changes, it's a section boundary
     if (majorNumber !== lastMajorNumber && lastMajorNumber !== -1) {
-      boundaries.push(match.index);
+      // Find the start of the line containing this match for cleaner splits
+      let lineStart = match.index;
+      while (lineStart > 0 && text[lineStart - 1] !== '\n') {
+        lineStart--;
+      }
+      boundaries.push(lineStart);
     }
     lastMajorNumber = majorNumber;
   }
 
+  console.log(`[section-chunker] Scanned ${matchCount} requirement patterns, found ${boundaries.length} major section transitions`);
   return boundaries;
 }
 
@@ -311,9 +321,13 @@ function createChunksFromSections(
 function createChunksByRequirementBoundaries(text: string): SectionChunk[] {
   const boundaries = detectMajorSectionsByRequirementNumbers(text);
 
-  if (boundaries.length < 2) {
+  // Need at least 1 boundary to create 2 chunks
+  if (boundaries.length < 1) {
+    console.log(`[section-chunker] No requirement boundaries found`);
     return [];
   }
+
+  console.log(`[section-chunker] Found ${boundaries.length} requirement boundaries at positions:`, boundaries.slice(0, 5));
 
   const chunks: SectionChunk[] = [];
 

@@ -1489,7 +1489,8 @@ function jaccardSimilarity(a: string, b: string): number {
 async function extractSectionRequirements(
   chunk: SectionChunk
 ): Promise<ExtractedRequirement[]> {
-  console.log(`[extractSection] Processing section ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars)`);
+  const startTime = Date.now();
+  console.log(`[extractSection] START section ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars)`);
 
   try {
     const response = await withRetry(
@@ -1506,23 +1507,25 @@ async function extractSectionRequirements(
         temperature: 0.1,
         max_tokens: 16000,
       }),
-      { timeout: 90000 } // 90 seconds per section
+      { timeout: 120000 } // 2 minutes per section
     );
 
+    const elapsed = Date.now() - startTime;
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      console.error(`[extractSection] No response for section ${chunk.sectionNumber}`);
+      console.error(`[extractSection] No response for section ${chunk.sectionNumber} after ${elapsed}ms`);
       return [];
     }
 
     const parsed = JSON.parse(content);
     const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
 
-    console.log(`[extractSection] Section ${chunk.sectionNumber}: extracted ${requirements.length} requirements`);
+    console.log(`[extractSection] DONE section ${chunk.sectionNumber}: ${requirements.length} requirements in ${elapsed}ms`);
     return requirements;
   } catch (error) {
-    console.error(`[extractSection] Failed for section ${chunk.sectionNumber}:`, error);
-    return [];
+    const elapsed = Date.now() - startTime;
+    console.error(`[extractSection] FAILED section ${chunk.sectionNumber} after ${elapsed}ms:`, error instanceof Error ? error.message : error);
+    return []; // Return empty array to continue with other sections
   }
 }
 
