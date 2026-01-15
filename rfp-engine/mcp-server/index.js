@@ -27,13 +27,18 @@ class MCPServer {
       extract_pdf: {
         name: "extract_pdf",
         description:
-          "Extract requirements from a PDF file using the RFP extraction system. Returns statistics, type counts, section groups, and all extracted requirements.",
+          "Extract requirements from a PDF file using the RFP extraction system. Returns statistics, type counts, section groups, and all extracted requirements. Use debug='heuristic' to test heuristic extraction only.",
         inputSchema: {
           type: "object",
           properties: {
             file_path: {
               type: "string",
               description: "Absolute path to the PDF file to extract",
+            },
+            debug: {
+              type: "string",
+              enum: ["heuristic"],
+              description: "Debug mode: 'heuristic' returns only heuristic extraction results without LLM classification",
             },
           },
           required: ["file_path"],
@@ -105,7 +110,7 @@ class MCPServer {
 
       switch (name) {
         case "extract_pdf":
-          result = await this.extractPdf(args.file_path);
+          result = await this.extractPdf(args.file_path, args.debug);
           break;
 
         case "get_extraction_summary":
@@ -147,7 +152,7 @@ class MCPServer {
     }
   }
 
-  async extractPdf(filePath) {
+  async extractPdf(filePath, debug = null) {
     if (!API_KEY) {
       throw new Error(
         "RFP_TEST_API_KEY environment variable not set. Add it to your MCP config."
@@ -184,7 +189,10 @@ class MCPServer {
     ]);
 
     // Make request
-    const url = `${API_URL}/api/test/extract`;
+    let url = `${API_URL}/api/test/extract`;
+    if (debug) {
+      url += `?debug=${encodeURIComponent(debug)}`;
+    }
 
     const response = await fetch(url, {
       method: "POST",
@@ -205,6 +213,19 @@ class MCPServer {
 
     // Format summary for display
     if (result.success) {
+      // Handle heuristic debug mode
+      if (result.mode === "heuristic_debug") {
+        return {
+          mode: "heuristic_debug",
+          meta: result.meta,
+          stats: result.stats,
+          majorSections: result.majorSections,
+          sampleCandidates: result.sampleCandidates,
+          _note: "This is heuristic extraction only (no LLM classification). Check sampleCandidates for section numbers.",
+        };
+      }
+
+      // Normal extraction response
       return {
         summary: {
           fileName: result.meta.fileName,
