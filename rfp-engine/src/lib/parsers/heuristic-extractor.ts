@@ -51,8 +51,9 @@ export interface MajorSection {
  */
 export function findRequirementCandidates(text: string): RequirementCandidate[] {
   // Step 1: Find all section number positions
-  // Pattern matches: 3.1.2, 3.1, A.1.2, A.1 (at word boundary)
-  const pattern = /(?:^|\n)\s*(\d+|\b[A-Z])\.(\d+)(?:\.(\d+))?\s+/gm;
+  // We use TWO patterns:
+  // 1. X.Y.Z (3 levels) - can appear after any whitespace (very likely section numbers)
+  // 2. X.Y (2 levels) - require newline/start (to avoid matching "version 2.0", dates, etc.)
 
   interface Match {
     sectionNumber: string;
@@ -62,25 +63,56 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
   }
 
   const matches: Match[] = [];
+
+  // Pattern 1: X.Y.Z format - allow after any whitespace (common in RFPs like "3.1.1 Does the...")
+  // This catches inline section numbers that don't start on a new line
+  const pattern3Level = /(?:^|\s)(\d+)\.(\d+)\.(\d+)\s+/gm;
   let match;
 
-  while ((match = pattern.exec(text)) !== null) {
-    // Build section number from captured groups
+  while ((match = pattern3Level.exec(text)) !== null) {
     const major = match[1];
     const minor = match[2];
     const sub = match[3];
+    const sectionNumber = `${major}.${minor}.${sub}`;
 
-    const sectionNumber = sub
-      ? `${major}.${minor}.${sub}`
-      : `${major}.${minor}`;
+    // Calculate actual match start (skip leading whitespace)
+    const leadingWhitespace = match[0].match(/^\s*/)?.[0].length || 0;
+    const actualIndex = match.index + leadingWhitespace;
 
     matches.push({
       sectionNumber,
-      index: match.index,
+      index: actualIndex,
       majorSection: major,
       textStart: match.index + match[0].length,
     });
   }
+
+  // Pattern 2: X.Y format at start of line only (to avoid false positives)
+  // Only match if NOT followed by another digit (which would make it X.Y.Z)
+  const pattern2Level = /(?:^|\n)\s*(\d+)\.(\d+)(?!\.?\d)\s+/gm;
+
+  while ((match = pattern2Level.exec(text)) !== null) {
+    const major = match[1];
+    const minor = match[2];
+    const sectionNumber = `${major}.${minor}`;
+
+    // Skip if we already have a 3-level match at similar position
+    const isDuplicate = matches.some(m =>
+      Math.abs(m.index - match!.index) < 10 && m.sectionNumber.startsWith(sectionNumber)
+    );
+
+    if (!isDuplicate) {
+      matches.push({
+        sectionNumber,
+        index: match.index,
+        majorSection: major,
+        textStart: match.index + match[0].length,
+      });
+    }
+  }
+
+  // Sort matches by position in document
+  matches.sort((a, b) => a.index - b.index);
 
   console.log(`[heuristic-extractor] Found ${matches.length} section number patterns`);
 
@@ -144,7 +176,7 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 export function detectMajorSections(text: string): Map<string, MajorSection> {
   const sections = new Map<string, MajorSection>();
 
-  // Pattern 1: "3.0 Title" or "3. Title" (number at start of line)
+  // Pattern 1: "3.0 Title" or "3. Title" at start of line
   const pattern1 = /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm;
 
   // Pattern 2: "Section 3: Title" or "SECTION 3 - Title"
@@ -153,7 +185,14 @@ export function detectMajorSections(text: string): Map<string, MajorSection> {
   // Pattern 3: ALL CAPS headers "3.0 DIRECT QUERY QUESTIONS"
   const pattern3 = /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Z\s,&\-:'"()]{5,}?)(?=\n|$)/gm;
 
-  const patterns = [pattern1, pattern2, pattern3];
+  // Pattern 4: Inline "X.0 Title" (for PDFs without proper newlines)
+  // Matches: "3.0 Direct Query Questions" followed by subsection or page number
+  const pattern4 = /(?:^|\s)(\d+)\.0\s+([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|\s+\.{2,}|$)/gm;
+
+  // Pattern 5: "X.0: Title" or "X.0 - Title" format
+  const pattern5 = /(?:^|\s)(\d+)\.0[:\-]\s*([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|$)/gm;
+
+  const patterns = [pattern1, pattern2, pattern3, pattern4, pattern5];
 
   for (const pattern of patterns) {
     pattern.lastIndex = 0;
@@ -166,11 +205,20 @@ export function detectMajorSections(text: string): Map<string, MajorSection> {
       // Skip if already found (first match wins)
       if (sections.has(sectionNum)) continue;
 
-      // Clean up title
-      title = title.replace(/[.:\-,]+$/, '').substring(0, 60);
+      // Clean up title - remove trailing punctuation and truncate
+      title = title.replace(/[.:\-,]+$/, '').trim();
 
-      // Skip if title is too short
+      // Remove common suffixes like page numbers "11 of 38"
+      title = title.replace(/\s+\d+\s+of\s+\d+.*$/i, '').trim();
+
+      // Truncate if too long
+      if (title.length > 60) {
+        title = title.substring(0, 60).replace(/\s+\S*$/, '');
+      }
+
+      // Skip if title is too short or looks like a false positive
       if (title.length < 3) continue;
+      if (/^\d+$/.test(title)) continue; // Skip if title is just numbers
 
       sections.set(sectionNum, {
         number: sectionNum,
