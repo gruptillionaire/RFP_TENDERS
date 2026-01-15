@@ -1,0 +1,12 @@
+{
+  "name": "rfp-extraction-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for testing RFP extraction",
+  "main": "index.js",
+  "bin": {
+    "rfp-extraction-mcp": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
