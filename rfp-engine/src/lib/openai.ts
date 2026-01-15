@@ -117,7 +117,7 @@ async function withRetry<T>(
 // v3: Added hierarchical section handling, concatenation splitting, list preservation
 // v4: Added section number formatting rules, end-of-document extraction emphasis
 // v5: Two-phase extraction for large documents (heuristics + classification)
-const EXTRACTION_VERSION = "v6"; // Bumped for heuristic extractor fix
+const EXTRACTION_VERSION = "v7"; // Bumped for preprocessor X.Y.Z fix
 
 interface CacheEntry<T> {
   result: T;
