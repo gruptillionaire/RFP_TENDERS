@@ -87,11 +87,11 @@ export async function POST(
     const startTime = Date.now();
 
     try {
-      // Add overall timeout for the entire extraction (15 minutes for large documents with chunked extraction)
-      // This catches cases where OpenAI or preprocessing hangs
+      // Add overall timeout for the entire extraction (5 minutes - Vercel Pro limit)
+      // Two-phase extraction should complete in ~4 minutes
       const extractionPromise = extractRequirements(project.rawText);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Extraction timed out after 15 minutes")), 900000);
+        setTimeout(() => reject(new Error("Extraction timed out after 5 minutes")), 300000);
       });
 
       console.log(`[Extract] Calling extractRequirements...`);
