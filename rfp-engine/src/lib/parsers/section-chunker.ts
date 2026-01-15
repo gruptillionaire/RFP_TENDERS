@@ -565,23 +565,11 @@ export function chunkDocumentBySections(text: string): ChunkingResult {
     }
   }
 
-  // Strategy 2: Fallback to requirement number boundaries
-  console.log(`[section-chunker] Section detection failed, trying requirement boundaries...`);
-  const reqChunks = createChunksByRequirementBoundaries(text);
-
-  if (reqChunks.length >= 2) {
-    console.log(`[section-chunker] Created ${reqChunks.length} requirement-boundary chunks`);
-    return {
-      chunks: reqChunks,
-      documentType: "large",
-      estimatedTokens,
-      wasChunked: true,
-      chunkingMethod: "requirements",
-    };
-  }
-
-  // Strategy 3: Last resort - chunk by size
-  console.log(`[section-chunker] Requirement boundaries failed, chunking by size...`);
+  // Strategy 2: Size-based chunking (most reliable fallback)
+  // NOTE: We skip requirement boundary detection because it creates too many small chunks
+  // when documents have frequent section number transitions (1.x, 2.x, 3.x, etc.)
+  // Size-based with smart split points is more reliable and faster.
+  console.log(`[section-chunker] Section detection failed, using size-based chunking...`);
   const sizeChunks = createChunksBySize(text);
 
   console.log(`[section-chunker] Created ${sizeChunks.length} size-based chunks`);
