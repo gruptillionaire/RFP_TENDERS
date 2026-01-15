@@ -1454,15 +1454,21 @@ export async function extractRequirements(documentText: string): Promise<Extract
       })),
     };
 
-    // Post-processing Step 1: Split any concatenated requirements
-    // The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one
-    result.requirements = splitConcatenatedRequirementsPostProcess(result.requirements);
+    // Post-processing - wrapped in try-catch to prevent failures
+    try {
+      // Post-processing Step 1: Split any concatenated requirements
+      // The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one
+      result.requirements = splitConcatenatedRequirementsPostProcess(result.requirements);
 
-    // Post-processing Step 2: Reclassify any section headers that weren't marked CONTEXTUAL
-    reclassifySectionHeaders(result.requirements);
+      // Post-processing Step 2: Reclassify any section headers that weren't marked CONTEXTUAL
+      reclassifySectionHeaders(result.requirements);
 
-    // Post-processing Step 3: Enrich section data (fill in missing sectionGroup titles)
-    enrichSectionData(result.requirements, documentText);
+      // Post-processing Step 3: Enrich section data (fill in missing sectionGroup titles)
+      enrichSectionData(result.requirements, documentText);
+    } catch (postProcessError) {
+      console.error("[extractRequirements] Post-processing failed, using raw extraction results:", postProcessError);
+      // Continue with unprocessed results rather than failing
+    }
 
     // Log extraction stats for debugging
     console.log("[extractRequirements] Extraction complete:", {

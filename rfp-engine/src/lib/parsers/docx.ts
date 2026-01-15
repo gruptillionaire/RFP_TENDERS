@@ -33,14 +33,21 @@ export async function parseDOCX(buffer: Buffer): Promise<string> {
     const structuredText = htmlToStructuredText(result.value);
 
     // Pre-process text to enhance structure detection for LLM
-    const processedText = preprocessRFPText(structuredText, {
-      addMarkers: true,
-      normalizeBullets: true,
-      preserveLists: true,
-      separateReqs: true,
-      markTables: false, // DOCX parser already handles tables
-      verbose: true,
-    });
+    // Wrap in try-catch to ensure parsing doesn't fail if preprocessing has issues
+    let processedText: string;
+    try {
+      processedText = preprocessRFPText(structuredText, {
+        addMarkers: true,
+        normalizeBullets: true,
+        preserveLists: true,
+        separateReqs: true,
+        markTables: false, // DOCX parser already handles tables
+        verbose: true,
+      });
+    } catch (preprocessError) {
+      console.error("DOCX preprocessing failed, using raw text:", preprocessError);
+      processedText = structuredText; // Fallback to unprocessed text
+    }
 
     return processedText;
   } catch (error) {
