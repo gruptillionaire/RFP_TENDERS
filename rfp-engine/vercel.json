@@ -1,7 +1,7 @@
 {
   "functions": {
     "src/app/api/projects/[id]/extract/route.ts": {
-      "maxDuration": 300
+      "maxDuration": 600
     },
     "src/app/api/requirements/route.ts": {
       "maxDuration": 120

@@ -8,7 +8,8 @@
  * - Project creation returns quickly with PROCESSING status
  * - Frontend redirects to project page
  * - Project page calls this endpoint to trigger extraction
- * - This request has a 5-minute timeout (configured in vercel.json)
+ * - This request has a 10-minute timeout (configured in vercel.json)
+ * - Large documents use chunked extraction (parallel section processing)
  * - Frontend polls for status updates
  */
 
@@ -86,11 +87,11 @@ export async function POST(
     const startTime = Date.now();
 
     try {
-      // Add overall timeout for the entire extraction (4 minutes)
+      // Add overall timeout for the entire extraction (8 minutes for large documents with chunked extraction)
       // This catches cases where OpenAI or preprocessing hangs
       const extractionPromise = extractRequirements(project.rawText);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Extraction timed out after 4 minutes")), 240000);
+        setTimeout(() => reject(new Error("Extraction timed out after 8 minutes")), 480000);
       });
 
       console.log(`[Extract] Calling extractRequirements...`);

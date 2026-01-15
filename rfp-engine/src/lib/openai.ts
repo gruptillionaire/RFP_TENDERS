@@ -11,6 +11,11 @@ import {
   formatListInRequirement,
   detectAllSectionNumbers,
 } from "./parsers/text-preprocessor";
+import {
+  chunkDocumentBySections,
+  SectionChunk,
+  ChunkingResult,
+} from "./parsers/section-chunker";
 
 // =============================================================================
 // OPENAI RETRY WRAPPER WITH EXPONENTIAL BACKOFF
@@ -780,6 +785,56 @@ NOT flattened to: "Please describe your approach to: • Security measures • A
 - When uncertain between types, default to DESCRIPTIVE`;
 
 // =============================================================================
+// SECTION-BASED EXTRACTION PROMPT (Condensed for per-section extraction)
+// =============================================================================
+/**
+ * Condensed prompt for extracting requirements from a single document section.
+ * Used when processing large documents that exceed output token limits.
+ * Same classification rules as EXTRACTION_PROMPT but ~70% shorter.
+ */
+export const SECTION_EXTRACTION_PROMPT = `You are an expert at analyzing RFP/tender documents. Extract ALL requirements from this SECTION.
+
+OUTPUT FORMAT (JSON):
+{
+  "requirements": [
+    {
+      "text": "Full requirement text",
+      "section": "3.1.1",
+      "sectionGroup": "Technical Requirements",
+      "isMandatory": true,
+      "type": "DESCRIPTIVE",
+      "wordLimit": null,
+      "characterLimit": null,
+      "isAttestation": false
+    }
+  ]
+}
+
+REQUIREMENT TYPES - Choose ONE:
+1. CONTEXTUAL - Background info, not answerable (org description, project context)
+2. PROCEDURAL - Yes/No compliance questions ("Can you confirm...?", "Do you comply...?")
+3. DECLARATIVE - Acknowledge/attest to conditions ("By submitting you acknowledge...")
+4. DESCRIPTIVE - Describe approach, methodology, experience ("Describe your...", "Explain how...")
+5. QUANTITATIVE - Specific numbers/prices/dates ("Provide pricing for...", "What are your rates?")
+6. EVIDENCE_BASED - Attach documents/certifications ("Provide copies of...", "Attach ISO certificate")
+
+TYPE DECISION RULES:
+- "Does your system..." / "Can you..." → PROCEDURAL (yes/no answer)
+- "Describe your approach to..." → DESCRIPTIVE (even if topic is pricing/costs)
+- "Provide your pricing for..." / "What is the cost?" → QUANTITATIVE (asking for numbers)
+- "Please provide your ISO certification" → EVIDENCE_BASED (document required)
+- Attestation language ("By submitting...", "The bidder acknowledges...") → DECLARATIVE + isAttestation: true
+
+EXTRACTION RULES:
+- Extract EVERY numbered item (3.1.1, 3.1.2, etc.) as a SEPARATE requirement
+- Include section headers (3.1, 3.2) as CONTEXTUAL type
+- Extract COMPLETE text including any listed items/bullets
+- Preserve word/character limits if mentioned
+- Do NOT include document markers ([PAGE], [SUBSECTION], ════, etc.) in text
+
+Extract ALL requirements from the section below.`;
+
+// =============================================================================
 // DRAFT PROMPTS - Type-specific, RFP-focused (NOT email-style)
 // =============================================================================
 const DRAFT_PROMPT_BASE = `You are writing a formal RFP (Request for Proposal) response.
@@ -1406,6 +1461,187 @@ function validateExtractedSections(
 }
 
 // =============================================================================
+// SECTION-BASED EXTRACTION (for large documents)
+// =============================================================================
+
+/**
+ * Calculate Jaccard similarity between two strings (word-based)
+ * Used for deduplication of requirements at section boundaries
+ */
+function jaccardSimilarity(a: string, b: string): number {
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+
+  let intersection = 0;
+  for (const word of wordsA) {
+    if (wordsB.has(word)) intersection++;
+  }
+
+  const union = wordsA.size + wordsB.size - intersection;
+  return intersection / union;
+}
+
+/**
+ * Extract requirements from a single document section
+ */
+async function extractSectionRequirements(
+  chunk: SectionChunk
+): Promise<ExtractedRequirement[]> {
+  console.log(`[extractSection] Processing section ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars)`);
+
+  try {
+    const response = await withRetry(
+      () => openai.chat.completions.create({
+        model: MODELS.EXTRACTION,
+        messages: [
+          { role: "system", content: SECTION_EXTRACTION_PROMPT },
+          {
+            role: "user",
+            content: `SECTION ${chunk.sectionNumber}: ${chunk.sectionTitle}\n\n${chunk.content}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 16000,
+      }),
+      { timeout: 90000 } // 90 seconds per section
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error(`[extractSection] No response for section ${chunk.sectionNumber}`);
+      return [];
+    }
+
+    const parsed = JSON.parse(content);
+    const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+
+    console.log(`[extractSection] Section ${chunk.sectionNumber}: extracted ${requirements.length} requirements`);
+    return requirements;
+  } catch (error) {
+    console.error(`[extractSection] Failed for section ${chunk.sectionNumber}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Merge and deduplicate requirements from multiple section extractions
+ */
+function mergeExtractionResults(
+  sectionResults: ExtractedRequirement[][],
+  originalText: string
+): ExtractionResult {
+  const allRequirements: ExtractedRequirement[] = [];
+
+  // Flatten all section results
+  for (const sectionReqs of sectionResults) {
+    allRequirements.push(...sectionReqs);
+  }
+
+  console.log(`[mergeResults] Total requirements before dedup: ${allRequirements.length}`);
+
+  // Deduplicate based on Jaccard similarity (catches near-duplicates at section boundaries)
+  const dedupedRequirements: ExtractedRequirement[] = [];
+  const SIMILARITY_THRESHOLD = 0.9;
+
+  for (const req of allRequirements) {
+    const isDuplicate = dedupedRequirements.some(
+      existing => jaccardSimilarity(existing.text, req.text) > SIMILARITY_THRESHOLD
+    );
+
+    if (!isDuplicate) {
+      dedupedRequirements.push(req);
+    }
+  }
+
+  console.log(`[mergeResults] After dedup: ${dedupedRequirements.length} requirements`);
+
+  // Sort by section number
+  dedupedRequirements.sort((a, b) => {
+    const sectionA = a.section || "";
+    const sectionB = b.section || "";
+
+    // Parse section numbers for proper numeric sorting (3.1.1 < 3.1.2 < 3.2.1)
+    const partsA = sectionA.split(".").map(Number);
+    const partsB = sectionB.split(".").map(Number);
+
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const diff = (partsA[i] || 0) - (partsB[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+
+  // Process and validate each requirement (same as single-pass extraction)
+  const processedRequirements = dedupedRequirements.map((req) => ({
+    ...req,
+    section: req.section || null,
+    sectionGroup: req.sectionGroup || null,
+    type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
+    domainContext: detectDomainContext(req.text),
+    wordLimit: typeof req.wordLimit === "number" ? req.wordLimit : null,
+    characterLimit: typeof req.characterLimit === "number" ? req.characterLimit : null,
+    isAttestation: req.isAttestation === true,
+  }));
+
+  // Extract deadline from original text (simple heuristic)
+  const deadlineMatch = originalText.match(
+    /(?:deadline|submission date|due date|closing date)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+  );
+
+  return {
+    deadline: deadlineMatch ? deadlineMatch[1] : null,
+    deadlineText: deadlineMatch ? deadlineMatch[0] : null,
+    requirements: processedRequirements,
+  };
+}
+
+/**
+ * Extract requirements using parallel section-based processing
+ * Used for large documents that would exceed output token limits
+ */
+async function extractRequirementsChunked(
+  sanitizedText: string,
+  chunks: SectionChunk[]
+): Promise<ExtractionResult> {
+  console.log(`[extractChunked] Processing ${chunks.length} sections in parallel (max 3 concurrent)`);
+  const startTime = Date.now();
+
+  // Process sections with concurrency limit of 3 to avoid rate limits
+  const CONCURRENCY_LIMIT = 3;
+  const results: ExtractedRequirement[][] = [];
+
+  for (let i = 0; i < chunks.length; i += CONCURRENCY_LIMIT) {
+    const batch = chunks.slice(i, i + CONCURRENCY_LIMIT);
+    console.log(`[extractChunked] Processing batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(chunks.length / CONCURRENCY_LIMIT)}`);
+
+    const batchResults = await Promise.all(
+      batch.map(chunk => extractSectionRequirements(chunk))
+    );
+
+    results.push(...batchResults);
+  }
+
+  console.log(`[extractChunked] All sections processed in ${Date.now() - startTime}ms`);
+
+  // Merge and deduplicate results
+  const mergedResult = mergeExtractionResults(results, sanitizedText);
+
+  // Run post-processing (same as single-pass)
+  try {
+    mergedResult.requirements = splitConcatenatedRequirementsPostProcess(mergedResult.requirements);
+    reclassifySectionHeaders(mergedResult.requirements);
+    enrichSectionData(mergedResult.requirements, sanitizedText);
+  } catch (postProcessError) {
+    console.error("[extractChunked] Post-processing failed:", postProcessError);
+  }
+
+  return mergedResult;
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -1446,10 +1682,45 @@ export async function extractRequirements(documentText: string): Promise<Extract
     console.log("[extractRequirements] Cache hit, returning cached result");
     return cachedResult;
   }
-  console.log("[extractRequirements] Cache miss, proceeding with OpenAI call");
+  console.log("[extractRequirements] Cache miss, proceeding with extraction");
 
-  // Step 3: OpenAI call with retry logic and timeout
-  console.log("[extractRequirements] Step 3: Calling OpenAI API...");
+  // Step 3: Determine extraction strategy (chunked vs single-pass)
+  console.log("[extractRequirements] Step 3: Analyzing document structure...");
+  const chunkResult = chunkDocumentBySections(truncatedText);
+  console.log(`[extractRequirements] Document type: ${chunkResult.documentType}, chunks: ${chunkResult.chunks.length}, estimated tokens: ${chunkResult.estimatedTokens}`);
+
+  // Large documents with detected sections: use chunked extraction
+  if (chunkResult.wasChunked && chunkResult.chunks.length >= 2) {
+    console.log("[extractRequirements] Using CHUNKED extraction for large document");
+    const startChunked = Date.now();
+    const result = await extractRequirementsChunked(truncatedText, chunkResult.chunks);
+    timings.extraction = Date.now() - startChunked;
+    timings.total = Date.now() - startTotal;
+
+    console.log("[extractRequirements] Chunked extraction complete:", {
+      timings,
+      totalRequirements: result.requirements.length,
+      byType: result.requirements.reduce((acc, req) => {
+        acc[req.type] = (acc[req.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+    });
+
+    // Validate and warn about missing sections
+    const validation = validateExtractedSections(truncatedText, result.requirements);
+    if (validation.missingCount > 0) {
+      console.warn("[extractRequirements] Missing sections after chunked extraction:", validation.missingSections);
+      result.warnings = { ...result.warnings, missingSections: validation.missingSections };
+    }
+
+    // Cache the result
+    setCachedExtraction(contentHash, result);
+    return result;
+  }
+
+  // Small documents or failed section detection: use single-pass extraction
+  console.log("[extractRequirements] Using SINGLE-PASS extraction");
+  console.log("[extractRequirements] Step 4: Calling OpenAI API...");
   const startOpenAI = Date.now();
   const response = await withRetry(
     () => openai.chat.completions.create({
@@ -1854,8 +2125,15 @@ function validateDomainContext(domain: string | undefined): DomainContext | null
 }
 
 /**
- * Heuristic correction: DESCRIPTIVE → QUANTITATIVE when financial/numeric terms are present
- * This catches cases where the LLM incorrectly classifies based on verb ("describe") rather than subject (rates/numbers)
+ * Heuristic correction: DESCRIPTIVE → QUANTITATIVE for actual financial/numeric requirements
+ *
+ * STRICT LOGIC: Only classify as QUANTITATIVE when:
+ * 1. Strong financial indicators present (currency symbols, pricing keywords)
+ * 2. NOT asking about approach/methodology (those remain DESCRIPTIVE)
+ * 3. Explicitly asking for numbers/figures
+ *
+ * This prevents over-classification when generic terms like "amount", "rate" appear
+ * in non-financial contexts.
  */
 function correctQuantitativeType(text: string, llmType: RequirementType): RequirementType {
   // Only correct DESCRIPTIVE classifications
@@ -1863,38 +2141,62 @@ function correctQuantitativeType(text: string, llmType: RequirementType): Requir
 
   const lowerText = text.toLowerCase();
 
-  // Financial/numeric terms that indicate QUANTITATIVE
-  const quantitativeTerms = [
-    "rate", "rates", "earnings", "interest rate", "fee", "fees",
-    "pricing", "price", "cost", "costs", "charge", "charges",
-    "index", "percentage", "percentages", "figure", "figures",
-    "amount", "amounts", "budget", "quotation", "quote"
+  // STEP 1: Require STRICT financial indicators (not generic words)
+  const strictFinancialIndicators = [
+    /[£$€¥]/,                           // Currency symbols
+    /\b\d+(\.\d+)?\s*%/,                // Percentage with number (e.g., "5%", "10.5%")
+    /\bpric(e|es|ing)\b/,               // Price (word boundary required)
+    /\bcost(s|ing)?\b/,                 // Cost
+    /\bfee(s)?\b/,                      // Fee
+    /\bbudget\b/,                       // Budget
+    /\bquot(e|ation)\b/,                // Quote/quotation
+    /\btariff\b/,                       // Tariff
+    /\b(hourly|daily|annual)\s+rate\b/, // Specific rate types
   ];
 
-  // Patterns that indicate asking for specific numbers
-  const quantitativePatterns = [
-    /last\s+\d+\s+(month|year|quarter|week)/i,          // "last 6 months"
-    /\b(monthly|annual|quarterly|yearly)\s+(rate|fee|cost|charge)/i,
-    /\blist(ing)?\s+(the|your|all)?\s*(rate|fee|cost|price)/i,
-    /\bprovide\s+(the|your|all)?\s*(rate|fee|cost|figure)/i,
-    /\bstate\s+(the|your)?\s*(rate|fee|percentage|amount)/i,
-    /[£$€]\s*\d/,                                        // Currency followed by number
-    /\d+\s*%/,                                           // Percentage
+  const hasFinancialIndicator = strictFinancialIndicators.some(p => p.test(lowerText));
+
+  // If no financial context at all, keep DESCRIPTIVE
+  if (!hasFinancialIndicator) {
+    return llmType;
+  }
+
+  // STEP 2: Exclude process/approach questions (these are DESCRIPTIVE even with financial terms)
+  const processPatterns = [
+    /\bapproach\s+to\s+(pricing|cost|fee)/i,
+    /\bdescribe\s+(your\s+)?approach\b/i,
+    /\bexplain\s+(your\s+)?approach\b/i,
+    /\bexplain\s+how\s+you\b/i,
+    /\bmethodology\s+(for|of)\b/i,
+    /\bstrategy\s+for\b/i,
+    /\bhow\s+do\s+you\s+(handle|manage|approach)\b/i,
+    /\bdescribe\s+your\s+.{0,30}(process|method|approach|strategy)/i,
   ];
 
-  // Check for quantitative terms
-  const hasQuantitativeTerm = quantitativeTerms.some(term =>
-    lowerText.includes(term)
-  );
+  if (processPatterns.some(p => p.test(lowerText))) {
+    return llmType; // Asking about process, not specific numbers
+  }
 
-  // Check for quantitative patterns
-  const hasQuantitativePattern = quantitativePatterns.some(pattern =>
-    pattern.test(lowerText)
-  );
+  // STEP 3: Require explicit "asking for numbers" pattern
+  const askingForNumbersPatterns = [
+    /\bprovide\s+(your\s+)?(pricing|costs?|fees?|rates?)\b/i,
+    /\bwhat\s+(is|are)\s+(your|the)\s+(price|cost|fee|rate)\b/i,
+    /\blist\s+(your\s+)?(pricing|rates?|fees?|costs?)\b/i,
+    /\btotal\s+(cost|price|amount|fee)\b/i,
+    /\bquote\s+(for|your)\b/i,
+    /\bprovide\s+a\s+(breakdown|schedule)\s+of\b/i,
+    /\bstate\s+(your|the)\s+(price|cost|fee|rate)\b/i,
+  ];
 
-  if (hasQuantitativeTerm || hasQuantitativePattern) {
+  if (askingForNumbersPatterns.some(p => p.test(lowerText))) {
     return "QUANTITATIVE";
   }
 
+  // Currency symbol followed by digit = definitely QUANTITATIVE
+  if (/[£$€¥]\s*\d/.test(text)) {
+    return "QUANTITATIVE";
+  }
+
+  // Has financial terms but not clearly asking for numbers - keep DESCRIPTIVE
   return llmType;
 }
