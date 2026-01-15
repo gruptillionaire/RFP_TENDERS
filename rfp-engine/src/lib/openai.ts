@@ -110,7 +110,8 @@ async function withRetry<T>(
 // Increment this version when EXTRACTION_PROMPT or extraction logic changes
 // This ensures stale cached results are not returned after prompt updates
 // v3: Added hierarchical section handling, concatenation splitting, list preservation
-const EXTRACTION_VERSION = "v3";
+// v4: Added section number formatting rules, end-of-document extraction emphasis
+const EXTRACTION_VERSION = "v4";
 
 interface CacheEntry<T> {
   result: T;
@@ -258,6 +259,18 @@ For each item extracted, identify:
       • Examples: "A.1.2", "3.4.1", "B.2", "5.1.3", "II.A"
       • Just the number/reference, NOT the title
       • If the requirement appears under "A.1.2 Staffing Requirements", use "A.1.2"
+
+      CRITICAL - SECTION NUMBER FORMATTING:
+      ==============================================================================
+      Section numbers MUST be a single string WITHOUT newlines or extra whitespace.
+      If the document shows a section number split across lines (e.g., "3." on one line
+      and "12.5" on the next), you MUST combine them into "3.12.5".
+
+      CORRECT: "3.12.5", "4.3.1", "A.1.2"
+      WRONG: "3.\n12.5", "12.5" (missing the 3), "3. 12.5" (extra space)
+
+      Never drop the leading number - "3.12.5" must stay "3.12.5", not become "12.5".
+      ==============================================================================
 
    b) "sectionGroup" - The PARENT/MAJOR section with its TITLE:
       • Look for the nearest major heading (A, B, 1, 2, etc.) and include its title
@@ -782,7 +795,23 @@ NOT flattened to: "Please describe your approach to: • Security measures • A
   Use these markers to understand document structure, but do not include them in extracted text.
 - Do not summarize or paraphrase - extract the actual text from the document
 - Classify EVERY requirement with the most appropriate type
-- When uncertain between types, default to DESCRIPTIVE`;
+- When uncertain between types, default to DESCRIPTIVE
+
+==============================================================================
+CRITICAL: EXTRACT THE COMPLETE DOCUMENT - DO NOT STOP EARLY
+==============================================================================
+You MUST extract requirements from the ENTIRE document, including:
+- The LAST subsection of each section (e.g., if section 3 has 3.1 through 3.17, extract ALL of them including 3.17)
+- The FINAL requirements in the document (do not stop at 90% - finish the full 100%)
+- Small sections that appear between larger ones (e.g., 3.2 between large 3.1 and 3.3)
+
+COMMON FAILURE MODES TO AVOID:
+- Stopping at 3.15 when there's a 3.16, 3.17, etc.
+- Missing small subsections (3.2 only has 2 items but must still be extracted)
+- Skipping the last 2-3 requirements of a subsection
+
+Extract to the ABSOLUTE END of the provided text. Count your extracted items and verify coverage.
+==============================================================================`;
 
 // =============================================================================
 // SECTION-BASED EXTRACTION PROMPT (DEPRECATED - kept for reference)
