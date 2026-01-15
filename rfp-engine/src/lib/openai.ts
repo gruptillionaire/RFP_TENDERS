@@ -798,7 +798,7 @@ OUTPUT FORMAT (JSON):
 {
   "requirements": [
     {
-      "text": "Full requirement text",
+      "text": "Full requirement text with lists on separate lines",
       "section": "3.1.1",
       "sectionGroup": "Technical Requirements",
       "isMandatory": true,
@@ -810,29 +810,51 @@ OUTPUT FORMAT (JSON):
   ]
 }
 
-REQUIREMENT TYPES - Choose ONE:
+REQUIREMENT TYPES - Choose ONE (8 types):
 1. CONTEXTUAL - Background info, not answerable (org description, project context)
 2. PROCEDURAL - Yes/No compliance questions ("Can you confirm...?", "Do you comply...?")
 3. DECLARATIVE - Acknowledge/attest to conditions ("By submitting you acknowledge...")
 4. DESCRIPTIVE - Describe approach, methodology, experience ("Describe your...", "Explain how...")
 5. QUANTITATIVE - Specific numbers/prices/dates ("Provide pricing for...", "What are your rates?")
 6. EVIDENCE_BASED - Attach documents/certifications ("Provide copies of...", "Attach ISO certificate")
+7. REFERENCE_BASED - Request for references/case studies ("Provide client references", "List similar projects")
+8. STAFFING - Team, personnel, qualifications, CVs, FTEs ("Identify key personnel", "Provide team CVs")
 
 TYPE DECISION RULES:
-- "Does your system..." / "Can you..." → PROCEDURAL (yes/no answer)
+- "Does your system..." / "Can you..." / "Please confirm..." → PROCEDURAL
 - "Describe your approach to..." → DESCRIPTIVE (even if topic is pricing/costs)
-- "Provide your pricing for..." / "What is the cost?" → QUANTITATIVE (asking for numbers)
-- "Please provide your ISO certification" → EVIDENCE_BASED (document required)
+- "Provide your pricing for..." / "What is the cost?" → QUANTITATIVE
+- "Please provide your ISO certification" / "Attach documents" → EVIDENCE_BASED
+- "Provide client references" / "List similar projects completed" → REFERENCE_BASED
+- Team/personnel/staff/qualifications/CVs/FTEs questions → STAFFING
 - Attestation language ("By submitting...", "The bidder acknowledges...") → DECLARATIVE + isAttestation: true
 
+STAFFING PRIORITY: If text asks for personnel, team members, CVs, qualifications, or contact info of staff → use STAFFING
+REFERENCE PRIORITY: If text asks for client references, case studies, or project examples → use REFERENCE_BASED
+
+CRITICAL - SECTION NUMBER PRESERVATION:
+- The section context header tells you what major section this content is from
+- If header says "FROM SECTION 4", requirements should be numbered 4.X.X, NOT 3.X
+- Preserve the EXACT section numbers as they appear in the document
+- Do NOT renumber or interpret - use the literal numbers from the text
+
 EXTRACTION RULES:
-- Extract EVERY numbered item (3.1.1, 3.1.2, etc.) as a SEPARATE requirement
+- Extract EVERY numbered item (X.Y.Z) as a SEPARATE requirement
 - Include section headers (3.1, 3.2) as CONTEXTUAL type
 - Extract COMPLETE text including any listed items/bullets
+- PRESERVE LIST FORMATTING: Put each list item on a new line with proper indentation
 - Preserve word/character limits if mentioned
 - Do NOT include document markers ([PAGE], [SUBSECTION], ════, etc.) in text
+- Extract to the END of the section - don't stop early
 
-Extract ALL requirements from the section below.`;
+LIST FORMATTING EXAMPLE:
+If the requirement has a list like "a. Name b. Title c. Email", extract as:
+"Provide the following information:
+a. Name
+b. Title
+c. Email"
+
+Extract ALL requirements from the section below - especially the LAST few items.`;
 
 // =============================================================================
 // DRAFT PROMPTS - Type-specific, RFP-focused (NOT email-style)
@@ -1486,11 +1508,31 @@ function jaccardSimilarity(a: string, b: string): number {
 /**
  * Extract requirements from a single document section
  */
+/**
+ * Detect the major section number from chunk content.
+ * Looks for patterns like "4.3.1" and extracts the first digit.
+ */
+function detectMajorSectionFromContent(content: string): string | null {
+  // Find the first X.Y.Z or X.Y pattern in the content
+  const match = content.match(/\b(\d+)\.\d+(?:\.\d+)?\b/);
+  if (match) {
+    return match[1]; // Return the major section number (e.g., "4" from "4.3.1")
+  }
+  return null;
+}
+
 async function extractSectionRequirements(
   chunk: SectionChunk
 ): Promise<ExtractedRequirement[]> {
   const startTime = Date.now();
-  console.log(`[extractSection] START section ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars)`);
+
+  // Detect what major section this chunk is actually from
+  const detectedMajorSection = detectMajorSectionFromContent(chunk.content);
+  const sectionContext = detectedMajorSection
+    ? `\n\n[CONTEXT: This content is FROM SECTION ${detectedMajorSection}. Preserve original section numbers like ${detectedMajorSection}.X.X]`
+    : "";
+
+  console.log(`[extractSection] START section ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars, detected major: ${detectedMajorSection || "unknown"})`);
 
   try {
     const response = await withRetry(
@@ -1500,7 +1542,7 @@ async function extractSectionRequirements(
           { role: "system", content: SECTION_EXTRACTION_PROMPT },
           {
             role: "user",
-            content: `SECTION ${chunk.sectionNumber}: ${chunk.sectionTitle}\n\n${chunk.content}`,
+            content: `SECTION ${chunk.sectionNumber}: ${chunk.sectionTitle}${sectionContext}\n\n${chunk.content}`,
           },
         ],
         response_format: { type: "json_object" },
@@ -1518,7 +1560,30 @@ async function extractSectionRequirements(
     }
 
     const parsed = JSON.parse(content);
-    const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+    let requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+
+    // Post-extraction fix: Correct section numbers if they don't match detected major section
+    if (detectedMajorSection) {
+      requirements = requirements.map((req: ExtractedRequirement) => {
+        if (req.section && typeof req.section === "string") {
+          // If extracted section is like "3.2" but detected major is "4", fix it
+          const extractedMajor = req.section.split(".")[0];
+          if (extractedMajor !== detectedMajorSection && /^\d+$/.test(extractedMajor)) {
+            // Check if the original content actually has this section number
+            const hasOriginalNumber = chunk.content.includes(req.section);
+            if (!hasOriginalNumber) {
+              // Try to find the correct number in the content
+              const correctedSection = req.section.replace(/^\d+/, detectedMajorSection);
+              if (chunk.content.includes(correctedSection)) {
+                console.log(`[extractSection] Corrected section ${req.section} → ${correctedSection}`);
+                return { ...req, section: correctedSection };
+              }
+            }
+          }
+        }
+        return req;
+      });
+    }
 
     console.log(`[extractSection] DONE section ${chunk.sectionNumber}: ${requirements.length} requirements in ${elapsed}ms`);
     return requirements;

@@ -359,36 +359,92 @@ function createChunksByRequirementBoundaries(text: string): SectionChunk[] {
 }
 
 /**
+ * Find the best split point near a target position.
+ * Prefers subsection boundaries (X.Y) over arbitrary positions.
+ */
+function findBestSplitPoint(text: string, targetPos: number, searchRange: number = 2000): number {
+  const searchStart = Math.max(0, targetPos - searchRange);
+  const searchEnd = Math.min(text.length, targetPos + searchRange);
+  const searchText = text.substring(searchStart, searchEnd);
+
+  // Look for subsection headers (e.g., "3.2 " or "4.1 " at start of line)
+  const subsectionPattern = /\n\s*\d+\.\d+\s+[A-Z]/g;
+  let match;
+  let bestPos = targetPos;
+  let bestDistance = searchRange;
+
+  while ((match = subsectionPattern.exec(searchText)) !== null) {
+    const absolutePos = searchStart + match.index;
+    const distance = Math.abs(absolutePos - targetPos);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPos = absolutePos;
+    }
+  }
+
+  // If no subsection found, try to split at a requirement boundary (X.Y.Z at start of line)
+  if (bestPos === targetPos) {
+    const reqPattern = /\n\s*\d+\.\d+\.\d+\s/g;
+    while ((match = reqPattern.exec(searchText)) !== null) {
+      const absolutePos = searchStart + match.index;
+      const distance = Math.abs(absolutePos - targetPos);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestPos = absolutePos;
+      }
+    }
+  }
+
+  // Last resort: split at paragraph break
+  if (bestPos === targetPos) {
+    const paragraphBreak = text.indexOf("\n\n", targetPos - 500);
+    if (paragraphBreak !== -1 && paragraphBreak < targetPos + 500) {
+      bestPos = paragraphBreak;
+    }
+  }
+
+  return bestPos;
+}
+
+/**
  * Last resort fallback: Create chunks based on character count.
+ * Tries to split at subsection or requirement boundaries when possible.
  */
 function createChunksBySize(text: string): SectionChunk[] {
   const chunks: SectionChunk[] = [];
-  const numChunks = Math.ceil(text.length / FALLBACK_CHUNK_SIZE);
+  let currentStart = 0;
 
-  for (let i = 0; i < numChunks; i++) {
-    const startIndex = i * FALLBACK_CHUNK_SIZE;
-    let endIndex = Math.min((i + 1) * FALLBACK_CHUNK_SIZE, text.length);
+  while (currentStart < text.length) {
+    let targetEnd = currentStart + FALLBACK_CHUNK_SIZE;
 
-    // Try to end at a paragraph break if possible
-    if (endIndex < text.length) {
-      const nextParagraph = text.indexOf("\n\n", endIndex - 500);
-      if (nextParagraph !== -1 && nextParagraph < endIndex + 500) {
-        endIndex = nextParagraph;
-      }
+    // If this isn't the last chunk, find a better split point
+    if (targetEnd < text.length) {
+      targetEnd = findBestSplitPoint(text, targetEnd);
+    } else {
+      targetEnd = text.length;
     }
 
-    const content = text.substring(startIndex, endIndex).trim();
+    const content = text.substring(currentStart, targetEnd).trim();
 
-    chunks.push({
-      sectionNumber: String(i + 1),
-      sectionTitle: `Part ${i + 1}`,
-      content,
-      startIndex,
-      endIndex,
-      level: 1,
-    });
+    if (content.length > 0) {
+      // Detect the major section from content for better labeling
+      const majorMatch = content.match(/\b(\d+)\.\d+/);
+      const majorSection = majorMatch ? majorMatch[1] : String(chunks.length + 1);
+
+      chunks.push({
+        sectionNumber: majorSection,
+        sectionTitle: `Section ${majorSection} (Part ${chunks.length + 1})`,
+        content,
+        startIndex: currentStart,
+        endIndex: targetEnd,
+        level: 1,
+      });
+    }
+
+    currentStart = targetEnd;
   }
 
+  console.log(`[section-chunker] Size-based chunks created:`, chunks.map(c => `${c.sectionTitle} (${c.content.length} chars)`));
   return chunks;
 }
 

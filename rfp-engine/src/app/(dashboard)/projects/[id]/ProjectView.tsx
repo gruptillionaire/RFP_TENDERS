@@ -122,7 +122,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
     let timeoutId: NodeJS.Timeout;
     let extractionTriggered = false;
     const abortController = new AbortController();
-    const MAX_RETRIES = 60; // ~10 minutes with backoff (extraction can take up to 5 mins)
+    const MAX_RETRIES = 80; // ~15 minutes with backoff (large extractions can take up to 8 mins)
 
     // Trigger extraction - this runs in a separate request with 5-minute timeout
     const triggerExtraction = async () => {
@@ -760,7 +760,10 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             </svg>
             <h2 className="text-xl font-semibold mb-2">Analyzing Document</h2>
             <p className="text-gray-500">
-              We&apos;re extracting requirements from your RFP. This usually takes 1-2 minutes.
+              We&apos;re extracting requirements from your RFP.
+            </p>
+            <p className="text-gray-400 text-sm mt-1">
+              Small documents: 1-2 minutes. Large documents (100+ requirements): 3-8 minutes.
             </p>
           </div>
         ) : project.status === "FAILED" ? (
