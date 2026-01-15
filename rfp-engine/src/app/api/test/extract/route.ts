@@ -87,6 +87,16 @@ export async function POST(request: NextRequest) {
       const heuristicResult = extractCandidatesHeuristically(sanitizedText);
       const heuristicTime = Date.now() - heuristicStart;
 
+      // Debug: Check for X.Y.Z patterns directly in the text
+      const xyzPattern = /\d+\.\d+\.\d+/g;
+      const xyzMatches = sanitizedText.match(xyzPattern) || [];
+
+      // Find first occurrence of "3.1.1" or similar
+      const firstXyzIndex = sanitizedText.search(/\d+\.\d+\.\d+/);
+      const xyzContext = firstXyzIndex >= 0
+        ? sanitizedText.substring(Math.max(0, firstXyzIndex - 20), firstXyzIndex + 50)
+        : "NOT FOUND";
+
       return NextResponse.json({
         success: true,
         mode: "heuristic_debug",
@@ -103,6 +113,12 @@ export async function POST(request: NextRequest) {
           numberedCandidates: heuristicResult.stats.numberedCandidates,
           questionCandidates: heuristicResult.stats.questionCandidates,
           majorSectionsDetected: heuristicResult.stats.majorSectionsDetected,
+        },
+        regexDebug: {
+          xyzPatternsFound: xyzMatches.length,
+          sampleXyzMatches: xyzMatches.slice(0, 10),
+          firstXyzContext: xyzContext,
+          textSample: sanitizedText.substring(0, 500),
         },
         majorSections: Array.from(heuristicResult.majorSections.entries()).map(([k, v]) => ({
           key: k,
