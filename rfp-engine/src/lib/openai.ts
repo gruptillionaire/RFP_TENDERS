@@ -785,12 +785,14 @@ NOT flattened to: "Please describe your approach to: • Security measures • A
 - When uncertain between types, default to DESCRIPTIVE`;
 
 // =============================================================================
-// SECTION-BASED EXTRACTION PROMPT (Condensed for per-section extraction)
+// SECTION-BASED EXTRACTION PROMPT (DEPRECATED - kept for reference)
 // =============================================================================
 /**
- * Condensed prompt for extracting requirements from a single document section.
- * Used when processing large documents that exceed output token limits.
- * Same classification rules as EXTRACTION_PROMPT but ~70% shorter.
+ * DEPRECATED: This condensed prompt caused massive type misclassification.
+ * Kept for reference. The chunked extraction now uses the full EXTRACTION_PROMPT.
+ *
+ * Problem: The condensed format lacked the detailed examples and edge case handling
+ * that the LLM needs for accurate STAFFING, REFERENCE_BASED, etc. classification.
  */
 export const SECTION_EXTRACTION_PROMPT = `You are an expert at analyzing RFP/tender documents. Extract ALL requirements from this SECTION.
 
@@ -1506,43 +1508,31 @@ function jaccardSimilarity(a: string, b: string): number {
 }
 
 /**
- * Extract requirements from a single document section
+ * Extract requirements from a single document chunk.
+ * Uses the FULL EXTRACTION_PROMPT for accurate type classification.
+ *
+ * KEY DESIGN DECISION: We use the complete prompt instead of a condensed version
+ * because the detailed examples and edge cases are essential for accurate classification.
+ * The slight increase in tokens is worth the dramatic improvement in classification accuracy.
  */
-/**
- * Detect the major section number from chunk content.
- * Looks for patterns like "4.3.1" and extracts the first digit.
- */
-function detectMajorSectionFromContent(content: string): string | null {
-  // Find the first X.Y.Z or X.Y pattern in the content
-  const match = content.match(/\b(\d+)\.\d+(?:\.\d+)?\b/);
-  if (match) {
-    return match[1]; // Return the major section number (e.g., "4" from "4.3.1")
-  }
-  return null;
-}
-
 async function extractSectionRequirements(
   chunk: SectionChunk
 ): Promise<ExtractedRequirement[]> {
   const startTime = Date.now();
 
-  // Detect what major section this chunk is actually from
-  const detectedMajorSection = detectMajorSectionFromContent(chunk.content);
-  const sectionContext = detectedMajorSection
-    ? `\n\n[CONTEXT: This content is FROM SECTION ${detectedMajorSection}. Preserve original section numbers like ${detectedMajorSection}.X.X]`
-    : "";
-
-  console.log(`[extractSection] START section ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars, detected major: ${detectedMajorSection || "unknown"})`);
+  console.log(`[extractSection] START chunk ${chunk.sectionNumber}: ${chunk.sectionTitle} (${chunk.content.length} chars)`);
 
   try {
+    // Use the FULL EXTRACTION_PROMPT - the condensed version caused massive type misclassification
     const response = await withRetry(
       () => openai.chat.completions.create({
         model: MODELS.EXTRACTION,
         messages: [
-          { role: "system", content: SECTION_EXTRACTION_PROMPT },
+          { role: "system", content: EXTRACTION_PROMPT },
           {
             role: "user",
-            content: `SECTION ${chunk.sectionNumber}: ${chunk.sectionTitle}${sectionContext}\n\n${chunk.content}`,
+            // Simple instruction - let the LLM preserve section numbers as-is
+            content: `Please extract all requirements and questions from this document section:\n\n${chunk.content}`,
           },
         ],
         response_format: { type: "json_object" },
@@ -1555,41 +1545,21 @@ async function extractSectionRequirements(
     const elapsed = Date.now() - startTime;
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      console.error(`[extractSection] No response for section ${chunk.sectionNumber} after ${elapsed}ms`);
+      console.error(`[extractSection] No response for chunk ${chunk.sectionNumber} after ${elapsed}ms`);
       return [];
     }
 
     const parsed = JSON.parse(content);
-    let requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+    const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
 
-    // Post-extraction fix: Correct section numbers if they don't match detected major section
-    if (detectedMajorSection) {
-      requirements = requirements.map((req: ExtractedRequirement) => {
-        if (req.section && typeof req.section === "string") {
-          // If extracted section is like "3.2" but detected major is "4", fix it
-          const extractedMajor = req.section.split(".")[0];
-          if (extractedMajor !== detectedMajorSection && /^\d+$/.test(extractedMajor)) {
-            // Check if the original content actually has this section number
-            const hasOriginalNumber = chunk.content.includes(req.section);
-            if (!hasOriginalNumber) {
-              // Try to find the correct number in the content
-              const correctedSection = req.section.replace(/^\d+/, detectedMajorSection);
-              if (chunk.content.includes(correctedSection)) {
-                console.log(`[extractSection] Corrected section ${req.section} → ${correctedSection}`);
-                return { ...req, section: correctedSection };
-              }
-            }
-          }
-        }
-        return req;
-      });
-    }
+    // NO section number "correction" - the LLM extracts what's in the document
+    // Previous correction logic was CAUSING the X.Y.Z → Y.Z bug
 
-    console.log(`[extractSection] DONE section ${chunk.sectionNumber}: ${requirements.length} requirements in ${elapsed}ms`);
+    console.log(`[extractSection] DONE chunk ${chunk.sectionNumber}: ${requirements.length} requirements in ${elapsed}ms`);
     return requirements;
   } catch (error) {
     const elapsed = Date.now() - startTime;
-    console.error(`[extractSection] FAILED section ${chunk.sectionNumber} after ${elapsed}ms:`, error instanceof Error ? error.message : error);
+    console.error(`[extractSection] FAILED chunk ${chunk.sectionNumber} after ${elapsed}ms:`, error instanceof Error ? error.message : error);
     return []; // Return empty array to continue with other sections
   }
 }

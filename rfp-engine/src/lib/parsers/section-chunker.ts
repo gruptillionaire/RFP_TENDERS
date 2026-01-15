@@ -261,18 +261,18 @@ function detectSectionBoundaries(text: string): DetectedSection[] {
 
 /**
  * Split document into chunks based on detected section boundaries.
+ * Small sections are MERGED with adjacent sections (not skipped).
  */
 function createChunksFromSections(
   text: string,
   sections: DetectedSection[]
 ): SectionChunk[] {
-  const chunks: SectionChunk[] = [];
-
   if (sections.length === 0) {
     return [];
   }
 
-  // Create chunks for each section
+  // First pass: create raw chunks for every section (no filtering)
+  const rawChunks: SectionChunk[] = [];
   for (let i = 0; i < sections.length; i++) {
     const section = sections[i];
     const nextSection = sections[i + 1];
@@ -281,12 +281,7 @@ function createChunksFromSections(
     const endIndex = nextSection ? nextSection.startIndex : text.length;
     const content = text.substring(startIndex, endIndex).trim();
 
-    // Skip sections that are too small (likely false positives)
-    if (content.length < MIN_SECTION_CHARS) {
-      continue;
-    }
-
-    chunks.push({
+    rawChunks.push({
       sectionNumber: section.sectionNumber,
       sectionTitle: section.sectionTitle,
       content,
@@ -296,22 +291,37 @@ function createChunksFromSections(
     });
   }
 
+  // Second pass: merge small sections with the PREVIOUS section
+  // This ensures 3.2 (small) is included in chunk with 3.1, not skipped entirely
+  const mergedChunks: SectionChunk[] = [];
+  for (const chunk of rawChunks) {
+    if (chunk.content.length < MIN_SECTION_CHARS && mergedChunks.length > 0) {
+      // Merge this small section into the previous chunk
+      const prevChunk = mergedChunks[mergedChunks.length - 1];
+      prevChunk.content += "\n\n" + chunk.content;
+      prevChunk.endIndex = chunk.endIndex;
+      console.log(`[section-chunker] Merged small section ${chunk.sectionNumber} (${chunk.content.length} chars) into ${prevChunk.sectionNumber}`);
+    } else {
+      mergedChunks.push(chunk);
+    }
+  }
+
   // Handle any content before the first section
-  if (chunks.length > 0 && chunks[0].startIndex > MIN_SECTION_CHARS) {
-    const introContent = text.substring(0, chunks[0].startIndex).trim();
+  if (mergedChunks.length > 0 && mergedChunks[0].startIndex > MIN_SECTION_CHARS) {
+    const introContent = text.substring(0, mergedChunks[0].startIndex).trim();
     if (introContent.length >= MIN_SECTION_CHARS) {
-      chunks.unshift({
+      mergedChunks.unshift({
         sectionNumber: "0",
         sectionTitle: "Introduction",
         content: introContent,
         startIndex: 0,
-        endIndex: chunks[0].startIndex,
+        endIndex: mergedChunks[0].startIndex,
         level: 1,
       });
     }
   }
 
-  return chunks;
+  return mergedChunks;
 }
 
 /**
