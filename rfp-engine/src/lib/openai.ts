@@ -1673,11 +1673,12 @@ async function extractRequirementsChunked(
   sanitizedText: string,
   chunks: SectionChunk[]
 ): Promise<ExtractionResult> {
-  console.log(`[extractChunked] Processing ${chunks.length} sections in parallel (max 3 concurrent)`);
+  console.log(`[extractChunked] Processing ${chunks.length} sections in parallel (max 5 concurrent)`);
   const startTime = Date.now();
 
-  // Process sections with concurrency limit of 3 to avoid rate limits
-  const CONCURRENCY_LIMIT = 3;
+  // Process sections with concurrency limit of 5
+  // Higher concurrency = faster total time, gpt-4o-mini rate limits are generous
+  const CONCURRENCY_LIMIT = 5;
   const results: ExtractedRequirement[][] = [];
 
   for (let i = 0; i < chunks.length; i += CONCURRENCY_LIMIT) {

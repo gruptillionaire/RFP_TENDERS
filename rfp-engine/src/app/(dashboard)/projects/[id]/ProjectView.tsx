@@ -763,7 +763,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
               We&apos;re extracting requirements from your RFP.
             </p>
             <p className="text-gray-400 text-sm mt-1">
-              Small documents: 1-2 minutes. Large documents (100+ requirements): 3-8 minutes.
+              Small documents: 1-2 minutes. Large documents (100+ requirements): 5-10 minutes.
             </p>
           </div>
         ) : project.status === "FAILED" ? (

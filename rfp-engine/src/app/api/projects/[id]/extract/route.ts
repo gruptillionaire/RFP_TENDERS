@@ -87,11 +87,11 @@ export async function POST(
     const startTime = Date.now();
 
     try {
-      // Add overall timeout for the entire extraction (8 minutes for large documents with chunked extraction)
+      // Add overall timeout for the entire extraction (15 minutes for large documents with chunked extraction)
       // This catches cases where OpenAI or preprocessing hangs
       const extractionPromise = extractRequirements(project.rawText);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Extraction timed out after 8 minutes")), 480000);
+        setTimeout(() => reject(new Error("Extraction timed out after 15 minutes")), 900000);
       });
 
       console.log(`[Extract] Calling extractRequirements...`);
