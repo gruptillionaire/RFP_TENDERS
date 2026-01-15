@@ -86,9 +86,10 @@ function normalizeBulletPoints(text: string): string {
 function preserveNumberedLists(text: string): string {
   // Ensure proper spacing after numbered items
   // Matches: "1.", "2.", "a)", "b)", "(i)", "(ii)", "(a)", "(b)"
+  // CRITICAL: Use negative lookahead (?!\d) to avoid matching section numbers like "3.1.1"
   return text
-    // Standard numbered lists: "1. ", "2. "
-    .replace(/^(\s*)(\d+)\.\s*/gm, '$1$2. ')
+    // Standard numbered lists: "1. ", "2. " - but NOT section numbers like "3.1" or "3.1.1"
+    .replace(/^(\s*)(\d+)\.(?!\d)\s*/gm, '$1$2. ')
     // Lettered lists with parenthesis: "a) ", "b) "
     .replace(/^(\s*)([a-z])\)\s*/gm, '$1$2) ')
     // Roman numerals: "(i) ", "(ii) "
