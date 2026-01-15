@@ -78,7 +78,15 @@ export async function POST(
     const startTime = Date.now();
 
     try {
-      const result = await extractRequirements(project.rawText);
+      // Add overall timeout for the entire extraction (4 minutes)
+      // This catches cases where OpenAI or preprocessing hangs
+      const extractionPromise = extractRequirements(project.rawText);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Extraction timed out after 4 minutes")), 240000);
+      });
+
+      console.log(`[Extract] Calling extractRequirements...`);
+      const result = await Promise.race([extractionPromise, timeoutPromise]);
       const requirementCount = result.requirements.length;
 
       console.log(`[Extract] Completed in ${Date.now() - startTime}ms, found ${requirementCount} requirements`);

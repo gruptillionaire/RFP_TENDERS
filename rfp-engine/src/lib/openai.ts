@@ -38,10 +38,17 @@ async function withRetry<T>(
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     let timeoutId: NodeJS.Timeout | undefined;
 
+    if (attempt > 0) {
+      console.log(`[withRetry] Attempt ${attempt + 1}/${opts.maxRetries + 1}...`);
+    }
+
     try {
       // Create timeout promise with clearable timer
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("OpenAI request timed out")), opts.timeout);
+        timeoutId = setTimeout(() => {
+          console.error(`[withRetry] Request timed out after ${opts.timeout}ms`);
+          reject(new Error("OpenAI request timed out"));
+        }, opts.timeout);
       });
 
       // Race between the operation and timeout
@@ -1353,8 +1360,15 @@ function reclassifySectionHeaders(requirements: ExtractedRequirement[]): void {
 // =============================================================================
 
 export async function extractRequirements(documentText: string): Promise<ExtractionResult> {
-  // Sanitize input to prevent prompt injection
+  const timings: Record<string, number> = {};
+  const startTotal = Date.now();
+
+  // Step 1: Sanitize input to prevent prompt injection
+  console.log("[extractRequirements] Step 1: Sanitizing input...");
+  const startSanitize = Date.now();
   const sanitizedText = sanitizeForLLM(documentText);
+  timings.sanitize = Date.now() - startSanitize;
+  console.log(`[extractRequirements] Sanitization complete in ${timings.sanitize}ms`);
 
   // Truncate if too long - increased limit to handle larger documents
   // gpt-4o-mini supports 128k tokens (~400-500k characters), so 250k is safe
@@ -1374,15 +1388,19 @@ export async function extractRequirements(documentText: string): Promise<Extract
     });
   }
 
-  // Check cache first (saves API costs for duplicate uploads)
+  // Step 2: Check cache first (saves API costs for duplicate uploads)
+  console.log("[extractRequirements] Step 2: Checking cache...");
   const contentHash = getContentHash(truncatedText);
   const cachedResult = getCachedExtraction(contentHash);
   if (cachedResult) {
     console.log("[extractRequirements] Cache hit, returning cached result");
     return cachedResult;
   }
+  console.log("[extractRequirements] Cache miss, proceeding with OpenAI call");
 
-  // OpenAI call with retry logic and timeout
+  // Step 3: OpenAI call with retry logic and timeout
+  console.log("[extractRequirements] Step 3: Calling OpenAI API...");
+  const startOpenAI = Date.now();
   const response = await withRetry(
     () => openai.chat.completions.create({
       model: MODELS.EXTRACTION,
@@ -1398,12 +1416,18 @@ export async function extractRequirements(documentText: string): Promise<Extract
     }),
     { timeout: 120000 } // 2 minutes for extraction
   );
+  timings.openai = Date.now() - startOpenAI;
+  console.log(`[extractRequirements] OpenAI call complete in ${timings.openai}ms`);
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
     throw new Error("No response from OpenAI");
   }
+  console.log(`[extractRequirements] Response content length: ${content.length} chars`);
 
+  // Step 4: Parse and validate response
+  console.log("[extractRequirements] Step 4: Parsing response...");
+  const startParse = Date.now();
   try {
     const parsed = JSON.parse(content);
 
@@ -1453,8 +1477,12 @@ export async function extractRequirements(documentText: string): Promise<Extract
         isAttestation: req.isAttestation === true, // Default to false if not specified
       })),
     };
+    timings.parse = Date.now() - startParse;
+    console.log(`[extractRequirements] Parsed ${result.requirements.length} requirements in ${timings.parse}ms`);
 
-    // Post-processing - wrapped in try-catch to prevent failures
+    // Step 5: Post-processing - wrapped in try-catch to prevent failures
+    console.log("[extractRequirements] Step 5: Post-processing...");
+    const startPostProcess = Date.now();
     try {
       // Post-processing Step 1: Split any concatenated requirements
       // The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one
@@ -1465,13 +1493,18 @@ export async function extractRequirements(documentText: string): Promise<Extract
 
       // Post-processing Step 3: Enrich section data (fill in missing sectionGroup titles)
       enrichSectionData(result.requirements, documentText);
+      timings.postProcess = Date.now() - startPostProcess;
+      console.log(`[extractRequirements] Post-processing complete in ${timings.postProcess}ms`);
     } catch (postProcessError) {
+      timings.postProcess = Date.now() - startPostProcess;
       console.error("[extractRequirements] Post-processing failed, using raw extraction results:", postProcessError);
       // Continue with unprocessed results rather than failing
     }
 
-    // Log extraction stats for debugging
+    // Log extraction stats and total timing
+    timings.total = Date.now() - startTotal;
     console.log("[extractRequirements] Extraction complete:", {
+      timings,
       totalRequirements: result.requirements.length,
       byType: result.requirements.reduce((acc, req) => {
         acc[req.type] = (acc[req.type] || 0) + 1;
