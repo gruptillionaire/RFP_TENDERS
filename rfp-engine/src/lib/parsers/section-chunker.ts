@@ -10,6 +10,10 @@
  * - Split document into chunks at section boundaries
  * - Each chunk can be extracted independently
  * - Results merged after extraction
+ *
+ * Fallback Strategy:
+ * - If section detection fails, chunk by requirement number patterns
+ * - If that fails, chunk by character count
  */
 
 // =============================================================================
@@ -39,6 +43,8 @@ export interface ChunkingResult {
   estimatedTokens: number;
   /** Whether chunking was applied */
   wasChunked: boolean;
+  /** How chunking was determined */
+  chunkingMethod?: "sections" | "requirements" | "size" | "none";
 }
 
 // =============================================================================
@@ -47,10 +53,15 @@ export interface ChunkingResult {
 
 /**
  * Threshold for switching to chunked extraction.
- * ~60K tokens = ~240K characters
- * This leaves room for the extraction prompt and output.
+ * Lowered to 50K chars to catch more edge cases.
  */
-const LARGE_DOCUMENT_CHAR_THRESHOLD = 100000; // 100K chars (~25K tokens of content)
+const LARGE_DOCUMENT_CHAR_THRESHOLD = 50000; // 50K chars (~12.5K tokens)
+
+/**
+ * If estimated requirements exceed this, force chunking regardless of size.
+ * This catches dense documents that would overflow output tokens.
+ */
+const HIGH_REQUIREMENT_DENSITY_THRESHOLD = 60;
 
 /**
  * Minimum section size to be considered a valid chunk.
@@ -59,20 +70,59 @@ const LARGE_DOCUMENT_CHAR_THRESHOLD = 100000; // 100K chars (~25K tokens of cont
 const MIN_SECTION_CHARS = 500;
 
 /**
- * Pattern for major section headers.
- * Matches: "1.", "2.", "A.", "B.", "Section 3:", etc.
+ * Target chunk size for fallback character-based chunking.
  */
-const MAJOR_SECTION_PATTERNS = [
-  // Numbered sections with period: "1.", "2.", "3.0"
-  /(?:^|\n)\s*((?:Section\s+)?(\d+)(?:\.0?)?)\s*[.:\-]\s*([A-Z][A-Za-z\s,&\-:]{3,})/gi,
-  // Letter sections: "A.", "B.", "C:"
-  /(?:^|\n)\s*((?:Section\s+)?([A-Z]))(?:\.|:|\))\s*([A-Z][A-Za-z\s,&\-:]{3,})/gi,
-  // Markdown-style: "# 3. Title" or "## A: Title"
-  /(?:^|\n)\s*#{1,3}\s*((\d+)|([A-Z]))[.:\)]\s*([A-Z][A-Za-z\s,&\-:]{3,})/gi,
-];
+const FALLBACK_CHUNK_SIZE = 25000; // ~6K tokens per chunk
 
 // =============================================================================
-// SECTION DETECTION
+// REQUIREMENT ESTIMATION
+// =============================================================================
+
+/**
+ * Estimate the number of requirements in a document based on pattern matching.
+ * Used to determine if chunking is needed regardless of document size.
+ */
+export function estimateRequirementCount(text: string): number {
+  // Count requirement-like patterns: X.Y.Z (three-level numbering)
+  const threeLevelMatches = text.match(/\b\d+\.\d+\.\d+\b/g) || [];
+
+  // Count unique three-level patterns (not just occurrences)
+  const uniqueThreeLevel = new Set(threeLevelMatches).size;
+
+  // Also count question marks as potential requirements
+  const questions = (text.match(/\?/g) || []).length;
+
+  // Estimate: unique numbered items + half of questions (some are rhetorical)
+  return uniqueThreeLevel + Math.floor(questions / 3);
+}
+
+/**
+ * Find all major section boundaries based on requirement numbering patterns.
+ * Detects when the first digit changes (e.g., 3.1.1 -> 4.1.1).
+ */
+function detectMajorSectionsByRequirementNumbers(text: string): number[] {
+  const boundaries: number[] = [];
+
+  // Find all X.Y or X.Y.Z patterns with their positions
+  const pattern = /(?:^|\n)\s*(\d+)\.(\d+)(?:\.(\d+))?\b/g;
+  let match;
+  let lastMajorNumber = -1;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const majorNumber = parseInt(match[1], 10);
+
+    // When the major number changes, it's a section boundary
+    if (majorNumber !== lastMajorNumber && lastMajorNumber !== -1) {
+      boundaries.push(match.index);
+    }
+    lastMajorNumber = majorNumber;
+  }
+
+  return boundaries;
+}
+
+// =============================================================================
+// SECTION DETECTION - IMPROVED PATTERNS
 // =============================================================================
 
 interface DetectedSection {
@@ -84,61 +134,119 @@ interface DetectedSection {
 
 /**
  * Detect all major section boundaries in the document.
+ * Uses multiple strategies for robust detection.
  */
 function detectSectionBoundaries(text: string): DetectedSection[] {
   const sections: DetectedSection[] = [];
   const seenPositions = new Set<number>();
 
-  for (const pattern of MAJOR_SECTION_PATTERNS) {
-    // Reset pattern state for each iteration
+  // Strategy 1: Section with title on same line (various formats)
+  const sameLinePatterns = [
+    // "3.0 Title" or "3. Title" or "3: Title" (number + punctuation + title)
+    /(?:^|\n)\s*(\d+)(?:\.0?)?[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+    // "Section 3: Title" or "SECTION 3 - Title"
+    /(?:^|\n)\s*(?:SECTION|Section)\s+(\d+)[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+    // "A. Title" or "A: Title" (letter sections)
+    /(?:^|\n)\s*([A-Z])[.:\-)\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+    // ALL CAPS title after number: "3.0 DIRECT QUERY QUESTIONS"
+    /(?:^|\n)\s*(\d+)(?:\.0?)?[.:\-\s]+([A-Z][A-Z\s,&\-:'"()]{5,}?)(?=\n|$)/gm,
+  ];
+
+  for (const pattern of sameLinePatterns) {
     pattern.lastIndex = 0;
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
       const startIndex = match.index;
 
-      // Skip if we've already found a section at this position
-      // (patterns may overlap)
+      // Skip if already found at this position
       if (seenPositions.has(startIndex)) continue;
 
-      // Extract section number and title
-      const fullMatch = match[0];
-      const sectionNumber = (match[2] || match[3] || "").toString().trim();
-      const sectionTitle = (match[3] || match[4] || "").toString().trim();
+      // Check if position is within 20 chars of an existing section
+      let tooClose = false;
+      for (const pos of seenPositions) {
+        if (Math.abs(startIndex - pos) < 20) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (tooClose) continue;
 
-      // Determine section level (1 = major like "3", 2 = sub like "3.1")
-      const level = sectionNumber.includes(".") ? 2 : 1;
+      const sectionNumber = match[1].trim();
+      let sectionTitle = match[2].trim();
 
-      // Only include major sections (level 1)
-      if (level === 1 && sectionNumber && sectionTitle) {
-        sections.push({
-          sectionNumber,
-          sectionTitle,
-          startIndex,
-          level,
-        });
-        seenPositions.add(startIndex);
+      // Clean up title (remove trailing punctuation, limit length)
+      sectionTitle = sectionTitle.replace(/[.:\-,]+$/, "").substring(0, 60);
+
+      // Skip if section number contains a dot (it's a subsection like 3.1)
+      if (sectionNumber.includes(".")) continue;
+
+      // Skip single-digit matches that are likely false positives
+      if (sectionTitle.length < 5) continue;
+
+      sections.push({
+        sectionNumber,
+        sectionTitle,
+        startIndex,
+        level: 1,
+      });
+      seenPositions.add(startIndex);
+    }
+  }
+
+  // Strategy 2: Section number on its own line, title on next line
+  // Matches: "3.0\n\nDirect Query Questions" or "3.\nTitle Here"
+  const splitLinePattern = /(?:^|\n)\s*(\d+)(?:\.0?)?\s*\n+\s*([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\n)/gm;
+  splitLinePattern.lastIndex = 0;
+  let match;
+
+  while ((match = splitLinePattern.exec(text)) !== null) {
+    const startIndex = match.index;
+
+    // Skip if already found nearby
+    let tooClose = false;
+    for (const pos of seenPositions) {
+      if (Math.abs(startIndex - pos) < 50) {
+        tooClose = true;
+        break;
       }
     }
+    if (tooClose) continue;
+
+    const sectionNumber = match[1].trim();
+    let sectionTitle = match[2].trim().replace(/[.:\-,]+$/, "").substring(0, 60);
+
+    if (sectionNumber.includes(".")) continue;
+    if (sectionTitle.length < 5) continue;
+
+    sections.push({
+      sectionNumber,
+      sectionTitle,
+      startIndex,
+      level: 1,
+    });
+    seenPositions.add(startIndex);
   }
 
   // Sort by position in document
   sections.sort((a, b) => a.startIndex - b.startIndex);
 
-  // Remove duplicates that are too close together (within 50 chars)
-  const dedupedSections: DetectedSection[] = [];
+  // Remove duplicates with same section number (keep first occurrence)
+  const uniqueSections: DetectedSection[] = [];
+  const seenNumbers = new Set<string>();
+
   for (const section of sections) {
-    const lastSection = dedupedSections[dedupedSections.length - 1];
-    if (!lastSection || section.startIndex - lastSection.startIndex > 50) {
-      dedupedSections.push(section);
+    if (!seenNumbers.has(section.sectionNumber)) {
+      uniqueSections.push(section);
+      seenNumbers.add(section.sectionNumber);
     }
   }
 
-  return dedupedSections;
+  return uniqueSections;
 }
 
 // =============================================================================
-// CHUNKING LOGIC
+// CHUNKING STRATEGIES
 // =============================================================================
 
 /**
@@ -150,18 +258,8 @@ function createChunksFromSections(
 ): SectionChunk[] {
   const chunks: SectionChunk[] = [];
 
-  // If no sections detected, treat entire document as one chunk
   if (sections.length === 0) {
-    return [
-      {
-        sectionNumber: "1",
-        sectionTitle: "Document",
-        content: text,
-        startIndex: 0,
-        endIndex: text.length,
-        level: 1,
-      },
-    ];
+    return [];
   }
 
   // Create chunks for each section
@@ -188,22 +286,8 @@ function createChunksFromSections(
     });
   }
 
-  // If we filtered out all sections, return the whole document
-  if (chunks.length === 0) {
-    return [
-      {
-        sectionNumber: "1",
-        sectionTitle: "Document",
-        content: text,
-        startIndex: 0,
-        endIndex: text.length,
-        level: 1,
-      },
-    ];
-  }
-
   // Handle any content before the first section
-  if (chunks[0].startIndex > MIN_SECTION_CHARS) {
+  if (chunks.length > 0 && chunks[0].startIndex > MIN_SECTION_CHARS) {
     const introContent = text.substring(0, chunks[0].startIndex).trim();
     if (introContent.length >= MIN_SECTION_CHARS) {
       chunks.unshift({
@@ -215,6 +299,80 @@ function createChunksFromSections(
         level: 1,
       });
     }
+  }
+
+  return chunks;
+}
+
+/**
+ * Fallback: Create chunks based on requirement number boundaries.
+ * Splits when the major section number changes (3.x.x -> 4.x.x).
+ */
+function createChunksByRequirementBoundaries(text: string): SectionChunk[] {
+  const boundaries = detectMajorSectionsByRequirementNumbers(text);
+
+  if (boundaries.length < 2) {
+    return [];
+  }
+
+  const chunks: SectionChunk[] = [];
+
+  // Add start boundary
+  const allBoundaries = [0, ...boundaries, text.length];
+
+  for (let i = 0; i < allBoundaries.length - 1; i++) {
+    const startIndex = allBoundaries[i];
+    const endIndex = allBoundaries[i + 1];
+    const content = text.substring(startIndex, endIndex).trim();
+
+    if (content.length < MIN_SECTION_CHARS) continue;
+
+    // Try to extract section number from the first requirement in this chunk
+    const firstReqMatch = content.match(/^\s*(\d+)\.\d+/);
+    const sectionNumber = firstReqMatch ? firstReqMatch[1] : String(i + 1);
+
+    chunks.push({
+      sectionNumber,
+      sectionTitle: `Section ${sectionNumber}`,
+      content,
+      startIndex,
+      endIndex,
+      level: 1,
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Last resort fallback: Create chunks based on character count.
+ */
+function createChunksBySize(text: string): SectionChunk[] {
+  const chunks: SectionChunk[] = [];
+  const numChunks = Math.ceil(text.length / FALLBACK_CHUNK_SIZE);
+
+  for (let i = 0; i < numChunks; i++) {
+    const startIndex = i * FALLBACK_CHUNK_SIZE;
+    let endIndex = Math.min((i + 1) * FALLBACK_CHUNK_SIZE, text.length);
+
+    // Try to end at a paragraph break if possible
+    if (endIndex < text.length) {
+      const nextParagraph = text.indexOf("\n\n", endIndex - 500);
+      if (nextParagraph !== -1 && nextParagraph < endIndex + 500) {
+        endIndex = nextParagraph;
+      }
+    }
+
+    const content = text.substring(startIndex, endIndex).trim();
+
+    chunks.push({
+      sectionNumber: String(i + 1),
+      sectionTitle: `Part ${i + 1}`,
+      content,
+      startIndex,
+      endIndex,
+      level: 1,
+    });
   }
 
   return chunks;
@@ -232,12 +390,17 @@ function createChunksFromSections(
  */
 export function chunkDocumentBySections(text: string): ChunkingResult {
   const estimatedTokens = Math.ceil(text.length / 4);
+  const estimatedRequirements = estimateRequirementCount(text);
 
-  // Small document: return as single chunk, use existing single-pass extraction
-  if (text.length < LARGE_DOCUMENT_CHAR_THRESHOLD) {
-    console.log(
-      `[section-chunker] Small document (${text.length} chars, ~${estimatedTokens} tokens), using single-pass`
-    );
+  console.log(`[section-chunker] Document stats: ${text.length} chars, ~${estimatedTokens} tokens, ~${estimatedRequirements} estimated requirements`);
+
+  // Determine if chunking is needed based on size OR requirement density
+  const needsChunkingBySize = text.length >= LARGE_DOCUMENT_CHAR_THRESHOLD;
+  const needsChunkingByDensity = estimatedRequirements >= HIGH_REQUIREMENT_DENSITY_THRESHOLD;
+  const needsChunking = needsChunkingBySize || needsChunkingByDensity;
+
+  if (!needsChunking) {
+    console.log(`[section-chunker] Small document with low requirement density, using single-pass`);
     return {
       chunks: [
         {
@@ -252,72 +415,64 @@ export function chunkDocumentBySections(text: string): ChunkingResult {
       documentType: "small",
       estimatedTokens,
       wasChunked: false,
+      chunkingMethod: "none",
     };
   }
 
-  // Large document: detect sections and create chunks
-  console.log(
-    `[section-chunker] Large document (${text.length} chars, ~${estimatedTokens} tokens), detecting sections...`
-  );
+  const reason = needsChunkingByDensity
+    ? `high requirement density (~${estimatedRequirements} requirements)`
+    : `large size (${text.length} chars)`;
+  console.log(`[section-chunker] Chunking needed: ${reason}`);
 
+  // Strategy 1: Try to detect major sections
+  console.log(`[section-chunker] Trying section detection...`);
   const sections = detectSectionBoundaries(text);
-  console.log(
-    `[section-chunker] Detected ${sections.length} major sections:`,
-    sections.map((s) => `${s.sectionNumber}: ${s.sectionTitle.substring(0, 30)}...`)
-  );
 
-  // If we couldn't detect meaningful sections, fall back to single-pass
-  if (sections.length < 2) {
+  if (sections.length >= 2) {
     console.log(
-      `[section-chunker] Could not detect enough sections, falling back to single-pass`
+      `[section-chunker] Detected ${sections.length} major sections:`,
+      sections.map((s) => `${s.sectionNumber}: ${s.sectionTitle.substring(0, 25)}...`)
     );
+
+    const chunks = createChunksFromSections(text, sections);
+
+    if (chunks.length >= 2) {
+      console.log(`[section-chunker] Created ${chunks.length} section-based chunks`);
+      return {
+        chunks,
+        documentType: "large",
+        estimatedTokens,
+        wasChunked: true,
+        chunkingMethod: "sections",
+      };
+    }
+  }
+
+  // Strategy 2: Fallback to requirement number boundaries
+  console.log(`[section-chunker] Section detection failed, trying requirement boundaries...`);
+  const reqChunks = createChunksByRequirementBoundaries(text);
+
+  if (reqChunks.length >= 2) {
+    console.log(`[section-chunker] Created ${reqChunks.length} requirement-boundary chunks`);
     return {
-      chunks: [
-        {
-          sectionNumber: "full",
-          sectionTitle: "Full Document",
-          content: text,
-          startIndex: 0,
-          endIndex: text.length,
-          level: 0,
-        },
-      ],
+      chunks: reqChunks,
       documentType: "large",
       estimatedTokens,
-      wasChunked: false,
+      wasChunked: true,
+      chunkingMethod: "requirements",
     };
   }
 
-  const chunks = createChunksFromSections(text, sections);
+  // Strategy 3: Last resort - chunk by size
+  console.log(`[section-chunker] Requirement boundaries failed, chunking by size...`);
+  const sizeChunks = createChunksBySize(text);
 
-  console.log(
-    `[section-chunker] Created ${chunks.length} chunks:`,
-    chunks.map(
-      (c) =>
-        `${c.sectionNumber}: ${c.sectionTitle.substring(0, 20)}... (${c.content.length} chars)`
-    )
-  );
-
+  console.log(`[section-chunker] Created ${sizeChunks.length} size-based chunks`);
   return {
-    chunks,
+    chunks: sizeChunks,
     documentType: "large",
     estimatedTokens,
     wasChunked: true,
+    chunkingMethod: "size",
   };
-}
-
-/**
- * Estimate the number of requirements in a section based on pattern matching.
- * Used for progress estimation and validation.
- */
-export function estimateRequirementCount(text: string): number {
-  // Count requirement-like patterns: X.Y.Z, X.Y followed by text
-  const threeLevel = (text.match(/\b\d+\.\d+\.\d+\b/g) || []).length;
-  const twoLevel = (text.match(/\b\d+\.\d+\b/g) || []).length;
-
-  // Also count question marks as potential requirements
-  const questions = (text.match(/\?/g) || []).length;
-
-  // Rough estimate: unique numbered items + questions
-  return Math.max(threeLevel, twoLevel - threeLevel) + Math.floor(questions / 2);
 }
