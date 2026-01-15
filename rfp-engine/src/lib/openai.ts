@@ -1181,10 +1181,18 @@ async function extractRequirementsTwoPhase(
   );
   console.log(`[twoPhase] Phase 2 complete in ${Date.now() - phase2Start}ms: ${requirements.length} requirements`);
 
+  // Debug: Log first 5 section numbers from classification
+  console.log(`[twoPhase] First 5 section numbers after classification:`,
+    requirements.slice(0, 5).map(r => r.section));
+
   // Post-processing
   try {
     const processed = splitConcatenatedRequirementsPostProcess(requirements);
     reclassifySectionHeaders(processed);
+
+    // Debug: Log first 5 section numbers after post-processing
+    console.log(`[twoPhase] First 5 section numbers after post-processing:`,
+      processed.slice(0, 5).map(r => r.section));
 
     const elapsed = Date.now() - startTime;
     console.log(`[twoPhase] Total extraction complete in ${elapsed}ms`);
