@@ -13,6 +13,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parsePDF } from "@/lib/parsers/pdf";
 import { extractRequirements } from "@/lib/openai";
+import { extractCandidatesHeuristically } from "@/lib/parsers/heuristic-extractor";
+import { sanitizeForLLM } from "@/lib/security";
 
 export const maxDuration = 300; // 5 minutes
 
@@ -73,6 +75,47 @@ export async function POST(request: NextRequest) {
     const parseTime = Date.now() - parseStart;
 
     console.log(`[test/extract] Parsed PDF in ${parseTime}ms, text length: ${text.length}`);
+
+    // Check for debug mode
+    const debugMode = request.nextUrl.searchParams.get("debug");
+
+    // Debug mode: return just heuristic extraction results
+    if (debugMode === "heuristic") {
+      console.log(`[test/extract] Debug mode: heuristic only`);
+      const sanitizedText = sanitizeForLLM(text);
+      const heuristicStart = Date.now();
+      const heuristicResult = extractCandidatesHeuristically(sanitizedText);
+      const heuristicTime = Date.now() - heuristicStart;
+
+      return NextResponse.json({
+        success: true,
+        mode: "heuristic_debug",
+        meta: {
+          fileName: file.name,
+          fileSize: file.size,
+          textLength: text.length,
+          sanitizedTextLength: sanitizedText.length,
+          parseTimeMs: parseTime,
+          heuristicTimeMs: heuristicTime,
+        },
+        stats: {
+          totalCandidates: heuristicResult.candidates.length,
+          numberedCandidates: heuristicResult.stats.numberedCandidates,
+          questionCandidates: heuristicResult.stats.questionCandidates,
+          majorSectionsDetected: heuristicResult.stats.majorSectionsDetected,
+        },
+        majorSections: Array.from(heuristicResult.majorSections.entries()).map(([k, v]) => ({
+          key: k,
+          number: v.number,
+          title: v.title,
+        })),
+        sampleCandidates: heuristicResult.candidates.slice(0, 20).map(c => ({
+          sectionNumber: c.sectionNumber,
+          majorSection: c.majorSection,
+          rawTextPreview: c.rawText.substring(0, 150),
+        })),
+      });
+    }
 
     // Extract requirements
     const extractStart = Date.now();
