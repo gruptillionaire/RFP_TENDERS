@@ -119,7 +119,8 @@ async function withRetry<T>(
 // v5: Two-phase extraction for large documents (heuristics + classification)
 // v6-v7: Various fixes and improvements
 // v8: MAJOR - Full-context scoped-output extraction (sends full doc, extracts by section range)
-const EXTRACTION_VERSION = "v8";
+// v9: Summary + section text approach (faster, fits within Vercel timeout)
+const EXTRACTION_VERSION = "v9";
 
 interface CacheEntry<T> {
   result: T;
@@ -1392,47 +1393,155 @@ function planExtractionChunks(
 }
 
 /**
- * Create extraction prompt with scope instruction.
+ * Generate a concise document summary for context.
+ * This is sent with each chunk extraction to provide document-level understanding
+ * without sending the entire document each time.
  */
-function createScopedPrompt(chunk: ExtractionChunk): string {
-  const scopeInstruction = `
+async function generateDocumentSummary(
+  text: string,
+  majorSections: Map<string, { number: string; title: string }>
+): Promise<string> {
+  console.log(`[fullContext] Generating document summary...`);
+  const startTime = Date.now();
+
+  // Build section list from major sections
+  const sectionList = Array.from(majorSections.values())
+    .map(s => `${s.number}: ${s.title}`)
+    .join('\n');
+
+  // Extract first ~2000 chars for intro context
+  const introText = text.substring(0, 2000);
+
+  try {
+    const response = await withRetry(
+      () => openai.chat.completions.create({
+        model: MODELS.EXTRACTION,
+        messages: [
+          {
+            role: "system",
+            content: `You are analyzing an RFP (Request for Proposal) document. Create a brief summary that captures:
+1. What organization issued this RFP
+2. What product/service they are seeking
+3. The general structure and purpose of each major section
+4. Any key context that would help classify individual requirements (e.g., "Section 3 contains yes/no capability questions", "Section 5 is about pricing")
+
+Keep the summary under 400 words. Focus on information that helps understand the CONTEXT and PURPOSE of requirements.`
+          },
+          {
+            role: "user",
+            content: `DOCUMENT INTRODUCTION:\n${introText}\n\nMAJOR SECTIONS:\n${sectionList}\n\nProvide a concise summary of this RFP.`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 600,
+      }),
+      { timeout: 30000 }
+    );
+
+    const summary = response.choices[0]?.message?.content || '';
+    console.log(`[fullContext] Summary generated in ${Date.now() - startTime}ms (${summary.length} chars)`);
+    return summary;
+  } catch (error) {
+    console.error(`[fullContext] Failed to generate summary:`, error);
+    // Fallback: return section list as minimal context
+    return `RFP SECTIONS:\n${sectionList}`;
+  }
+}
+
+/**
+ * Extract the text content for a specific section range from the document.
+ * Returns only the text relevant to the chunk, not the full document.
+ */
+function extractSectionText(
+  fullText: string,
+  chunk: ExtractionChunk,
+  candidates: RequirementCandidate[]
+): string {
+  // Find all candidates within this chunk's section range
+  const chunkCandidates = candidates.filter(c => {
+    const section = c.sectionNumber;
+    return compareSectionNumbers(section, chunk.startSection) >= 0 &&
+           compareSectionNumbers(section, chunk.endSection) <= 0;
+  });
+
+  if (chunkCandidates.length === 0) {
+    // Fallback: try to find section boundaries in text
+    const startPattern = new RegExp(`(^|\\n)\\s*${chunk.startSection.replace('.', '\\.')}[.\\s]`, 'm');
+    const endPattern = new RegExp(`(^|\\n)\\s*${chunk.endSection.replace('.', '\\.')}[.\\s]`, 'm');
+
+    const startMatch = fullText.match(startPattern);
+    const endMatch = fullText.match(endPattern);
+
+    if (startMatch && startMatch.index !== undefined) {
+      const startIdx = startMatch.index;
+      // Find next major section after end section
+      const afterEnd = fullText.substring(endMatch?.index || startIdx);
+      const nextSectionMatch = afterEnd.match(/\n\s*\d+\.\d+\s/);
+      const endIdx = nextSectionMatch
+        ? (endMatch?.index || startIdx) + (nextSectionMatch.index || afterEnd.length)
+        : Math.min(startIdx + 50000, fullText.length);
+
+      return fullText.substring(startIdx, endIdx);
+    }
+
+    return ''; // Could not find section
+  }
+
+  // Get text range from first to last candidate, with some buffer
+  const firstCandidate = chunkCandidates[0];
+  const lastCandidate = chunkCandidates[chunkCandidates.length - 1];
+
+  // Add buffer before first candidate (to get section header)
+  const startIdx = Math.max(0, firstCandidate.startIndex - 200);
+  // Add buffer after last candidate
+  const endIdx = Math.min(fullText.length, lastCandidate.endIndex + 500);
+
+  return fullText.substring(startIdx, endIdx);
+}
+
+/**
+ * Create extraction prompt with document summary for context.
+ */
+function createScopedPrompt(chunk: ExtractionChunk, documentSummary: string): string {
+  const contextAndScope = `
 
 ═══════════════════════════════════════════════════════════════════════════════
-                            EXTRACTION SCOPE
+                         DOCUMENT CONTEXT
 ═══════════════════════════════════════════════════════════════════════════════
 
-For this extraction pass, extract ONLY requirements from sections ${chunk.startSection} through ${chunk.endSection}.
+${documentSummary}
 
-INCLUDE: All subsections within this range
-  Examples: ${chunk.startSection}, ${chunk.startSection}.1, ${chunk.startSection}.2, ... ${chunk.endSection}, ${chunk.endSection}.1, etc.
+═══════════════════════════════════════════════════════════════════════════════
+                         EXTRACTION SCOPE
+═══════════════════════════════════════════════════════════════════════════════
 
-SKIP: All sections OUTSIDE this range - they will be extracted in separate passes.
-  Do NOT extract sections before ${chunk.startSection} or after ${chunk.endSection}.
+Extract ALL requirements from sections ${chunk.startSection} through ${chunk.endSection}.
+The section text below contains ONLY these sections - extract every requirement you find.
 
-The FULL document is provided so you understand the overall context and can make
-accurate classification decisions. However, ONLY output requirements whose section
-numbers fall within ${chunk.startSection} to ${chunk.endSection} (inclusive of subsections).
-
-If a section number is ambiguous, include it if it could reasonably be within the range.
+Use the document context above to help classify requirements correctly:
+- Understand the overall RFP purpose
+- Recognize section patterns (e.g., capability questions vs pricing vs references)
+- Apply appropriate type classification based on context
 `;
 
-  return EXTRACTION_PROMPT + scopeInstruction;
+  return EXTRACTION_PROMPT + contextAndScope;
 }
 
 /**
  * Extract requirements from a specific section range.
- * Sends full document for context, but only extracts scoped sections.
+ * Uses document summary for context + only the relevant section text (not full doc).
  */
 async function extractSectionRange(
-  fullDocument: string,
+  sectionText: string,
   chunk: ExtractionChunk,
+  documentSummary: string,
   majorSections: Map<string, { number: string; title: string }>
 ): Promise<ExtractedRequirement[]> {
-  console.log(`[fullContext] Extracting sections ${chunk.startSection}-${chunk.endSection} (expected: ${chunk.expectedCount} reqs)`);
+  console.log(`[fullContext] Extracting sections ${chunk.startSection}-${chunk.endSection} (expected: ${chunk.expectedCount} reqs, ${sectionText.length} chars)`);
   const startTime = Date.now();
 
   try {
-    const scopedPrompt = createScopedPrompt(chunk);
+    const scopedPrompt = createScopedPrompt(chunk, documentSummary);
 
     const response = await withRetry(
       () => openai.chat.completions.create({
@@ -1441,14 +1550,14 @@ async function extractSectionRange(
           { role: "system", content: scopedPrompt },
           {
             role: "user",
-            content: `Extract requirements ONLY from sections ${chunk.startSection} through ${chunk.endSection}:\n\n${fullDocument}`,
+            content: `Extract all requirements from this section text:\n\n${sectionText}`,
           },
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
         max_tokens: 16000,
       }),
-      { timeout: 90000 } // 90 seconds per chunk
+      { timeout: 60000 } // 60 seconds per chunk (reduced since input is smaller)
     );
 
     const content = response.choices[0]?.message?.content;
@@ -1525,10 +1634,13 @@ async function extractSectionRange(
 
 /**
  * Extract all chunks with concurrency control.
+ * Uses document summary + section text (not full document) for each chunk.
  */
 async function extractChunksWithConcurrency(
-  fullDocument: string,
+  fullText: string,
   chunks: ExtractionChunk[],
+  documentSummary: string,
+  candidates: RequirementCandidate[],
   majorSections: Map<string, { number: string; title: string }>,
   concurrency: number = 3
 ): Promise<ExtractedRequirement[][]> {
@@ -1543,7 +1655,10 @@ async function extractChunksWithConcurrency(
         const chunk = chunks[index];
         inFlight++;
 
-        extractSectionRange(fullDocument, chunk, majorSections)
+        // Extract only the relevant section text for this chunk
+        const sectionText = extractSectionText(fullText, chunk, candidates);
+
+        extractSectionRange(sectionText, chunk, documentSummary, majorSections)
           .then(reqs => {
             results[index] = reqs;
           })
@@ -1595,8 +1710,8 @@ function deduplicateRequirementsBySection(
 /**
  * Full-context extraction for large documents.
  *
- * Sends the full document to the LLM each time (for context),
- * but asks it to extract only specific section ranges (to fit output limits).
+ * Uses a document summary for context + section-specific text for each chunk.
+ * This keeps each API call small and fast while preserving context.
  */
 async function extractRequirementsFullContext(
   sanitizedText: string
@@ -1615,25 +1730,33 @@ async function extractRequirementsFullContext(
     return extractRequirementsSinglePass(sanitizedText);
   }
 
-  // Step 2: Plan extraction chunks
-  console.log(`[fullContext] Step 2: Planning extraction chunks...`);
+  // Step 2: Generate document summary for context
+  console.log(`[fullContext] Step 2: Generating document summary...`);
+  const summaryStart = Date.now();
+  const documentSummary = await generateDocumentSummary(sanitizedText, heuristicResult.majorSections);
+  console.log(`[fullContext] Summary generated in ${Date.now() - summaryStart}ms`);
+
+  // Step 3: Plan extraction chunks
+  console.log(`[fullContext] Step 3: Planning extraction chunks...`);
   const chunks = planExtractionChunks(heuristicResult.candidates, 55);
   console.log(`[fullContext] Planned ${chunks.length} chunks:`,
     chunks.map(c => `${c.startSection}-${c.endSection} (${c.expectedCount})`));
 
-  // Step 3: Extract each chunk with concurrency
-  console.log(`[fullContext] Step 3: Extracting ${chunks.length} chunks (3 concurrent)...`);
+  // Step 4: Extract each chunk with concurrency (summary + section text only)
+  console.log(`[fullContext] Step 4: Extracting ${chunks.length} chunks (3 concurrent, using summary + section text)...`);
   const extractionStart = Date.now();
   const chunkResults = await extractChunksWithConcurrency(
     sanitizedText,
     chunks,
+    documentSummary,
+    heuristicResult.candidates,
     heuristicResult.majorSections,
     3
   );
   console.log(`[fullContext] Extraction complete in ${Date.now() - extractionStart}ms`);
 
-  // Step 4: Merge and deduplicate
-  console.log(`[fullContext] Step 4: Merging results...`);
+  // Step 5: Merge and deduplicate
+  console.log(`[fullContext] Step 5: Merging results...`);
   const allRequirements = chunkResults.flat();
   const deduplicated = deduplicateRequirementsBySection(allRequirements);
 
