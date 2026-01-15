@@ -1166,6 +1166,16 @@ async function extractRequirementsTwoPhase(
   const heuristicResult = extractCandidatesHeuristically(sanitizedText);
   console.log(`[twoPhase] Phase 1 complete in ${Date.now() - phase1Start}ms: ${heuristicResult.candidates.length} candidates`);
 
+  // Debug: Log first 5 candidates from heuristics
+  console.log(`[twoPhase] First 5 heuristic candidates:`,
+    heuristicResult.candidates.slice(0, 5).map(c => ({
+      section: c.sectionNumber,
+      major: c.majorSection,
+      textPreview: c.rawText.substring(0, 50)
+    })));
+  console.log(`[twoPhase] Major sections detected:`,
+    Array.from(heuristicResult.majorSections.entries()).map(([k, v]) => `${k}: ${v.title}`));
+
   if (heuristicResult.candidates.length === 0) {
     console.warn(`[twoPhase] No candidates found, falling back to single-pass`);
     // Fall back to single-pass if heuristics found nothing
