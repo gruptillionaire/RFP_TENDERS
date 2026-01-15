@@ -3,11 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parsePDF } from "@/lib/parsers/pdf";
 import { parseDOCX } from "@/lib/parsers/docx";
-import { extractRequirements } from "@/lib/openai";
 import {
   checkAndIncrementQuota,
   getSingleUseQuotaStatus,
-  checkAndConsumeSingleUseExtraction,
 } from "@/lib/quota";
 import fileType from "file-type";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
@@ -233,91 +231,18 @@ export async function POST(request: Request) {
         fileName,
         fileSize: buffer.length,
         fileType: detectedMime || fileExtension,
+        usingSingleUse,
       },
       request,
     });
 
-    // Perform extraction synchronously
-    // This is more reliable than after() which can timeout on Vercel
-    try {
-      console.log(`[Extraction] Starting for project ${project.id}, text length: ${rawText.length}`);
-      const startTime = Date.now();
-
-      const result = await extractRequirements(rawText);
-      const requirementCount = result.requirements.length;
-
-      console.log(`[Extraction] Completed in ${Date.now() - startTime}ms, found ${requirementCount} requirements`);
-
-      if (requirementCount === 0) {
-        console.error("Extraction returned 0 requirements:", {
-          projectId: project.id,
-          fileName: project.fileName,
-          rawTextLength: rawText.length,
-        });
-        await prisma.project.update({
-          where: { id: project.id },
-          data: { status: "FAILED" },
-        });
-        return NextResponse.json(
-          { error: "No requirements found in document. Please ensure the document contains RFP requirements." },
-          { status: 400 }
-        );
-      }
-
-      // Store requirements
-      await prisma.requirement.createMany({
-        data: result.requirements.map((req, index) => ({
-          projectId: project.id,
-          text: req.text,
-          section: req.section,
-          sectionGroup: req.sectionGroup,
-          isMandatory: req.isMandatory,
-          type: req.type,
-          domainContext: req.domainContext || "FEATURE",
-          requiresReview: req.domainContext === "LEGAL",
-          wordLimit: req.wordLimit,
-          characterLimit: req.characterLimit,
-          isAttestation: req.isAttestation || false,
-          status: "UNANSWERED",
-          order: index,
-        })),
-      });
-
-      // Update project status to READY
-      await prisma.project.update({
-        where: { id: project.id },
-        data: {
-          status: "READY",
-          deadline: result.deadline ? new Date(result.deadline) : null,
-          deadlineText: result.deadlineText,
-        },
-      });
-
-      // Consume quota on successful extraction
-      if (usingSingleUse) {
-        await checkAndConsumeSingleUseExtraction(session.user.id);
-      } else {
-        await checkAndIncrementQuota(session.user.id, true);
-      }
-
-      // Return success with READY status
-      return NextResponse.json({
-        id: project.id,
-        name: project.name,
-        status: "READY",
-        requirementCount,
-      });
-    } catch (extractionError) {
-      console.error("Extraction failed:", extractionError);
-      await prisma.project.update({
-        where: { id: project.id },
-        data: { status: "FAILED" },
-      });
-      return NextResponse.json(
-        { error: "Failed to extract requirements. Please try again or use a different file." },
-        { status: 500 }
-      );
-    }
+    // Return immediately with PROCESSING status
+    // Extraction will be triggered by the frontend calling /api/projects/[id]/extract
+    return NextResponse.json({
+      id: project.id,
+      name: project.name,
+      status: "PROCESSING",
+    });
   } catch (error) {
     console.error("Project creation error:", error);
     return NextResponse.json(

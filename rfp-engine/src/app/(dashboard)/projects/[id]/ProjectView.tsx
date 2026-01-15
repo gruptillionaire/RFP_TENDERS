@@ -112,7 +112,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   );
   const [isWeightsSaving, setIsWeightsSaving] = useState(false);
 
-  // Poll for updates if processing - with exponential backoff
+  // Trigger extraction and poll for updates when status is PROCESSING
   useEffect(() => {
     if (project.status !== "PROCESSING") {
       return;
@@ -120,16 +120,63 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
 
     let retryCount = 0;
     let timeoutId: NodeJS.Timeout;
+    let extractionTriggered = false;
     const abortController = new AbortController();
-    const MAX_RETRIES = 30; // ~3-4 minutes with backoff
+    const MAX_RETRIES = 60; // ~10 minutes with backoff (extraction can take up to 5 mins)
 
+    // Trigger extraction - this runs in a separate request with 5-minute timeout
+    const triggerExtraction = async () => {
+      if (extractionTriggered) return;
+      extractionTriggered = true;
+
+      try {
+        console.log("[ProjectView] Triggering extraction...");
+        const res = await fetch(`/api/projects/${project.id}/extract`, {
+          method: "POST",
+          signal: abortController.signal,
+        });
+
+        if (abortController.signal.aborted) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          console.log("[ProjectView] Extraction complete:", data);
+          // Fetch fresh project data after extraction
+          const projectRes = await fetch(`/api/projects/${project.id}`, {
+            signal: abortController.signal,
+          });
+          if (projectRes.ok) {
+            const projectData = await projectRes.json();
+            setProject(projectData);
+            setRequirements(projectData.requirements || []);
+          }
+        } else {
+          console.error("[ProjectView] Extraction failed:", res.status);
+          // Fetch project to get updated status (likely FAILED)
+          const projectRes = await fetch(`/api/projects/${project.id}`, {
+            signal: abortController.signal,
+          });
+          if (projectRes.ok) {
+            const projectData = await projectRes.json();
+            setProject(projectData);
+            setRequirements(projectData.requirements || []);
+          }
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        console.error("[ProjectView] Extraction error:", err);
+      }
+    };
+
+    // Poll for updates (in case extraction completes via another mechanism)
     const poll = async () => {
       try {
         const res = await fetch(`/api/projects/${project.id}`, {
           signal: abortController.signal,
         });
 
-        // Guard against state updates after abort
         if (abortController.signal.aborted) return;
 
         if (!res.ok) {
@@ -143,7 +190,6 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
           }
         }
       } catch (err) {
-        // Cleanup triggered - exit gracefully
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
@@ -157,13 +203,16 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
         return;
       }
 
-      // Exponential backoff: 2s, 3s, 4.5s, 6.75s... capped at 10s
-      const delay = Math.min(2000 * Math.pow(1.5, retryCount - 1), 10000);
+      // Exponential backoff: 3s, 4.5s, 6.75s... capped at 15s
+      const delay = Math.min(3000 * Math.pow(1.5, retryCount - 1), 15000);
       timeoutId = setTimeout(poll, delay);
     };
 
-    // Initial poll after 2 seconds
-    timeoutId = setTimeout(poll, 2000);
+    // Trigger extraction immediately
+    triggerExtraction();
+
+    // Also start polling after a short delay (as a fallback)
+    timeoutId = setTimeout(poll, 5000);
 
     return () => {
       abortController.abort();
