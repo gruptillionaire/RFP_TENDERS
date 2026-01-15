@@ -25,15 +25,22 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  console.log("[Extract] === Request received ===");
+
   try {
+    console.log("[Extract] Checking auth...");
     const session = await auth();
+    console.log("[Extract] Auth complete, user:", session?.user?.id ? "authenticated" : "not authenticated");
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("[Extract] Getting params...");
     const { id } = await params;
+    console.log("[Extract] Project ID:", id);
 
     // Fetch project with ownership check
+    console.log("[Extract] Fetching project from database...");
     const project = await prisma.project.findFirst({
       where: {
         id,
@@ -47,6 +54,7 @@ export async function POST(
         isSingleUseProject: true,
       },
     });
+    console.log("[Extract] Project fetched:", project ? `status=${project.status}, textLength=${project.rawText?.length}` : "not found");
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
