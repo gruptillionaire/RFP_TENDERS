@@ -118,9 +118,15 @@ function detectMajorSectionsByRequirementNumbers(text: string): number[] {
     // When the major number changes, it's a section boundary
     if (majorNumber !== lastMajorNumber && lastMajorNumber !== -1) {
       // Find the start of the line containing this match for cleaner splits
+      // Handle both \n and \r\n line endings (PDFs often have \r\n or mixed)
       let lineStart = match.index;
-      while (lineStart > 0 && text[lineStart - 1] !== '\n') {
+      while (lineStart > 0 && text[lineStart - 1] !== '\n' && text[lineStart - 1] !== '\r') {
         lineStart--;
+      }
+      // If we couldn't find a line break (walked all the way to 0), use match position directly
+      // This prevents all boundaries collapsing to position 0
+      if (lineStart === 0 && match.index > 100) {
+        lineStart = match.index;
       }
       boundaries.push(lineStart);
     }
@@ -129,6 +135,29 @@ function detectMajorSectionsByRequirementNumbers(text: string): number[] {
 
   console.log(`[section-chunker] Scanned ${matchCount} requirement patterns, found ${boundaries.length} major section transitions`);
   return boundaries;
+}
+
+/**
+ * Check if boundaries are valid (not all clustered at the same positions).
+ * Returns true if boundaries are usable for chunking.
+ */
+function areBoundariesValid(boundaries: number[]): boolean {
+  if (boundaries.length < 2) return false;
+
+  // Count unique positions
+  const uniquePositions = new Set(boundaries);
+
+  // If more than 50% of boundaries are at the same position, they're broken
+  const maxDuplicates = Math.floor(boundaries.length / 2);
+  for (const pos of uniquePositions) {
+    const count = boundaries.filter(b => b === pos).length;
+    if (count > maxDuplicates) {
+      console.log(`[section-chunker] Boundaries invalid: ${count}/${boundaries.length} at position ${pos}`);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 // =============================================================================
@@ -337,12 +366,20 @@ function createChunksByRequirementBoundaries(text: string): SectionChunk[] {
     return [];
   }
 
-  console.log(`[section-chunker] Found ${boundaries.length} requirement boundaries at positions:`, boundaries.slice(0, 5));
+  // Validate that boundaries are actually useful (not all at position 0)
+  if (!areBoundariesValid(boundaries)) {
+    console.log(`[section-chunker] Requirement boundaries are invalid, skipping`);
+    return [];
+  }
+
+  // Deduplicate and sort boundaries
+  const uniqueBoundaries = [...new Set(boundaries)].sort((a, b) => a - b);
+  console.log(`[section-chunker] Found ${uniqueBoundaries.length} valid unique boundaries at positions:`, uniqueBoundaries.slice(0, 5));
 
   const chunks: SectionChunk[] = [];
 
   // Add start boundary
-  const allBoundaries = [0, ...boundaries, text.length];
+  const allBoundaries = [0, ...uniqueBoundaries, text.length];
 
   for (let i = 0; i < allBoundaries.length - 1; i++) {
     const startIndex = allBoundaries[i];
