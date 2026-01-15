@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parsePDF } from "@/lib/parsers/pdf";
@@ -237,75 +237,87 @@ export async function POST(request: Request) {
       request,
     });
 
-    // Use after() to ensure extraction completes even after response is sent
-    // This prevents Vercel from killing the function before extraction finishes
-    after(async () => {
-      try {
-        const result = await extractRequirements(rawText);
-        const requirementCount = result.requirements.length;
+    // Perform extraction synchronously
+    // This is more reliable than after() which can timeout on Vercel
+    try {
+      console.log(`[Extraction] Starting for project ${project.id}, text length: ${rawText.length}`);
+      const startTime = Date.now();
 
-        if (requirementCount === 0) {
-          console.error("Extraction returned 0 requirements:", {
-            projectId: project.id,
-            fileName: project.fileName,
-            rawTextLength: rawText.length,
-          });
-          await prisma.project.update({
-            where: { id: project.id },
-            data: { status: "FAILED" },
-          });
-          return;
-        }
+      const result = await extractRequirements(rawText);
+      const requirementCount = result.requirements.length;
 
-        // Store requirements
-        await prisma.requirement.createMany({
-          data: result.requirements.map((req, index) => ({
-            projectId: project.id,
-            text: req.text,
-            section: req.section,
-            sectionGroup: req.sectionGroup,
-            isMandatory: req.isMandatory,
-            type: req.type,
-            domainContext: req.domainContext || "FEATURE",
-            requiresReview: req.domainContext === "LEGAL",
-            wordLimit: req.wordLimit,
-            characterLimit: req.characterLimit,
-            isAttestation: req.isAttestation || false,
-            status: "UNANSWERED",
-            order: index,
-          })),
+      console.log(`[Extraction] Completed in ${Date.now() - startTime}ms, found ${requirementCount} requirements`);
+
+      if (requirementCount === 0) {
+        console.error("Extraction returned 0 requirements:", {
+          projectId: project.id,
+          fileName: project.fileName,
+          rawTextLength: rawText.length,
         });
-
-        // Update project status to READY
-        await prisma.project.update({
-          where: { id: project.id },
-          data: {
-            status: "READY",
-            deadline: result.deadline ? new Date(result.deadline) : null,
-            deadlineText: result.deadlineText,
-          },
-        });
-
-        // Consume quota on successful extraction
-        if (usingSingleUse) {
-          await checkAndConsumeSingleUseExtraction(session.user.id);
-        } else {
-          await checkAndIncrementQuota(session.user.id, true);
-        }
-      } catch (error) {
-        console.error("Extraction failed:", error);
         await prisma.project.update({
           where: { id: project.id },
           data: { status: "FAILED" },
         });
+        return NextResponse.json(
+          { error: "No requirements found in document. Please ensure the document contains RFP requirements." },
+          { status: 400 }
+        );
       }
-    });
 
-    return NextResponse.json({
-      id: project.id,
-      name: project.name,
-      status: project.status,
-    });
+      // Store requirements
+      await prisma.requirement.createMany({
+        data: result.requirements.map((req, index) => ({
+          projectId: project.id,
+          text: req.text,
+          section: req.section,
+          sectionGroup: req.sectionGroup,
+          isMandatory: req.isMandatory,
+          type: req.type,
+          domainContext: req.domainContext || "FEATURE",
+          requiresReview: req.domainContext === "LEGAL",
+          wordLimit: req.wordLimit,
+          characterLimit: req.characterLimit,
+          isAttestation: req.isAttestation || false,
+          status: "UNANSWERED",
+          order: index,
+        })),
+      });
+
+      // Update project status to READY
+      await prisma.project.update({
+        where: { id: project.id },
+        data: {
+          status: "READY",
+          deadline: result.deadline ? new Date(result.deadline) : null,
+          deadlineText: result.deadlineText,
+        },
+      });
+
+      // Consume quota on successful extraction
+      if (usingSingleUse) {
+        await checkAndConsumeSingleUseExtraction(session.user.id);
+      } else {
+        await checkAndIncrementQuota(session.user.id, true);
+      }
+
+      // Return success with READY status
+      return NextResponse.json({
+        id: project.id,
+        name: project.name,
+        status: "READY",
+        requirementCount,
+      });
+    } catch (extractionError) {
+      console.error("Extraction failed:", extractionError);
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { status: "FAILED" },
+      });
+      return NextResponse.json(
+        { error: "Failed to extract requirements. Please try again or use a different file." },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error("Project creation error:", error);
     return NextResponse.json(

@@ -1,4 +1,12 @@
 {
+  "functions": {
+    "src/app/api/projects/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/requirements/route.ts": {
+      "maxDuration": 120
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/deadline-reminders",
