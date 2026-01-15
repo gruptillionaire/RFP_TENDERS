@@ -33,7 +33,8 @@
       "Bash(grep:*)",
       "WebFetch(domain:www.npmjs.com)",
       "Bash(curl:*)",
-      "Bash(npx prisma migrate dev:*)"
+      "Bash(npx prisma migrate dev:*)",
+      "mcp__rfp-extraction__extract_pdf"
     ]
   }
 }
