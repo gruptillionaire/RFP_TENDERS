@@ -132,12 +132,12 @@ export function clearCookieConsent(): void {
 /**
  * Initialize analytics if consent is given
  * Call this after consent is obtained
+ *
+ * Note: Vercel Analytics is privacy-focused and doesn't require cookies,
+ * so it works automatically without needing consent-based initialization.
+ * This function is kept for API compatibility with CookieConsent component.
  */
 export function initializeAnalyticsIfConsented(): void {
-  if (isCookieCategoryAllowed("analytics")) {
-    // Dynamically import PostHog to avoid loading it unnecessarily
-    import("@/lib/posthog").then(({ initPostHog }) => {
-      initPostHog();
-    });
-  }
+  // Vercel Analytics doesn't need manual initialization - it's automatic
+  // This function is kept as a no-op for backwards compatibility
 }
