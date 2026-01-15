@@ -1177,10 +1177,12 @@ async function extractRequirementsTwoPhase(
     Array.from(heuristicResult.majorSections.entries()).map(([k, v]) => `${k}: ${v.title}`));
 
   if (heuristicResult.candidates.length === 0) {
-    console.warn(`[twoPhase] No candidates found, falling back to single-pass`);
+    console.warn(`[twoPhase] *** CRITICAL: No candidates found, falling back to single-pass ***`);
+    console.warn(`[twoPhase] Text length: ${sanitizedText.length}, first 500 chars:`, sanitizedText.substring(0, 500));
     // Fall back to single-pass if heuristics found nothing
     return extractRequirementsSinglePass(sanitizedText);
   }
+  console.log(`[twoPhase] *** USING HEURISTIC EXTRACTION with ${heuristicResult.candidates.length} candidates ***`);
 
   // Phase 2: One-by-one classification with full EXTRACTION_PROMPT
   console.log(`[twoPhase] Phase 2: One-by-one classification (${heuristicResult.candidates.length} candidates, 50 concurrent)...`);
@@ -2128,7 +2130,13 @@ export async function extractRequirements(documentText: string): Promise<Extract
   }
 
   // Small documents or failed section detection: use single-pass extraction
-  console.log("[extractRequirements] Using SINGLE-PASS extraction");
+  console.log("[extractRequirements] *** USING SINGLE-PASS extraction (wasChunked=false) ***");
+  console.log("[extractRequirements] Document size:", truncatedText.length, "chars, chunkResult:", {
+    documentType: chunkResult.documentType,
+    estimatedTokens: chunkResult.estimatedTokens,
+    wasChunked: chunkResult.wasChunked,
+    chunkingMethod: chunkResult.chunkingMethod
+  });
   console.log("[extractRequirements] Step 4: Calling OpenAI API...");
   const startOpenAI = Date.now();
   const response = await withRetry(
