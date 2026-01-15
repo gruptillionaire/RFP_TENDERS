@@ -117,7 +117,9 @@ async function withRetry<T>(
 // v3: Added hierarchical section handling, concatenation splitting, list preservation
 // v4: Added section number formatting rules, end-of-document extraction emphasis
 // v5: Two-phase extraction for large documents (heuristics + classification)
-const EXTRACTION_VERSION = "v7"; // Bumped for preprocessor X.Y.Z fix
+// v6-v7: Various fixes and improvements
+// v8: MAJOR - Full-context scoped-output extraction (sends full doc, extracts by section range)
+const EXTRACTION_VERSION = "v8";
 
 interface CacheEntry<T> {
   result: T;
@@ -1230,6 +1232,447 @@ async function extractRequirementsTwoPhase(
 }
 
 // =============================================================================
+// FULL-CONTEXT SCOPED-OUTPUT EXTRACTION
+// =============================================================================
+//
+// This approach sends the FULL document to the LLM every time (preserving context),
+// but asks it to extract only a SUBSET of sections per call (fitting output limits).
+//
+// Benefits:
+// - LLM sees entire document context (knows it's a WCMS RFP, understands patterns)
+// - Each call outputs ~50 requirements (fits in 16K output limit)
+// - 3x more token efficient than one-by-one classification
+// - Same quality as single-pass extraction
+//
+// =============================================================================
+
+interface ExtractionChunk {
+  /** First section in range: "3.1" */
+  startSection: string;
+  /** Last section in range: "3.5" */
+  endSection: string;
+  /** Expected requirement count from heuristics */
+  expectedCount: number;
+  /** All subsections in this chunk */
+  sections: string[];
+}
+
+/**
+ * Compare two section numbers for sorting.
+ * Handles formats like "3.1.2", "A.1", "10.2.1"
+ */
+function compareSectionNumbers(a: string | null, b: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const partsA = a.split('.').map(p => {
+    const num = parseInt(p, 10);
+    return isNaN(num) ? p.charCodeAt(0) : num;
+  });
+  const partsB = b.split('.').map(p => {
+    const num = parseInt(p, 10);
+    return isNaN(num) ? p.charCodeAt(0) : num;
+  });
+
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const valA = partsA[i] ?? 0;
+    const valB = partsB[i] ?? 0;
+    if (valA < valB) return -1;
+    if (valA > valB) return 1;
+  }
+  return 0;
+}
+
+/**
+ * Get the parent subsection from a section number.
+ * "3.1.2" -> "3.1", "3.1" -> "3", "3" -> "3"
+ */
+function getParentSection(section: string): string {
+  const parts = section.split('.');
+  if (parts.length <= 1) return section;
+  return parts.slice(0, -1).join('.');
+}
+
+/**
+ * Get the subsection level (e.g., "3.1" -> "3.1", "3.1.2" -> "3.1")
+ * Used for grouping requirements into chunks.
+ */
+function getSubsectionKey(section: string): string {
+  const parts = section.split('.');
+  // Return first two levels (e.g., "3.1" from "3.1.2" or "3.1.5")
+  return parts.slice(0, 2).join('.');
+}
+
+/**
+ * Plan extraction chunks based on heuristic candidates.
+ * Groups sections into chunks of ~targetSize requirements each.
+ */
+function planExtractionChunks(
+  candidates: RequirementCandidate[],
+  targetSize: number = 55
+): ExtractionChunk[] {
+  if (candidates.length === 0) return [];
+
+  // Sort candidates by section number
+  const sorted = [...candidates].sort((a, b) =>
+    compareSectionNumbers(a.sectionNumber, b.sectionNumber)
+  );
+
+  // Group by subsection (3.1, 3.2, etc.)
+  const bySubsection = new Map<string, RequirementCandidate[]>();
+  for (const candidate of sorted) {
+    const key = getSubsectionKey(candidate.sectionNumber);
+    if (!bySubsection.has(key)) {
+      bySubsection.set(key, []);
+    }
+    bySubsection.get(key)!.push(candidate);
+  }
+
+  // Get sorted subsection keys
+  const subsectionKeys = Array.from(bySubsection.keys()).sort(compareSectionNumbers);
+
+  // Build chunks
+  const chunks: ExtractionChunk[] = [];
+  let currentChunk: { sections: string[]; count: number } = { sections: [], count: 0 };
+
+  for (const key of subsectionKeys) {
+    const subsectionCandidates = bySubsection.get(key)!;
+    const count = subsectionCandidates.length;
+
+    // If this single subsection is too large, it becomes its own chunk
+    if (count >= targetSize * 0.8) {
+      // Save current chunk if non-empty
+      if (currentChunk.sections.length > 0) {
+        chunks.push({
+          startSection: currentChunk.sections[0],
+          endSection: currentChunk.sections[currentChunk.sections.length - 1],
+          expectedCount: currentChunk.count,
+          sections: currentChunk.sections,
+        });
+        currentChunk = { sections: [], count: 0 };
+      }
+      // Add large subsection as its own chunk
+      chunks.push({
+        startSection: key,
+        endSection: key,
+        expectedCount: count,
+        sections: [key],
+      });
+      continue;
+    }
+
+    // If adding this subsection would exceed target, start new chunk
+    if (currentChunk.count + count > targetSize && currentChunk.sections.length > 0) {
+      chunks.push({
+        startSection: currentChunk.sections[0],
+        endSection: currentChunk.sections[currentChunk.sections.length - 1],
+        expectedCount: currentChunk.count,
+        sections: currentChunk.sections,
+      });
+      currentChunk = { sections: [], count: 0 };
+    }
+
+    // Add to current chunk
+    currentChunk.sections.push(key);
+    currentChunk.count += count;
+  }
+
+  // Don't forget the last chunk
+  if (currentChunk.sections.length > 0) {
+    chunks.push({
+      startSection: currentChunk.sections[0],
+      endSection: currentChunk.sections[currentChunk.sections.length - 1],
+      expectedCount: currentChunk.count,
+      sections: currentChunk.sections,
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Create extraction prompt with scope instruction.
+ */
+function createScopedPrompt(chunk: ExtractionChunk): string {
+  const scopeInstruction = `
+
+═══════════════════════════════════════════════════════════════════════════════
+                            EXTRACTION SCOPE
+═══════════════════════════════════════════════════════════════════════════════
+
+For this extraction pass, extract ONLY requirements from sections ${chunk.startSection} through ${chunk.endSection}.
+
+INCLUDE: All subsections within this range
+  Examples: ${chunk.startSection}, ${chunk.startSection}.1, ${chunk.startSection}.2, ... ${chunk.endSection}, ${chunk.endSection}.1, etc.
+
+SKIP: All sections OUTSIDE this range - they will be extracted in separate passes.
+  Do NOT extract sections before ${chunk.startSection} or after ${chunk.endSection}.
+
+The FULL document is provided so you understand the overall context and can make
+accurate classification decisions. However, ONLY output requirements whose section
+numbers fall within ${chunk.startSection} to ${chunk.endSection} (inclusive of subsections).
+
+If a section number is ambiguous, include it if it could reasonably be within the range.
+`;
+
+  return EXTRACTION_PROMPT + scopeInstruction;
+}
+
+/**
+ * Extract requirements from a specific section range.
+ * Sends full document for context, but only extracts scoped sections.
+ */
+async function extractSectionRange(
+  fullDocument: string,
+  chunk: ExtractionChunk,
+  majorSections: Map<string, { number: string; title: string }>
+): Promise<ExtractedRequirement[]> {
+  console.log(`[fullContext] Extracting sections ${chunk.startSection}-${chunk.endSection} (expected: ${chunk.expectedCount} reqs)`);
+  const startTime = Date.now();
+
+  try {
+    const scopedPrompt = createScopedPrompt(chunk);
+
+    const response = await withRetry(
+      () => openai.chat.completions.create({
+        model: MODELS.EXTRACTION,
+        messages: [
+          { role: "system", content: scopedPrompt },
+          {
+            role: "user",
+            content: `Extract requirements ONLY from sections ${chunk.startSection} through ${chunk.endSection}:\n\n${fullDocument}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 16000,
+      }),
+      { timeout: 90000 } // 90 seconds per chunk
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.warn(`[fullContext] No response for chunk ${chunk.startSection}-${chunk.endSection}`);
+      return [];
+    }
+
+    // Check for truncation
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseError) {
+      console.error(`[fullContext] JSON parse error for chunk ${chunk.startSection}-${chunk.endSection} - likely truncated`);
+      console.error(`[fullContext] Content ends with: ...${content.slice(-200)}`);
+      // Try to salvage partial data
+      const partialMatch = content.match(/^\s*\{\s*"requirements"\s*:\s*\[([\s\S]*)\]/);
+      if (partialMatch) {
+        try {
+          const salvaged = JSON.parse(`{"requirements":[${partialMatch[1]}]}`);
+          parsed = salvaged;
+          console.warn(`[fullContext] Salvaged ${salvaged.requirements?.length || 0} requirements from truncated response`);
+        } catch {
+          return [];
+        }
+      } else {
+        return [];
+      }
+    }
+
+    if (!parsed.requirements || !Array.isArray(parsed.requirements)) {
+      console.warn(`[fullContext] No requirements array in response for chunk ${chunk.startSection}-${chunk.endSection}`);
+      return [];
+    }
+
+    // Process requirements
+    const requirements: ExtractedRequirement[] = parsed.requirements.map((req: ExtractedRequirement) => {
+      // Get sectionGroup from major sections
+      const majorNum = req.section?.split('.')[0] || '';
+      const majorSection = majorSections.get(majorNum);
+      const sectionGroup = majorSection
+        ? `${majorSection.number}: ${majorSection.title}`
+        : null;
+
+      return {
+        section: req.section || null,
+        sectionGroup,
+        text: typeof req.text === 'string' ? req.text : '',
+        type: correctQuantitativeType(req.text || '', validateRequirementType(req.type)),
+        isMandatory: req.isMandatory !== false,
+        domainContext: req.domainContext
+          ? validateDomainContext(req.domainContext) || detectDomainContext(req.text || '')
+          : detectDomainContext(req.text || ''),
+        wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
+        characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
+        isAttestation: req.isAttestation === true,
+      };
+    });
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[fullContext] Chunk ${chunk.startSection}-${chunk.endSection} complete: ${requirements.length} reqs in ${elapsed}ms`);
+
+    // Warn if significantly fewer than expected
+    if (requirements.length < chunk.expectedCount * 0.5) {
+      console.warn(`[fullContext] WARNING: Got ${requirements.length} reqs, expected ~${chunk.expectedCount}. Possible truncation or scope issue.`);
+    }
+
+    return requirements;
+  } catch (error) {
+    console.error(`[fullContext] Failed to extract chunk ${chunk.startSection}-${chunk.endSection}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Extract all chunks with concurrency control.
+ */
+async function extractChunksWithConcurrency(
+  fullDocument: string,
+  chunks: ExtractionChunk[],
+  majorSections: Map<string, { number: string; title: string }>,
+  concurrency: number = 3
+): Promise<ExtractedRequirement[][]> {
+  const results: ExtractedRequirement[][] = new Array(chunks.length);
+  let nextIndex = 0;
+  let inFlight = 0;
+
+  return new Promise((resolve, reject) => {
+    const startNext = () => {
+      while (inFlight < concurrency && nextIndex < chunks.length) {
+        const index = nextIndex++;
+        const chunk = chunks[index];
+        inFlight++;
+
+        extractSectionRange(fullDocument, chunk, majorSections)
+          .then(reqs => {
+            results[index] = reqs;
+          })
+          .catch(err => {
+            console.error(`[fullContext] Chunk ${index} failed:`, err);
+            results[index] = [];
+          })
+          .finally(() => {
+            inFlight--;
+            if (nextIndex < chunks.length) {
+              startNext();
+            } else if (inFlight === 0) {
+              resolve(results);
+            }
+          });
+      }
+    };
+
+    startNext();
+
+    // Handle edge case of empty chunks array
+    if (chunks.length === 0) {
+      resolve([]);
+    }
+  });
+}
+
+/**
+ * Deduplicate requirements by section number.
+ */
+function deduplicateRequirementsBySection(
+  allRequirements: ExtractedRequirement[]
+): ExtractedRequirement[] {
+  const seen = new Map<string, ExtractedRequirement>();
+
+  for (const req of allRequirements) {
+    // Use section number as primary key, fall back to text prefix
+    const key = req.section || req.text.substring(0, 100);
+    if (!seen.has(key)) {
+      seen.set(key, req);
+    }
+  }
+
+  return Array.from(seen.values()).sort((a, b) =>
+    compareSectionNumbers(a.section, b.section)
+  );
+}
+
+/**
+ * Full-context extraction for large documents.
+ *
+ * Sends the full document to the LLM each time (for context),
+ * but asks it to extract only specific section ranges (to fit output limits).
+ */
+async function extractRequirementsFullContext(
+  sanitizedText: string
+): Promise<ExtractionResult> {
+  console.log(`[fullContext] Starting full-context extraction on ${sanitizedText.length} chars`);
+  const startTime = Date.now();
+
+  // Step 1: Heuristic scan to find all section numbers
+  console.log(`[fullContext] Step 1: Heuristic scan...`);
+  const heuristicStart = Date.now();
+  const heuristicResult = extractCandidatesHeuristically(sanitizedText);
+  console.log(`[fullContext] Heuristic scan complete in ${Date.now() - heuristicStart}ms: ${heuristicResult.candidates.length} candidates`);
+
+  if (heuristicResult.candidates.length === 0) {
+    console.warn(`[fullContext] No candidates found, falling back to single-pass`);
+    return extractRequirementsSinglePass(sanitizedText);
+  }
+
+  // Step 2: Plan extraction chunks
+  console.log(`[fullContext] Step 2: Planning extraction chunks...`);
+  const chunks = planExtractionChunks(heuristicResult.candidates, 55);
+  console.log(`[fullContext] Planned ${chunks.length} chunks:`,
+    chunks.map(c => `${c.startSection}-${c.endSection} (${c.expectedCount})`));
+
+  // Step 3: Extract each chunk with concurrency
+  console.log(`[fullContext] Step 3: Extracting ${chunks.length} chunks (3 concurrent)...`);
+  const extractionStart = Date.now();
+  const chunkResults = await extractChunksWithConcurrency(
+    sanitizedText,
+    chunks,
+    heuristicResult.majorSections,
+    3
+  );
+  console.log(`[fullContext] Extraction complete in ${Date.now() - extractionStart}ms`);
+
+  // Step 4: Merge and deduplicate
+  console.log(`[fullContext] Step 4: Merging results...`);
+  const allRequirements = chunkResults.flat();
+  const deduplicated = deduplicateRequirementsBySection(allRequirements);
+
+  // Post-processing
+  try {
+    const processed = splitConcatenatedRequirementsPostProcess(deduplicated);
+    reclassifySectionHeaders(processed);
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[fullContext] Complete in ${elapsed}ms: ${processed.length} requirements`);
+
+    // Log type distribution
+    const typeCount = processed.reduce((acc, r) => {
+      acc[r.type] = (acc[r.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log(`[fullContext] Type distribution:`, typeCount);
+
+    // Extract deadline
+    const deadlineMatch = sanitizedText.match(
+      /(?:deadline|submission date|due date|closing date)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+    );
+
+    return {
+      deadline: deadlineMatch ? deadlineMatch[1] : null,
+      deadlineText: deadlineMatch ? deadlineMatch[0] : null,
+      requirements: processed,
+    };
+  } catch (postProcessError) {
+    console.error(`[fullContext] Post-processing failed:`, postProcessError);
+    return {
+      deadline: null,
+      deadlineText: null,
+      requirements: deduplicated,
+    };
+  }
+}
+
+// =============================================================================
 // DRAFT PROMPTS - Type-specific, RFP-focused (NOT email-style)
 // =============================================================================
 const DRAFT_PROMPT_BASE = `You are writing a formal RFP (Request for Proposal) response.
@@ -2099,16 +2542,17 @@ export async function extractRequirements(documentText: string): Promise<Extract
   const chunkResult = chunkDocumentBySections(truncatedText);
   console.log(`[extractRequirements] Document type: ${chunkResult.documentType}, estimated tokens: ${chunkResult.estimatedTokens}`);
 
-  // Large documents: use TWO-PHASE extraction (heuristics + classification)
-  // This is faster and more accurate than chunked extraction
+  // Large documents: use FULL-CONTEXT SCOPED-OUTPUT extraction
+  // Sends full document for context, but extracts only specific sections per call
+  // This preserves classification quality while fitting within output token limits
   if (chunkResult.wasChunked) {
-    console.log("[extractRequirements] Using TWO-PHASE extraction for large document");
-    const startTwoPhase = Date.now();
-    const result = await extractRequirementsTwoPhase(truncatedText);
-    timings.extraction = Date.now() - startTwoPhase;
+    console.log("[extractRequirements] Using FULL-CONTEXT extraction for large document");
+    const startFullContext = Date.now();
+    const result = await extractRequirementsFullContext(truncatedText);
+    timings.extraction = Date.now() - startFullContext;
     timings.total = Date.now() - startTotal;
 
-    console.log("[extractRequirements] Two-phase extraction complete:", {
+    console.log("[extractRequirements] Full-context extraction complete:", {
       timings,
       totalRequirements: result.requirements.length,
       byType: result.requirements.reduce((acc, req) => {
@@ -2120,7 +2564,7 @@ export async function extractRequirements(documentText: string): Promise<Extract
     // Validate and warn about missing sections
     const validation = validateExtractedSections(truncatedText, result.requirements);
     if (validation.missingCount > 0) {
-      console.warn("[extractRequirements] Missing sections after two-phase extraction:", validation.missingSections);
+      console.warn("[extractRequirements] Missing sections after full-context extraction:", validation.missingSections);
       result.warnings = { ...result.warnings, missingSections: validation.missingSections };
     }
 
