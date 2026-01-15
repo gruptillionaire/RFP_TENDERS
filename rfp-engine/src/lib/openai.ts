@@ -16,6 +16,11 @@ import {
   SectionChunk,
   ChunkingResult,
 } from "./parsers/section-chunker";
+import {
+  extractCandidatesHeuristically,
+  RequirementCandidate,
+  HeuristicExtractionResult,
+} from "./parsers/heuristic-extractor";
 
 // =============================================================================
 // OPENAI RETRY WRAPPER WITH EXPONENTIAL BACKOFF
@@ -111,7 +116,8 @@ async function withRetry<T>(
 // This ensures stale cached results are not returned after prompt updates
 // v3: Added hierarchical section handling, concatenation splitting, list preservation
 // v4: Added section number formatting rules, end-of-document extraction emphasis
-const EXTRACTION_VERSION = "v4";
+// v5: Two-phase extraction for large documents (heuristics + classification)
+const EXTRACTION_VERSION = "v5";
 
 interface CacheEntry<T> {
   result: T;
@@ -886,6 +892,314 @@ b. Title
 c. Email"
 
 Extract ALL requirements from the section below - especially the LAST few items.`;
+
+// =============================================================================
+// CLASSIFICATION PROMPT - For two-phase extraction (classify pre-found candidates)
+// =============================================================================
+/**
+ * Focused prompt for Phase 2 of two-phase extraction.
+ * The LLM's job is ONLY to classify pre-identified candidates, not to find them.
+ * This is much faster and more accurate than hunting + classifying in one pass.
+ */
+const CLASSIFICATION_PROMPT = `You are classifying RFP requirement candidates that have already been identified.
+
+For each candidate, determine:
+1. type - The requirement type (see list below)
+2. isMandatory - true if contains: shall, must, required, mandatory, will, should (in RFP context)
+3. text - Clean the raw text: fix formatting, remove artifacts, preserve lists with newlines
+4. wordLimit - Extract if mentioned (e.g., "maximum 500 words" → 500)
+5. characterLimit - Extract if mentioned
+6. isAttestation - true if it's an attestation/acknowledgment statement
+
+REQUIREMENT TYPES (choose ONE):
+
+STAFFING - Questions about team, personnel, qualifications
+  Triggers: personnel, staff, team, FTE, CV, resume, qualifications, key personnel,
+            project manager, contact person, name and address, email, telephone
+  Examples: "Identify key personnel", "Provide CVs", "Who will be the project lead?"
+
+REFERENCE_BASED - Requests for past work, client contacts, case studies
+  Triggers: reference, client reference, past performance, similar project, case study,
+            track record, previous client, customer contact
+  Examples: "Provide 3 client references", "Describe similar projects completed"
+
+EVIDENCE_BASED - Requests for documents, certificates, attachments
+  Triggers: attach, submit, include, provide copy, certificate, certification, insurance,
+            proof, documentation, evidence, sample, template
+  Examples: "Attach proof of insurance", "Provide ISO certification"
+
+QUANTITATIVE - Requests for specific numbers, prices, percentages
+  Triggers: price, pricing, cost, fee, rate, budget, $, £, €, %, percentage, how much,
+            what is the cost, provide figures
+  Examples: "Provide pricing breakdown", "What is your cost per user?"
+
+PROCEDURAL - Yes/no compliance questions
+  Triggers: do you, does your, can you, will you, please confirm, are you able,
+            is your system, can your solution
+  Examples: "Does your system support SSO?", "Can you confirm compliance?"
+
+DECLARATIVE - Attestations, acknowledgments, agreements
+  Triggers: by submitting, acknowledges, agrees, certifies, attests, understands,
+            declaration, warrant
+  Examples: "By submitting, bidder acknowledges...", "The respondent certifies..."
+  Note: Set isAttestation: true for these
+
+DESCRIPTIVE - Requests to explain, describe, outline approach
+  Triggers: describe, explain, outline, detail, how do you, what is your approach,
+            provide an overview, discuss
+  Examples: "Describe your methodology", "Explain your security approach"
+
+CONTEXTUAL - Background info, section headers, non-answerable content
+  Triggers: section headers (just "3.1 Technical Requirements"), background info,
+            context without a question
+  Examples: "3.1 Technical Requirements", "The following section describes..."
+
+PRIORITY RULES:
+1. STAFFING beats CONTEXTUAL for contact info requests
+2. REFERENCE_BASED beats DESCRIPTIVE for past project requests
+3. EVIDENCE_BASED beats DESCRIPTIVE for document requests
+4. When in doubt, use DESCRIPTIVE
+
+OUTPUT FORMAT (JSON):
+{
+  "requirements": [
+    {
+      "section": "3.1.2",
+      "text": "cleaned requirement text with proper formatting",
+      "type": "DESCRIPTIVE",
+      "isMandatory": true,
+      "wordLimit": null,
+      "characterLimit": null,
+      "isAttestation": false
+    }
+  ]
+}
+
+Classify the following candidates:`;
+
+// =============================================================================
+// TWO-PHASE EXTRACTION - Batch Classification
+// =============================================================================
+
+/**
+ * Classify a batch of requirement candidates.
+ * This is Phase 2 of two-phase extraction.
+ */
+async function classifyBatch(
+  candidates: RequirementCandidate[]
+): Promise<ExtractedRequirement[]> {
+  // Format candidates for the prompt
+  const candidateText = candidates
+    .map((c, i) => `[${i + 1}] Section ${c.sectionNumber}:\n${c.rawText}`)
+    .join('\n\n---\n\n');
+
+  try {
+    const response = await withRetry(
+      () => openai.chat.completions.create({
+        model: MODELS.EXTRACTION,
+        messages: [
+          { role: "system", content: CLASSIFICATION_PROMPT },
+          { role: "user", content: candidateText },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 8000,
+      }),
+      { timeout: 90000 } // 90 seconds per batch (classification is faster)
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error(`[classifyBatch] No response content`);
+      return [];
+    }
+
+    const parsed = JSON.parse(content);
+    const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+
+    // Validate and fix types
+    return requirements.map((req: ExtractedRequirement) => ({
+      ...req,
+      section: req.section || null,
+      type: validateRequirementType(req.type),
+      domainContext: detectDomainContext(req.text || ''),
+      isMandatory: req.isMandatory !== false, // Default to true
+      wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
+      characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
+      isAttestation: req.isAttestation === true,
+    }));
+  } catch (error) {
+    console.error(`[classifyBatch] Failed:`, error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
+/**
+ * Classify all requirement candidates in batches.
+ * Main entry point for Phase 2 of two-phase extraction.
+ */
+async function classifyRequirementsBatched(
+  candidates: RequirementCandidate[],
+  majorSections: Map<string, { number: string; title: string }>
+): Promise<ExtractedRequirement[]> {
+  const BATCH_SIZE = 15; // 15 candidates per batch for reliability
+  const results: ExtractedRequirement[] = [];
+  const totalBatches = Math.ceil(candidates.length / BATCH_SIZE);
+
+  console.log(`[classifyBatched] Classifying ${candidates.length} candidates in ${totalBatches} batches`);
+  const startTime = Date.now();
+
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    const batch = candidates.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+
+    console.log(`[classifyBatched] Processing batch ${batchNum}/${totalBatches} (${batch.length} candidates)`);
+
+    const classified = await classifyBatch(batch);
+
+    // Add sectionGroup from major sections map
+    const enriched = classified.map(req => {
+      const majorNum = req.section?.split('.')[0];
+      const majorSection = majorNum ? majorSections.get(majorNum) : null;
+      return {
+        ...req,
+        sectionGroup: majorSection
+          ? `${majorSection.number}: ${majorSection.title}`
+          : null,
+      };
+    });
+
+    results.push(...enriched);
+    console.log(`[classifyBatched] Batch ${batchNum} complete: ${classified.length} requirements`);
+  }
+
+  const elapsed = Date.now() - startTime;
+  console.log(`[classifyBatched] All batches complete in ${elapsed}ms: ${results.length} total requirements`);
+
+  return results;
+}
+
+/**
+ * Single-pass extraction for small documents or fallback.
+ * Uses the full EXTRACTION_PROMPT for comprehensive extraction.
+ */
+async function extractRequirementsSinglePass(
+  sanitizedText: string
+): Promise<ExtractionResult> {
+  console.log(`[singlePass] Starting single-pass extraction on ${sanitizedText.length} chars`);
+  const startTime = Date.now();
+
+  const response = await withRetry(
+    () => openai.chat.completions.create({
+      model: MODELS.EXTRACTION,
+      messages: [
+        { role: "system", content: EXTRACTION_PROMPT },
+        {
+          role: "user",
+          content: `Please extract all requirements and questions from this RFP document:\n\n${sanitizedText}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+      max_tokens: 16000,
+    }),
+    { timeout: 180000 } // 3 minutes
+  );
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("No response from OpenAI");
+  }
+
+  const parsed = JSON.parse(content);
+  const requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+
+  const result: ExtractionResult = {
+    deadline: parsed.deadline || null,
+    deadlineText: parsed.deadlineText || null,
+    requirements: requirements.map((req: ExtractedRequirement) => ({
+      ...req,
+      section: req.section || null,
+      sectionGroup: req.sectionGroup || null,
+      type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
+      domainContext: detectDomainContext(req.text),
+      wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
+      characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
+      isAttestation: req.isAttestation === true,
+    })),
+  };
+
+  // Post-processing
+  try {
+    result.requirements = splitConcatenatedRequirementsPostProcess(result.requirements);
+    reclassifySectionHeaders(result.requirements);
+  } catch (e) {
+    console.error(`[singlePass] Post-processing failed:`, e);
+  }
+
+  console.log(`[singlePass] Complete in ${Date.now() - startTime}ms: ${result.requirements.length} requirements`);
+  return result;
+}
+
+/**
+ * Two-phase extraction for large documents.
+ * Phase 1: Heuristic candidate extraction (no LLM)
+ * Phase 2: Batch classification (focused LLM task)
+ */
+async function extractRequirementsTwoPhase(
+  sanitizedText: string
+): Promise<ExtractionResult> {
+  console.log(`[twoPhase] Starting two-phase extraction on ${sanitizedText.length} chars`);
+  const startTime = Date.now();
+
+  // Phase 1: Heuristic extraction (no LLM, <1 second)
+  console.log(`[twoPhase] Phase 1: Heuristic candidate extraction...`);
+  const phase1Start = Date.now();
+  const heuristicResult = extractCandidatesHeuristically(sanitizedText);
+  console.log(`[twoPhase] Phase 1 complete in ${Date.now() - phase1Start}ms: ${heuristicResult.candidates.length} candidates`);
+
+  if (heuristicResult.candidates.length === 0) {
+    console.warn(`[twoPhase] No candidates found, falling back to single-pass`);
+    // Fall back to single-pass if heuristics found nothing
+    return extractRequirementsSinglePass(sanitizedText);
+  }
+
+  // Phase 2: Batch classification
+  console.log(`[twoPhase] Phase 2: Batch classification...`);
+  const phase2Start = Date.now();
+  const requirements = await classifyRequirementsBatched(
+    heuristicResult.candidates,
+    heuristicResult.majorSections
+  );
+  console.log(`[twoPhase] Phase 2 complete in ${Date.now() - phase2Start}ms: ${requirements.length} requirements`);
+
+  // Post-processing
+  try {
+    const processed = splitConcatenatedRequirementsPostProcess(requirements);
+    reclassifySectionHeaders(processed);
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[twoPhase] Total extraction complete in ${elapsed}ms`);
+
+    // Extract deadline
+    const deadlineMatch = sanitizedText.match(
+      /(?:deadline|submission date|due date|closing date)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+    );
+
+    return {
+      deadline: deadlineMatch ? deadlineMatch[1] : null,
+      deadlineText: deadlineMatch ? deadlineMatch[0] : null,
+      requirements: processed,
+    };
+  } catch (postProcessError) {
+    console.error(`[twoPhase] Post-processing failed:`, postProcessError);
+    return {
+      deadline: null,
+      deadlineText: null,
+      requirements,
+    };
+  }
+}
 
 // =============================================================================
 // DRAFT PROMPTS - Type-specific, RFP-focused (NOT email-style)
@@ -1752,20 +2066,21 @@ export async function extractRequirements(documentText: string): Promise<Extract
   }
   console.log("[extractRequirements] Cache miss, proceeding with extraction");
 
-  // Step 3: Determine extraction strategy (chunked vs single-pass)
+  // Step 3: Determine extraction strategy (two-phase vs single-pass)
   console.log("[extractRequirements] Step 3: Analyzing document structure...");
   const chunkResult = chunkDocumentBySections(truncatedText);
-  console.log(`[extractRequirements] Document type: ${chunkResult.documentType}, chunks: ${chunkResult.chunks.length}, estimated tokens: ${chunkResult.estimatedTokens}`);
+  console.log(`[extractRequirements] Document type: ${chunkResult.documentType}, estimated tokens: ${chunkResult.estimatedTokens}`);
 
-  // Large documents with detected sections: use chunked extraction
-  if (chunkResult.wasChunked && chunkResult.chunks.length >= 2) {
-    console.log("[extractRequirements] Using CHUNKED extraction for large document");
-    const startChunked = Date.now();
-    const result = await extractRequirementsChunked(truncatedText, chunkResult.chunks);
-    timings.extraction = Date.now() - startChunked;
+  // Large documents: use TWO-PHASE extraction (heuristics + classification)
+  // This is faster and more accurate than chunked extraction
+  if (chunkResult.wasChunked) {
+    console.log("[extractRequirements] Using TWO-PHASE extraction for large document");
+    const startTwoPhase = Date.now();
+    const result = await extractRequirementsTwoPhase(truncatedText);
+    timings.extraction = Date.now() - startTwoPhase;
     timings.total = Date.now() - startTotal;
 
-    console.log("[extractRequirements] Chunked extraction complete:", {
+    console.log("[extractRequirements] Two-phase extraction complete:", {
       timings,
       totalRequirements: result.requirements.length,
       byType: result.requirements.reduce((acc, req) => {
@@ -1777,7 +2092,7 @@ export async function extractRequirements(documentText: string): Promise<Extract
     // Validate and warn about missing sections
     const validation = validateExtractedSections(truncatedText, result.requirements);
     if (validation.missingCount > 0) {
-      console.warn("[extractRequirements] Missing sections after chunked extraction:", validation.missingSections);
+      console.warn("[extractRequirements] Missing sections after two-phase extraction:", validation.missingSections);
       result.warnings = { ...result.warnings, missingSections: validation.missingSections };
     }
 
