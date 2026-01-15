@@ -158,6 +158,7 @@ export async function POST(
         status: "READY",
         requirementCount,
         extractionTime: Date.now() - startTime,
+        warnings: result.warnings,
       });
     } catch (extractionError) {
       console.error("[Extract] Extraction failed:", extractionError);

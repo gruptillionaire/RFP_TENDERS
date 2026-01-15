@@ -9,6 +9,7 @@ import {
   splitConcatenatedRequirement,
   isSectionHeader,
   formatListInRequirement,
+  detectAllSectionNumbers,
 } from "./parsers/text-preprocessor";
 
 // =============================================================================
@@ -1105,6 +1106,10 @@ export interface ExtractionResult {
   deadline: string | null;       // ISO 8601 date string
   deadlineText: string | null;   // Original text from RFP
   requirements: ExtractedRequirement[];
+  warnings?: {
+    wasTruncated?: boolean;
+    missingSections?: string[];
+  };
 }
 
 // =============================================================================
@@ -1355,6 +1360,51 @@ function reclassifySectionHeaders(requirements: ExtractedRequirement[]): void {
   }
 }
 
+/**
+ * Validate that extraction captured all sections present in the document.
+ * Compares section numbers found in document text vs extracted requirements.
+ */
+function validateExtractedSections(
+  documentText: string,
+  extractedRequirements: ExtractedRequirement[]
+): { missingCount: number; missingSections: string[] } {
+  const documentSections = detectAllSectionNumbers(documentText);
+  const extractedSections = new Set(
+    extractedRequirements
+      .map(r => r.section)
+      .filter((s): s is string => s !== null && s !== undefined)
+  );
+
+  const missingSections: string[] = [];
+
+  for (const section of documentSections) {
+    // Check if this section or a child of it was extracted
+    // e.g., if we have "3.1.1", we don't need "3.1" separately
+    const found = [...extractedSections].some(s =>
+      s === section || s.startsWith(section + ".") || section.startsWith(s + ".")
+    );
+    if (!found) {
+      missingSections.push(section);
+    }
+  }
+
+  // Sort for consistent output
+  missingSections.sort((a, b) => {
+    const aParts = a.split(".").map(Number);
+    const bParts = b.split(".").map(Number);
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const diff = (aParts[i] || 0) - (bParts[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+
+  return {
+    missingCount: missingSections.length,
+    missingSections: missingSections.slice(0, 20), // Limit for logging
+  };
+}
+
 // =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
@@ -1413,6 +1463,7 @@ export async function extractRequirements(documentText: string): Promise<Extract
       ],
       response_format: { type: "json_object" },
       temperature: 0.1,
+      max_tokens: 16000, // Ensure full extraction output
     }),
     { timeout: 120000 } // 2 minutes for extraction
   );
@@ -1499,6 +1550,22 @@ export async function extractRequirements(documentText: string): Promise<Extract
       timings.postProcess = Date.now() - startPostProcess;
       console.error("[extractRequirements] Post-processing failed, using raw extraction results:", postProcessError);
       // Continue with unprocessed results rather than failing
+    }
+
+    // Step 6: Validate extraction completeness
+    console.log("[extractRequirements] Step 6: Validating extraction completeness...");
+    const validation = validateExtractedSections(documentText, result.requirements);
+    if (validation.missingCount > 0) {
+      console.warn("[extractRequirements] Missing sections detected:", {
+        missingCount: validation.missingCount,
+        missingSections: validation.missingSections,
+      });
+      result.warnings = {
+        ...result.warnings,
+        missingSections: validation.missingSections,
+      };
+    } else {
+      console.log("[extractRequirements] All detected sections were extracted successfully");
     }
 
     // Log extraction stats and total timing

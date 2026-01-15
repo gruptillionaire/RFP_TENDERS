@@ -9,6 +9,30 @@
  */
 
 // =============================================================================
+// SECTION NUMBER NORMALIZATION
+// =============================================================================
+
+/**
+ * Fix section numbers that have been split across lines by PDF extraction
+ * Handles: "3.\n1" -> "3.1" and "3.\n1.\n17" -> "3.1.17"
+ */
+function normalizeSectionNumbers(text: string): string {
+  let result = text;
+
+  // Fix three-level section numbers split across lines: "3.\n1.\n17" -> "3.1.17"
+  result = result.replace(/(\d+)\.\s*\n+\s*(\d+)\.\s*\n+\s*(\d+)/g, '$1.$2.$3');
+
+  // Fix two-level section numbers split across lines: "3.\n1" -> "3.1"
+  result = result.replace(/(\d+)\.\s*\n+\s*(\d+)/g, '$1.$2');
+
+  // Also handle cases with spaces instead of newlines: "3. 1. 17" -> "3.1.17"
+  result = result.replace(/(\d+)\.\s+(\d+)\.\s+(\d+)(?=\s|$)/g, '$1.$2.$3');
+  result = result.replace(/(\d+)\.\s+(\d+)(?=\s|$)/g, '$1.$2');
+
+  return result;
+}
+
+// =============================================================================
 // SECTION DETECTION PATTERNS
 // =============================================================================
 
@@ -92,8 +116,9 @@ function addSectionMarkers(text: string): string {
 
   // Mark subsections (e.g., "3.1 Design, Form, and Templates")
   // Use lighter marker to show it's a subsection header, not a requirement
+  // Updated regex: more flexible lookahead to handle various line ending patterns
   result = result.replace(
-    /\n(\s*)(\d+\.\d+\s+)([A-Z][A-Za-z\s,&\-:]{3,})(?=\s*\n)/g,
+    /\n(\s*)(\d+\.\d+\s+)([A-Z][A-Za-z\s,&\-:]{3,})(?=\s*(?:\n|$))/g,
     '\n\n──────────────────────────────────────────────────────────\n[SUBSECTION] $1$2$3\n──────────────────────────────────────────────────────────\n'
   );
 
@@ -196,32 +221,38 @@ export function preprocessRFPText(text: string, options: PreprocessOptions = {})
     // Normalize horizontal whitespace (multiple spaces → single, but preserve indentation)
     .replace(/[^\S\n]{3,}/g, '  ');
 
-  // Step 2: Separate concatenated requirements FIRST (most important)
-  if (opts.separateReqs) {
-    result = separateRequirements(result);
-  }
+  // Step 2: Normalize section numbers FIRST (fix "3.\n1.17" -> "3.1.17")
+  // This must happen before any section detection to ensure clean section numbers
+  result = normalizeSectionNumbers(result);
 
-  // Step 3: Add section markers to help LLM understand hierarchy
+  // Step 3: Add section markers BEFORE separating requirements
+  // This ensures subsection headers (3.1, 3.2, etc.) are properly tagged
+  // before we insert newlines that could break the regex patterns
   if (opts.addMarkers) {
     result = addSectionMarkers(result);
   }
 
-  // Step 4: Normalize bullet points
+  // Step 4: Separate concatenated requirements (now safe to run after markers)
+  if (opts.separateReqs) {
+    result = separateRequirements(result);
+  }
+
+  // Step 5: Normalize bullet points
   if (opts.normalizeBullets) {
     result = normalizeBulletPoints(result);
   }
 
-  // Step 5: Preserve numbered list formatting
+  // Step 6: Preserve numbered list formatting
   if (opts.preserveLists) {
     result = preserveNumberedLists(result);
   }
 
-  // Step 6: Mark table structures
+  // Step 7: Mark table structures
   if (opts.markTables) {
     result = markTableStructures(result);
   }
 
-  // Step 7: Final cleanup
+  // Step 8: Final cleanup
   result = result
     // Remove excessive blank lines created by our processing
     .replace(/\n{4,}/g, '\n\n\n')
@@ -343,4 +374,35 @@ export function formatListInRequirement(text: string): string {
   result = result.replace(/\n(•|\d+\.|\([a-z]\)|[a-z]\))/g, '\n  $1');
 
   return result;
+}
+
+// =============================================================================
+// SECTION DETECTION FOR VALIDATION
+// =============================================================================
+
+/**
+ * Detect all section numbers present in document text
+ * Used to validate that extraction captured all sections
+ *
+ * @param text - Raw document text
+ * @returns Set of all detected section numbers (e.g., "3.1", "3.1.1", "4.2")
+ */
+export function detectAllSectionNumbers(text: string): Set<string> {
+  const sections = new Set<string>();
+
+  // Patterns for different section numbering styles
+  const patterns = [
+    /\b(\d+\.\d+\.\d+)\b/g,   // Three-level: 3.1.1, 4.2.3
+    /\b(\d+\.\d+)\b/g,        // Two-level: 3.1, 4.2
+    /\b([A-Z]\.\d+\.\d+)\b/g, // Letter three-level: A.1.1
+    /\b([A-Z]\.\d+)\b/g,      // Letter two-level: A.1
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      sections.add(match[1]);
+    }
+  }
+
+  return sections;
 }

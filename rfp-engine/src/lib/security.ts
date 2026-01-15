@@ -39,8 +39,13 @@ export function sanitizeForLLM(text: string): string {
   });
 
   // 5. Limit document to reasonable size to prevent context overflow attacks
-  const MAX_CHARS = 200000;
+  // 250k chars is safe for gpt-4o-mini (128k tokens ~= 400-500k chars)
+  const MAX_CHARS = 250000;
   if (sanitized.length > MAX_CHARS) {
+    console.warn("[sanitizeForLLM] Document truncated:", {
+      originalLength: sanitized.length,
+      truncatedTo: MAX_CHARS,
+    });
     sanitized = sanitized.substring(0, MAX_CHARS) + "\n[DOCUMENT TRUNCATED]";
   }
 
