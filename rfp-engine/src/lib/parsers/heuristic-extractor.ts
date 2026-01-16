@@ -236,6 +236,43 @@ const PATTERN_FAMILIES: PatternFamily[] = [
   },
 
   // ==========================================================================
+  // LETTER-NUMBER: A1., B2., C13. (common in tables/forms)
+  // ==========================================================================
+  {
+    id: 'letter-number',
+    name: 'Letter-Number (A1., B2.)',
+    detectionPatterns: [
+      /\[Col 1\]\s*[A-Z]\d+\.\s*\|/gm,      // Table format: [Col 1] A1. |
+      /(?:^|\n)\s*[A-Z]\d+\.\s+[A-Z]/gm,    // Line start: A1. followed by text
+    ],
+    minMatchesForDetection: 3,
+    extractionPatterns: [
+      // Table format: [Col 1] A1. | [Col 2] text
+      {
+        pattern: /\[Col 1\]\s*([A-Z])(\d+)\.\s*\|\s*\[Col 2\]\s*/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}${m[2]}`,
+        priority: 100,
+        requiresLineStart: false,
+      },
+      // Line start format: A1. text
+      {
+        pattern: /(?:^|\n)\s*([A-Z])(\d+)\.\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}${m[2]}`,
+        priority: 80,
+        requiresLineStart: true,
+      },
+    ],
+    majorSectionPatterns: [
+      // Markdown headers: # A. REQUIRED BANKING SERVICES or # SECTION A
+      /(?:^|\n)#\s+([A-Z])\.?\s+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+      // Markdown headers without letter: # REQUIRED BANKING SERVICES
+      /(?:^|\n)#\s+([A-Z])[A-Z\s,&\-:'"()]{3,}(?=\n|$)/gm,
+    ],
+  },
+
+  // ==========================================================================
   // PARENTHETICAL: (1), (a), (i), 1), a)
   // ==========================================================================
   {
@@ -600,6 +637,9 @@ export function detectMajorSections(text: string): Map<string, MajorSection> {
 
     // Pattern 7: Letter sections "A. Title" or "Section A: Title"
     /(?:^|\n)\s*(?:SECTION|Section|Appendix)?\s*([A-Z])[\.\s:]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+
+    // Pattern 8: Markdown headers "# A. REQUIRED BANKING SERVICES" or "# GENERAL INFORMATION"
+    /(?:^|\n)#\s+([A-Z])\.?\s+([A-Z][A-Z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
   ];
 
   for (let pIdx = 0; pIdx < patterns.length; pIdx++) {
