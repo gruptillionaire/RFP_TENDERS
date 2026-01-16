@@ -565,6 +565,35 @@ User model includes `deletedAt` field for soft delete option when needed.
 - Email anonymization in deletion audit logs
 - 2FA secrets encrypted with AES-256-GCM
 
+### 13.6 Quota Race Condition Protection
+
+**Location**: `src/app/api/projects/route.ts`
+
+Prevents TOCTOU (Time of Check, Time of Use) attacks on extraction quota:
+
+**Problem Prevented**: Without protection, a user with 1 credit could:
+1. Create Project A (quota checked but not consumed)
+2. Create Project B (quota still shows 1 credit)
+3. Extract both projects (consuming 2 credits from 1)
+
+**Solution**: Only allow 1 PROCESSING project per user at a time:
+
+```typescript
+const anyProcessingProject = await prisma.project.findFirst({
+  where: {
+    userId: session.user.id,
+    status: "PROCESSING",
+  },
+});
+
+if (anyProcessingProject) {
+  // Block new uploads if project is < 5 minutes old
+  // Mark as FAILED if stuck > 5 minutes
+}
+```
+
+This serializes project processing, preventing quota exploitation while automatically recovering from stuck states.
+
 ---
 
 ## 14. Security Checklist
@@ -592,6 +621,7 @@ User model includes `deletedAt` field for soft delete option when needed.
 - [x] Resource ownership verification
 - [x] Row-Level Security (RLS) for database-level isolation
 - [x] Authenticated encryption (AES-256-GCM) for 2FA secrets
+- [x] Quota race condition protection (single PROCESSING project limit)
 
 ### Recommended Improvements
 
@@ -625,6 +655,7 @@ User model includes `deletedAt` field for soft delete option when needed.
 | Password Reset | `src/app/api/auth/forgot-password/route.ts`, `src/app/api/auth/reset-password/route.ts` |
 | Row-Level Security | `prisma/migrations/20260116_enable_rls/migration.sql`, `src/lib/prisma.ts`, `src/lib/api-auth.ts` |
 | Encryption (2FA) | `src/lib/crypto.ts` |
+| Quota Protection | `src/app/api/projects/route.ts` |
 
 ---
 

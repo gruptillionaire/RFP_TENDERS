@@ -80,7 +80,38 @@ export async function POST(request: Request) {
 
     const fileName = file.name;
 
-    // Check for duplicate/in-progress uploads
+    // ==========================================================================
+    // SECURITY: Only allow 1 PROCESSING project at a time (prevents quota race condition)
+    // This check runs ALWAYS, regardless of allowDuplicate flag
+    // ==========================================================================
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const anyProcessingProject = await prisma.project.findFirst({
+      where: {
+        userId: session.user.id,
+        status: "PROCESSING",
+      },
+      select: { id: true, createdAt: true, name: true },
+    });
+
+    if (anyProcessingProject) {
+      if (anyProcessingProject.createdAt > fiveMinutesAgo) {
+        // Active processing - block new uploads to prevent quota exploitation
+        return NextResponse.json(
+          {
+            error: "processing",
+            message: `Please wait for "${anyProcessingProject.name}" to finish processing before uploading another file.`,
+          },
+          { status: 409 }
+        );
+      }
+      // Stuck for >5 minutes - mark as failed and allow new upload
+      await prisma.project.update({
+        where: { id: anyProcessingProject.id },
+        data: { status: "FAILED" },
+      });
+    }
+
+    // Check for duplicate/in-progress uploads (same filename)
     if (!allowDuplicate) {
       // Check for existing successful projects (warn user about duplicate)
       const existingProject = await prisma.project.findFirst({
@@ -104,33 +135,7 @@ export async function POST(request: Request) {
         );
       }
 
-      // Check for PROCESSING projects - handle stuck vs active
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      const processingProject = await prisma.project.findFirst({
-        where: {
-          userId: session.user.id,
-          fileName: fileName,
-          status: "PROCESSING",
-        },
-        select: { id: true, createdAt: true },
-      });
-
-      if (processingProject) {
-        if (processingProject.createdAt > fiveMinutesAgo) {
-          // Still processing - tell user to wait
-          return NextResponse.json(
-            {
-              error: "processing",
-              message: "This file is currently being processed. Please wait a few minutes and refresh the page.",
-            },
-            { status: 409 }
-          );
-        }
-        // Stuck for >5 minutes - delete it
-        await prisma.project.delete({ where: { id: processingProject.id } });
-      }
-
-      // Clean up FAILED projects
+      // Clean up FAILED projects with same filename
       await prisma.project.deleteMany({
         where: {
           userId: session.user.id,
