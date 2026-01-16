@@ -64,6 +64,11 @@ export interface MajorSection {
  * For each match, extracts the text until the next numbered item.
  */
 export function findRequirementCandidates(text: string): RequirementCandidate[] {
+  // Step 0: Detect major sections FIRST to validate 2-level patterns later
+  // This prevents PDF artifacts like "9.7" from being detected when section 9 doesn't exist
+  const detectedMajorSections = detectMajorSections(text);
+  const validMajorSectionNumbers = new Set(detectedMajorSections.keys());
+
   // Step 1: Find all section number positions
   // We use TWO patterns:
   // 1. X.Y.Z (3 levels) - can appear after any whitespace (very likely section numbers)
@@ -120,19 +125,12 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 
     if (isDuplicate) continue;
 
-    // Skip if this looks like a partial match from a 3-level section
-    // e.g., "9.7" appearing when we've seen "3.9.7" suggests it's not a real section
-    // Check if this pattern could be the .Y.Z part of an existing X.Y.Z pattern
-    const couldBePartialOf3Level = matches.some(m => {
-      const parts = m.sectionNumber.split('.');
-      if (parts.length === 3) {
-        // Check if this 2-level pattern matches the Y.Z part of a 3-level
-        return parts[1] === major && parts[2] === minor;
-      }
-      return false;
-    });
-
-    if (couldBePartialOf3Level) continue;
+    // Skip if this 2-level pattern's major section doesn't exist in the document structure
+    // This prevents PDF artifacts like "9.7" when section 9 doesn't exist
+    // (e.g., "3.9.7" being misread as "3." + "9.7" due to PDF line breaks)
+    if (!validMajorSectionNumbers.has(major)) {
+      continue;
+    }
 
     // Skip if major section seems inconsistent (e.g., jumping from 3 to 9)
     // Only apply this check if we have established patterns
@@ -204,10 +202,17 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       continue;
     }
 
-    // Skip if it looks like a version number or decimal (e.g., "version 2.0")
-    const beforeText = text.substring(Math.max(0, current.index - 20), current.index).toLowerCase();
-    if (beforeText.includes('version') || beforeText.includes('v.') || beforeText.includes('release')) {
-      continue;
+    // Skip if it looks like a version number (e.g., "version 2.0")
+    // IMPORTANT: Only apply this check to 2-level patterns (X.Y), NOT 3-level (X.Y.Z)
+    // 3-level patterns like "3.9.6" are almost never version numbers
+    // 2-level patterns like "2.0" after "version" or "release" are likely version numbers
+    const is3Level = current.sectionNumber.split('.').length === 3;
+    if (!is3Level) {
+      const beforeText = text.substring(Math.max(0, current.index - 15), current.index).toLowerCase();
+      const versionPattern = /(?:version|v\.|release)\s*$/;
+      if (versionPattern.test(beforeText)) {
+        continue;
+      }
     }
 
     candidates.push({
@@ -533,11 +538,12 @@ export function extractAndClassifyHeuristically(
     const id = `req_${candidate.sectionNumber.replace(/\./g, '_')}_${i}`;
 
     // Find section group from major sections
-    // Format: "3.0: Direct Query Questions" (include section number with colon)
+    // Format: "3: Direct Query Questions" (number + colon + title)
+    // NOTE: Must NOT use "3.0:" format - getMajorCategoryTitle regex doesn't handle ".0"
     const majorSection = majorSections.get(candidate.majorSection);
     const sectionGroup = majorSection
-      ? `${majorSection.number}.0: ${majorSection.title}`
-      : `Section ${candidate.majorSection}`;
+      ? `${majorSection.number}: ${majorSection.title}`
+      : `${candidate.majorSection}: Section ${candidate.majorSection}`;
 
     // Classify type (pass section title for context boost)
     const typeClassification = classifyTypeHeuristically(candidate.rawText, sectionGroup);
