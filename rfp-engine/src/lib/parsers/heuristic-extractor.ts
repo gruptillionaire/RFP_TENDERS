@@ -580,15 +580,49 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
     const doubleSpaceCount = (cleanedText.match(/  +/g) || []).length;
     if (doubleSpaceCount >= 3) {
       const potentialItems = cleanedText.split(/  +/);
-      const listLikeItems = potentialItems.filter(item =>
-        /^(\d+\s*[-–—]|[A-Z][a-zA-Z\s]+\s*[-–—])/i.test(item.trim())
-      );
+      const listPattern = /^(\d+\s*[-–—]|[A-Z][a-zA-Z\s]+\s*[-–—])/i;
+      const listLikeItems = potentialItems.filter(item => listPattern.test(item.trim()));
+
       if (listLikeItems.length >= 3 && listLikeItems.length >= potentialItems.length * 0.5) {
-        cleanedText = potentialItems
-          .map(item => item.trim())
-          .filter(item => item.length > 0)
-          .map(item => `• ${item}`)
-          .join('\n');
+        // Check if first item is intro text (doesn't match list pattern)
+        const firstItem = potentialItems[0].trim();
+        const isFirstItemIntro = !listPattern.test(firstItem);
+
+        if (isFirstItemIntro && firstItem.length > 0) {
+          // Check if intro contains an embedded first list item (pattern: "intro: N - item")
+          const embeddedMatch = firstItem.match(/^(.+?:\s*)(\d+\s*[-–—]\s*.+)$/);
+          let intro: string;
+          let firstListItem: string | null = null;
+
+          if (embeddedMatch) {
+            // Split intro from embedded first list item
+            intro = embeddedMatch[1].trim() + '\n';
+            firstListItem = embeddedMatch[2].trim();
+          } else {
+            intro = firstItem.replace(/:$/, ':\n');
+          }
+
+          const remainingItems = potentialItems.slice(1)
+            .map(item => item.trim())
+            .filter(item => item.length > 0);
+
+          // Prepend first list item if it was embedded
+          if (firstListItem) {
+            remainingItems.unshift(firstListItem);
+          }
+
+          const listItems = remainingItems
+            .map(item => `• ${item}`)
+            .join('\n');
+          cleanedText = intro + listItems;
+        } else {
+          // All items are list items
+          cleanedText = potentialItems
+            .map(item => item.trim())
+            .filter(item => item.length > 0)
+            .map(item => `• ${item}`)
+            .join('\n');
+        }
       }
     }
 
@@ -599,11 +633,27 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       // Split on the pattern and format as bullets
       const parts = cleanedText.split(/(?=\d+\s*[-–—]\s*[A-Z])/);
       if (parts.length >= 3) {
-        cleanedText = parts
-          .map(p => p.trim())
-          .filter(p => p.length > 0)
-          .map(p => `• ${p}`)
-          .join('\n');
+        // First part may be intro text (not a list item) - check if it starts with the list pattern
+        const firstPart = parts[0].trim();
+        const isFirstPartListItem = /^\d+\s*[-–—]\s*[A-Z]/.test(firstPart);
+
+        if (isFirstPartListItem) {
+          // All parts are list items
+          cleanedText = parts
+            .map(p => p.trim())
+            .filter(p => p.length > 0)
+            .map(p => `• ${p}`)
+            .join('\n');
+        } else {
+          // First part is intro text, rest are list items
+          const intro = firstPart.replace(/:$/, ':\n'); // Add newline after colon if present
+          const listItems = parts.slice(1)
+            .map(p => p.trim())
+            .filter(p => p.length > 0)
+            .map(p => `• ${p}`)
+            .join('\n');
+          cleanedText = intro + listItems;
+        }
       }
     }
 
