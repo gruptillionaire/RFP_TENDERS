@@ -8,6 +8,11 @@
  *
  * Request: multipart/form-data with 'file' field containing PDF
  * Response: JSON with extraction results and stats
+ *
+ * Debug modes:
+ * - ?debug=heuristic: Raw heuristic extraction (no classification)
+ * - ?debug=classified: Heuristic extraction + classification (no LLM)
+ * - ?debug=refined: Heuristic + LLM refinement for low-confidence items
  */
 
 import { NextRequest, NextResponse } from "next/server";
