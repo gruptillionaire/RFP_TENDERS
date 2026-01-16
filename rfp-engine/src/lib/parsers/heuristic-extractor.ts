@@ -308,6 +308,26 @@ export function findQuestionCandidates(
     // Skip short questions (likely not requirements)
     if (rawText.length < 30) continue;
 
+    // === GARBAGE DETECTION: Filter out navigation/menu text ===
+    // Skip if contains bullet points (•) - likely navigation or menu
+    if (rawText.includes('•') || rawText.includes('►') || rawText.includes('■')) continue;
+
+    // Skip if looks like concatenated menu items (many capitalized short words)
+    const words = rawText.split(/\s+/);
+    const shortCapitalizedWords = words.filter(w => /^[A-Z][a-z]{0,8}$/.test(w));
+    if (shortCapitalizedWords.length > 5 && shortCapitalizedWords.length / words.length > 0.4) continue;
+
+    // Skip if contains year patterns typical of event listings (2017, 2018, etc.)
+    if (/\b20\d{2}\s+(DLC|Conference|Meeting|Summit|Event)\b/i.test(rawText)) continue;
+
+    // Skip if too many "&" or "|" separators (menu/navigation)
+    const separatorCount = (rawText.match(/[&|]/g) || []).length;
+    if (separatorCount > 3) continue;
+
+    // Skip if it's just a list of proper nouns without verbs
+    const hasVerb = /\b(is|are|does|do|can|will|would|should|must|shall|have|has|provide|describe|explain|support|require)\b/i.test(rawText);
+    if (!hasVerb && rawText.length < 100) continue;
+
     // Try to find a section context by looking backwards
     const beforeText = text.substring(Math.max(0, match.index - 200), match.index);
     const sectionMatch = beforeText.match(/(\d+)\.(\d+)(?:\.(\d+))?\b[^]*$/);

@@ -332,6 +332,7 @@ const TOPIC_PATTERNS: TopicPattern[] = [
   },
 
   // QUANTITATIVE - Pricing, SLAs, metrics, capacity (content about numbers/pricing matters)
+  // STRICT: Only match when actually asking about prices, costs, SLAs, or numeric metrics
   {
     type: "QUANTITATIVE",
     patterns: [
@@ -360,15 +361,19 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       // Discount/volume pricing
       /\b(volume|bulk|quantity)\s+(discount|pricing)/i,
       /\bdiscount\s+(for|on|rate|structure)/i,
-      // License/seat pricing
-      /\b(per-seat|per-user|per-license|seat-based|user-based)\s*(pricing|cost|fee)?/i,
+      // License/seat pricing - ONLY when combined with cost/price/fee
+      /\b(per-seat|per-user|per-license|seat-based|user-based)\s*(pricing|cost|fee)/i,
       /\blicens(e|ing)\s+(cost|fee|price|model)/i,
     ],
     antiPatterns: [
-      // Only block PURE methodology questions (no pricing terms in the actual question)
-      /\b(describe|explain)\s+your\s+(general\s+)?approach\s+to\s+business/i,
+      // YES/NO capability questions are NOT quantitative
+      /^(does|do|can|is|are|will)\s+(the|your|it|this)/i,
+      // Integration/feature questions are NOT quantitative
+      /\bintegrat(e|es|ion)\s+(with|into)\b/i,
+      // "How is X done" questions are descriptive, not quantitative
+      /^how\s+(is|are|does|do)\s+/i,
     ],
-    weakenPatterns: [],  // Removed - let content keywords win
+    weakenPatterns: [],
     sectionBoostKeywords: ['pricing', 'cost', 'fee', 'financial', 'budget', 'price', 'sla', 'metrics'],
   },
 
@@ -481,16 +486,19 @@ const TOPIC_PATTERNS: TopicPattern[] = [
 const TYPE_KEYWORDS: Record<RequirementType, { strong: string[]; weak: string[] }> = {
   QUANTITATIVE: {
     strong: [
+      // Pricing/cost terms
       'price', 'pricing', 'cost', 'costs', 'fee', 'fees', 'rate', 'rates',
-      'budget', 'quote', 'bid', 'dollar', 'amount', 'total', 'payment',
-      'invoice', 'billing', 'expense', 'charge', 'tariff', 'discount',
-      'sla', 'uptime', 'availability', 'latency', 'throughput', 'capacity',
-      'volume', 'percentage', 'metric', 'metrics', 'kpi', 'benchmark',
-      'annual', 'monthly', 'hourly', 'per-user', 'per-seat', 'license',
+      'budget', 'quote', 'bid', 'dollar', 'payment', 'invoice', 'billing',
+      'expense', 'charge', 'tariff', 'discount',
+      // SLA/metrics terms
+      'sla', 'uptime', 'latency', 'throughput', 'kpi', 'benchmark',
+      // Pricing modifiers
+      'per-user', 'per-seat',
     ],
     weak: [
-      'number', 'count', 'quantity', 'size', 'scale', 'measure', 'level',
-      'maximum', 'minimum', 'limit', 'threshold', 'target', 'goal',
+      // Only weak when combined with pricing context
+      'number', 'count', 'quantity', 'measure',
+      'maximum', 'minimum', 'threshold',
     ],
   },
   EVIDENCE_BASED: {
@@ -974,23 +982,42 @@ const MANDATORY_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
   { pattern: /\bnecessary\b/i, confidence: 65 },
 ];
 
+// Anti-patterns: when these appear, "optional"/"recommended" etc. are about CONTENT, not the requirement
+const OPTIONAL_CONTENT_ANTIPATTERNS: RegExp[] = [
+  // Asking about optional/recommended things (not making the requirement optional)
+  /\b(describe|explain|detail|list|what\s+are)\b.{0,30}\b(optional|recommended)/i,
+  /\boptional\s+(fields?|settings?|features?|parameters?|configurations?)\b/i,
+  /\brecommended\s+(settings?|configurations?|approach|process|system|server|hardware|software)\b/i,
+  // "if possible" about specific parts, not the whole requirement
+  /\b(screenshots?|images?|diagrams?|examples?).{0,15}if\s+possible/i,
+  /if\s+possible.{0,15}(screenshots?|images?|diagrams?|examples?)/i,
+  // Asking WHAT is recommended (not saying the requirement is optional)
+  /\bwhat\s+(is|are)\s+(the\s+)?recommended\b/i,
+  /\brecommended\s+(when|for|to|if)\b/i,
+  // "if applicable" about a sub-part, not the whole requirement
+  /\b(include|provide|add|attach).{0,20}if\s+(applicable|available|possible)\b/i,
+];
+
 const OPTIONAL_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
-  { pattern: /\boptional\b/i, confidence: 95 },
+  // Clear indicators that THE REQUIREMENT is optional
+  { pattern: /\bthis\s+(is\s+)?optional\b/i, confidence: 95 },
+  { pattern: /\boptional(ly)?:/i, confidence: 95 },  // "Optional: describe..."
+  { pattern: /\(optional\)/i, confidence: 95 },  // "(optional)"
   { pattern: /\bnot\s+required\b/i, confidence: 95 },
-  // Negation patterns
   { pattern: /\bnot\s+mandatory\b/i, confidence: 95 },
   { pattern: /\bis\s+not\s+required\b/i, confidence: 95 },
   { pattern: /\bnot\s+essential\b/i, confidence: 90 },
   { pattern: /\b(need|require)s?\s+not\b/i, confidence: 85 },
-  // Standard optional indicators
   { pattern: /\bnice\s+to\s+have\b/i, confidence: 90 },
-  { pattern: /\bif\s+(applicable|available|desired|possible)/i, confidence: 85 },
   { pattern: /\bbonus\b/i, confidence: 85 },
-  { pattern: /\bpreferred\s+(but\s+not\s+required)?/i, confidence: 82 },
-  { pattern: /\bdesired\b/i, confidence: 80 },
-  { pattern: /\bwhere\s+(applicable|possible)/i, confidence: 80 },
-  { pattern: /\brecommended\b/i, confidence: 75 },
-  { pattern: /\bmay\s+(include|provide|submit)/i, confidence: 72 },
+  { pattern: /\bpreferred\s+but\s+not\s+required/i, confidence: 95 },
+  { pattern: /\bvalue[\s-]?added\b/i, confidence: 80 },
+  // "if applicable" ONLY at END of requirement (whole thing is conditional)
+  { pattern: /if\s+(applicable|available)\s*[.?]?\s*$/i, confidence: 85 },
+  // "where applicable" at END
+  { pattern: /where\s+(applicable|possible)\s*[.?]?\s*$/i, confidence: 80 },
+  // Vendors "may" respond (not "must")
+  { pattern: /\b(vendors?|respondents?|proposers?)\s+may\s/i, confidence: 75 },
 ];
 
 const SECTION_MANDATORY_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
@@ -1041,14 +1068,19 @@ export function classifyMandatoryHeuristically(
     }
   }
 
-  // Check text for optional patterns first (they're more distinctive)
-  for (const { pattern, confidence } of OPTIONAL_PATTERNS) {
-    if (pattern.test(trimmedText)) {
-      return {
-        isMandatory: false,
-        confidence,
-        matchedPattern: pattern.source.substring(0, 30),
-      };
+  // Check if antipatterns match - if so, "optional/recommended" refers to CONTENT, not the requirement
+  const hasContentAntipattern = OPTIONAL_CONTENT_ANTIPATTERNS.some(ap => ap.test(text));
+
+  // Check text for optional patterns (only if no content antipattern matched)
+  if (!hasContentAntipattern) {
+    for (const { pattern, confidence } of OPTIONAL_PATTERNS) {
+      if (pattern.test(trimmedText)) {
+        return {
+          isMandatory: false,
+          confidence,
+          matchedPattern: pattern.source.substring(0, 30),
+        };
+      }
     }
   }
 
