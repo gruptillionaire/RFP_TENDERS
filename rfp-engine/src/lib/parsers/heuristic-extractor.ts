@@ -573,32 +573,46 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 export function detectMajorSections(text: string): Map<string, MajorSection> {
   const sections = new Map<string, MajorSection>();
 
-  // Collect all major section patterns from all families
-  const allPatterns: RegExp[] = [];
-  for (const family of PATTERN_FAMILIES) {
-    allPatterns.push(...family.majorSectionPatterns);
-  }
+  // Priority-ordered patterns for detecting major section headers
+  // IMPORTANT: PDF text often lacks clean newlines, so we need patterns that work inline
+  // Key insight: Title boundaries should be: newline, next section number (X.Y), dots (...), or end
+  // Do NOT use (?=\s+[a-z]) as lookahead - it wrongly terminates at lowercase words like "to"
+  const patterns = [
+    // Pattern 1: "X.0 Title" - greedily capture title words until real boundary
+    // Boundary: newline, next section number (digit.digit), dots (...), or end
+    // This correctly captures "3.0 Direct Query Questions to RFP Respondents"
+    /(?:^|\s)(\d+)\.0\s+([A-Z][A-Za-z][A-Za-z\s,&\-:'"()]*?)(?=\s*\n|\s+\d+\.\d|\s*\.{2,}|\s*$)/gm,
 
-  // Also add some common generic patterns
-  const genericPatterns = [
-    // "3.0 Title" or "3. Title" at start of line (common numeric)
+    // Pattern 2: "X.0: Title" or "X.0 - Title" format (e.g., "4.0: Additional Direct Query Questions")
+    /(?:^|\s)(\d+)\.0[:\-]\s*([A-Z][A-Za-z][A-Za-z\s,&\-:'"()]*?)(?=\s*\n|\s+\d+\.\d|\s*\.{2,}|\s*$)/gm,
+
+    // Pattern 3: "X.0 Title" or "X. Title" at start of line (clean line-based detection)
     /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
-    // ALL CAPS headers "3.0 DIRECT QUERY QUESTIONS"
-    /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Z\s,&\-:'"()]{5,}?)(?=\n|$)/gm,
-    // "X.0: Title" format
-    /(?:^|\s)(\d+)\.0[:\-]\s*([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|$)/gm,
-  ];
-  allPatterns.push(...genericPatterns);
 
-  for (const pattern of allPatterns) {
+    // Pattern 4: "Section X: Title" or "SECTION X - Title"
+    /(?:^|\n)\s*(?:SECTION|Section)\s+(\d+)[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+
+    // Pattern 5: ALL CAPS headers at start of line
+    /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Z\s,&\-:'"()]{5,}?)(?=\n|$)/gm,
+
+    // Pattern 6: Roman numeral sections "IV. Title" or "IV: Title"
+    /(?:^|\n)\s*(I{1,3}|IV|VI{0,3}|IX|X{1,3})[\.\s:]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+
+    // Pattern 7: Letter sections "A. Title" or "Section A: Title"
+    /(?:^|\n)\s*(?:SECTION|Section|Appendix)?\s*([A-Z])[\.\s:]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+  ];
+
+  for (let pIdx = 0; pIdx < patterns.length; pIdx++) {
+    const pattern = patterns[pIdx];
     pattern.lastIndex = 0;
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
       const sectionNum = match[1];
       let title = (match[2] || '').trim();
+      console.log(`[detectMajorSections] Pattern ${pIdx + 1} matched: ${sectionNum} -> "${title.substring(0, 40)}..."`);
 
-      // Skip if already found (first match wins)
+      // Skip if already found (first match wins - earlier patterns have priority)
       if (sections.has(sectionNum)) continue;
 
       // Clean up title - remove trailing punctuation and truncate
