@@ -38,18 +38,18 @@ const ATTESTATION_SIGNALS = [
   // GENERAL yes/no capability questions (binary answers = attestation eligible)
   // "Does the/your solution/system/WCMS provide/support/have/offer/allow..."
   /^does\s+(the|your)\s+\w+\s+(provide|support|have|offer|allow|enable|include)\b/i,
-  // "Can the/your/a [noun]..." - any "Can" question about capability
-  /^can\s+(the|your|a|an)\s+\w+/i,
-  // "Can [plural noun] be..." - "Can designs be imported?"
-  /^can\s+\w+s?\s+be\s+/i,
-  // "Can [noun] [verb]..." - general capability (but not "Can you describe...")
-  /^can\s+(?!you\s+(describe|explain|provide|detail))\w+\s+\w+/i,
-  // "Is the/your solution/system able/capable..."
-  /^is\s+(the|your)\s+\w+\s+(able|capable)\b/i,
   // "Does the solution/system [verb]..." (general capability)
   /^does\s+(the|your)\s+(solution|system|product|platform|software|tool|wcms|cms)\b/i,
   // "Do you have/offer/provide/support..."
   /^do\s+you\s+(have|offer|provide|support|work)\b/i,
+
+  // CATCH-ALL: Any "Can...?" question ending in ? that doesn't ask for description
+  // This handles "Can designs from third-party designers be imported?"
+  // and "Can business administrators customize which metadata fields..."
+  /^can\s+(?!.{0,30}(describe|explain|how\s+(do|would|will)|what\s+is\s+your)).+\?$/i,
+
+  // "Is the/your solution/system able/capable..."
+  /^is\s+(the|your)\s+\w+\s+(able|capable)\b/i,
   // "Are there..." existence questions
   /^are\s+there\b/i,
   // "Is there..." existence questions
