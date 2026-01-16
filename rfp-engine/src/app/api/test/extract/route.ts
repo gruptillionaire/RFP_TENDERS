@@ -12,9 +12,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { parsePDF } from "@/lib/parsers/pdf";
-import { extractRequirements } from "@/lib/openai";
+import { extractRequirements, refineLowConfidenceRequirements, ExtractedRequirement } from "@/lib/openai";
 import { extractCandidatesHeuristically, extractAndClassifyHeuristically } from "@/lib/parsers/heuristic-extractor";
 import { sanitizeForLLM } from "@/lib/security";
+import { detectDomainContext } from "@/lib/domain-context";
+import { classifyAttestation } from "@/lib/attestation";
 
 export const maxDuration = 300; // 5 minutes
 
@@ -222,6 +224,99 @@ export async function POST(request: NextRequest) {
             domain: r.domainContext,
             isAttestation: r.isAttestation,
           })),
+      });
+    }
+
+    // Debug mode: heuristic extraction + LLM refinement for low-confidence items
+    if (debugMode === "refined") {
+      console.log(`[test/extract] Debug mode: heuristic + LLM refinement`);
+      const sanitizedText = sanitizeForLLM(text);
+
+      // Step 1: Heuristic classification
+      const classifyStart = Date.now();
+      const classifiedResult = extractAndClassifyHeuristically(sanitizedText);
+      const classifyTime = Date.now() - classifyStart;
+
+      // Step 2: Convert to ExtractedRequirement format
+      const requirements: ExtractedRequirement[] = classifiedResult.requirements.map(req => ({
+        section: req.sectionNumber,
+        sectionGroup: req.sectionGroup,
+        text: req.text,
+        type: req.type,
+        isMandatory: req.isMandatory,
+        domainContext: req.domainContext,
+        wordLimit: null,
+        characterLimit: null,
+        isAttestation: req.isAttestation,
+        typeConfidence: req.typeConfidence,
+        mandatoryConfidence: req.mandatoryConfidence,
+      }));
+
+      // Step 3: Identify low-confidence items for refinement
+      const lowConfidenceReqs = requirements.filter(
+        r => (r.typeConfidence && r.typeConfidence < 70) ||
+             (r.mandatoryConfidence && r.mandatoryConfidence < 70)
+      );
+
+      console.log(`[test/extract] Found ${lowConfidenceReqs.length} low-confidence items for refinement`);
+
+      // Step 4: Refine low-confidence items with LLM
+      const refineStart = Date.now();
+      const refinedReqs = await refineLowConfidenceRequirements(lowConfidenceReqs);
+      const refineTime = Date.now() - refineStart;
+
+      // Step 5: Merge refined items back into full list
+      const refinedMap = new Map(refinedReqs.map(r => [r.section, r]));
+      const finalRequirements = requirements.map(req =>
+        refinedMap.has(req.section) ? refinedMap.get(req.section)! : req
+      );
+
+      // Calculate stats after refinement
+      const typeCounts: Record<string, number> = {};
+      let mandatoryCount = 0;
+      let attestationCount = 0;
+      let highConfidenceCount = 0;
+
+      for (const req of finalRequirements) {
+        typeCounts[req.type] = (typeCounts[req.type] || 0) + 1;
+        if (req.isMandatory) mandatoryCount++;
+        if (req.isAttestation) attestationCount++;
+        if ((req.typeConfidence || 0) >= 70) highConfidenceCount++;
+      }
+
+      return NextResponse.json({
+        success: true,
+        mode: "heuristic_refined",
+        meta: {
+          fileName: file.name,
+          fileSize: file.size,
+          textLength: text.length,
+          classifyTimeMs: classifyTime,
+          refineTimeMs: refineTime,
+          totalTimeMs: classifyTime + refineTime,
+        },
+        before: {
+          total: classifiedResult.requirements.length,
+          lowConfidenceCount: classifiedResult.lowConfidenceIds.length,
+          avgTypeConfidence: classifiedResult.stats.avgTypeConfidence,
+        },
+        after: {
+          total: finalRequirements.length,
+          highConfidenceCount,
+          lowConfidenceCount: finalRequirements.length - highConfidenceCount,
+          refinedCount: refinedReqs.length,
+        },
+        typeCounts,
+        attestationCount,
+        // Sample of refined requirements
+        refinedSamples: refinedReqs.slice(0, 10).map(r => ({
+          section: r.section,
+          text: r.text.substring(0, 200),
+          type: r.type,
+          typeConfidence: r.typeConfidence,
+          isMandatory: r.isMandatory,
+        })),
+        _note: `Heuristic extraction + LLM refinement for ${refinedReqs.length} low-confidence items.`,
       });
     }
 

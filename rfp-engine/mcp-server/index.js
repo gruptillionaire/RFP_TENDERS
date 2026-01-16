@@ -37,8 +37,8 @@ class MCPServer {
             },
             debug: {
               type: "string",
-              enum: ["heuristic", "classified"],
-              description: "Debug mode: 'heuristic' returns only heuristic extraction results without LLM classification. 'classified' returns full heuristic classification with type distribution and confidence scores.",
+              enum: ["heuristic", "classified", "refined"],
+              description: "Debug mode: 'heuristic' returns only heuristic extraction results without LLM classification. 'classified' returns full heuristic classification with type distribution and confidence scores. 'refined' runs heuristic extraction + LLM refinement for low-confidence items.",
             },
           },
           required: ["file_path"],
@@ -241,6 +241,20 @@ class MCPServer {
           attestationSamples: result.attestationSamples,
           lowConfidenceSamples: result.lowConfidenceSamples,
           _note: "This is heuristic classification (no LLM). Check typeCounts for distribution and samplesByType for examples.",
+        };
+      }
+
+      // Handle heuristic + LLM refinement mode
+      if (result.mode === "heuristic_refined") {
+        return {
+          mode: "heuristic_refined",
+          meta: result.meta,
+          before: result.before,
+          after: result.after,
+          typeCounts: result.typeCounts,
+          attestationCount: result.attestationCount,
+          refinedSamples: result.refinedSamples,
+          _note: result._note,
         };
       }
 

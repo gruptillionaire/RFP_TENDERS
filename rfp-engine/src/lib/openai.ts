@@ -2721,6 +2721,155 @@ export async function extractRequirementsHeuristicsOnly(
 }
 
 // =============================================================================
+// LLM REFINEMENT FOR LOW-CONFIDENCE ITEMS
+// =============================================================================
+
+/**
+ * Refinement result for a single requirement
+ */
+interface RefinementResult {
+  id: string;
+  type: RequirementType;
+  isMandatory: boolean;
+  typeConfidence: number;
+  mandatoryConfidence: number;
+  refined: boolean;
+}
+
+/**
+ * Refine low-confidence requirements using LLM classification.
+ *
+ * This is Phase 2 of the hybrid architecture - only called for items
+ * where heuristic classification confidence is below threshold.
+ *
+ * Uses parallel one-by-one approach:
+ * - Each requirement is sent individually to the LLM
+ * - All requests are executed in parallel with Promise.all
+ * - Cost: ~$0.001 per requirement (gpt-4o-mini)
+ *
+ * @param requirements - Requirements to refine (typically low-confidence only)
+ * @param concurrencyLimit - Max parallel requests (default: 10)
+ * @returns Updated requirements with LLM-refined classifications
+ */
+export async function refineLowConfidenceRequirements(
+  requirements: ExtractedRequirement[],
+  concurrencyLimit: number = 10
+): Promise<ExtractedRequirement[]> {
+  if (requirements.length === 0) {
+    return requirements;
+  }
+
+  console.log(`[refine] Refining ${requirements.length} low-confidence requirements`);
+  const startTime = Date.now();
+
+  // Process in batches to respect concurrency limit
+  const results: ExtractedRequirement[] = [];
+
+  for (let i = 0; i < requirements.length; i += concurrencyLimit) {
+    const batch = requirements.slice(i, i + concurrencyLimit);
+    console.log(`[refine] Processing batch ${Math.floor(i / concurrencyLimit) + 1}/${Math.ceil(requirements.length / concurrencyLimit)}`);
+
+    const batchResults = await Promise.all(
+      batch.map(req => refineRequirement(req))
+    );
+
+    results.push(...batchResults);
+  }
+
+  const elapsed = Date.now() - startTime;
+  const refinedCount = results.filter(r => r.typeConfidence && r.typeConfidence >= 90).length;
+  console.log(`[refine] Complete in ${elapsed}ms: ${refinedCount}/${requirements.length} refined to high confidence`);
+
+  return results;
+}
+
+/**
+ * Refine a single requirement using LLM
+ */
+async function refineRequirement(req: ExtractedRequirement): Promise<ExtractedRequirement> {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  const prompt = `Classify this RFP requirement.
+
+REQUIREMENT TEXT:
+"${req.text.substring(0, 500)}"
+
+SECTION: ${req.section || "Unknown"}
+
+Respond in JSON format:
+{
+  "type": "DECLARATIVE" | "DESCRIPTIVE" | "QUANTITATIVE" | "REFERENCE_BASED" | "EVIDENCE_BASED" | "STAFFING" | "PROCEDURAL" | "CONTEXTUAL",
+  "isMandatory": true | false,
+  "typeReason": "brief reason",
+  "mandatoryReason": "brief reason"
+}
+
+TYPE DEFINITIONS:
+- DECLARATIVE: Yes/No capability questions ("Does the system support X?")
+- DESCRIPTIVE: Requests for explanation/narrative ("Describe your approach to...")
+- QUANTITATIVE: Numeric/pricing data ("Provide pricing for...")
+- REFERENCE_BASED: Past work/experience ("List 3 similar projects...")
+- EVIDENCE_BASED: Certifications/documents ("Provide ISO certification...")
+- STAFFING: Team/personnel ("Describe your team's qualifications...")
+- PROCEDURAL: Process/methodology ("Outline your implementation process...")
+- CONTEXTUAL: Conditional/situational ("If you use subcontractors, describe...")
+
+MANDATORY INDICATORS:
+- "must", "shall", "required" = mandatory (true)
+- "may", "should", "optional", "if applicable" = optional (false)
+- Default to mandatory (true) if unclear`;
+
+  try {
+    const response = await withRetry(async () => {
+      return openai.chat.completions.create({
+        model: MODELS.EXTRACTION,
+        messages: [
+          { role: "system", content: "You are an RFP requirement classifier. Output only valid JSON." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 200,
+        response_format: { type: "json_object" },
+      });
+    }, { maxRetries: 2, timeout: 30000 });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return req; // Return unchanged if no response
+    }
+
+    const parsed = JSON.parse(content) as {
+      type: string;
+      isMandatory: boolean;
+      typeReason?: string;
+      mandatoryReason?: string;
+    };
+
+    // Validate type
+    const validTypes: RequirementType[] = [
+      "DECLARATIVE", "DESCRIPTIVE", "QUANTITATIVE", "REFERENCE_BASED",
+      "EVIDENCE_BASED", "STAFFING", "PROCEDURAL", "CONTEXTUAL"
+    ];
+    const refinedType = validTypes.includes(parsed.type as RequirementType)
+      ? (parsed.type as RequirementType)
+      : req.type;
+
+    return {
+      ...req,
+      type: refinedType,
+      isMandatory: typeof parsed.isMandatory === "boolean" ? parsed.isMandatory : req.isMandatory,
+      typeConfidence: 95, // LLM classification = high confidence
+      mandatoryConfidence: 95,
+    };
+  } catch (error) {
+    console.error(`[refine] Error refining requirement ${req.section}:`, error);
+    return req; // Return unchanged on error
+  }
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION (LLM-based - existing)
 // =============================================================================
 
