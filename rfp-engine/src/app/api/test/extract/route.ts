@@ -144,6 +144,7 @@ export async function POST(request: NextRequest) {
       // Generate type counts
       const typeCounts: Record<string, number> = {};
       const confidenceByType: Record<string, number[]> = {};
+      const domainCounts: Record<string, number> = { FEATURE: 0, PROCESS: 0, LEGAL: 0 };
       let mandatoryCount = 0;
       let totalTypeConfidence = 0;
 
@@ -153,6 +154,8 @@ export async function POST(request: NextRequest) {
         confidenceByType[req.type].push(req.typeConfidence);
         totalTypeConfidence += req.typeConfidence;
         if (req.isMandatory) mandatoryCount++;
+        // Count domain contexts
+        domainCounts[req.domainContext] = (domainCounts[req.domainContext] || 0) + 1;
       }
 
       // Calculate average confidence per type
@@ -174,6 +177,7 @@ export async function POST(request: NextRequest) {
         },
         stats: classifiedResult.stats,
         typeCounts,
+        domainCounts,
         avgConfidenceByType,
         lowConfidenceCount: classifiedResult.lowConfidenceIds.length,
         // Sample of requirements by type
@@ -186,9 +190,10 @@ export async function POST(request: NextRequest) {
               text: r.text.substring(0, 200),
               confidence: r.typeConfidence,
               pattern: r.typePattern,
+              domain: r.domainContext,
             }));
           return acc;
-        }, {} as Record<string, Array<{ section: string; text: string; confidence: number; pattern?: string }>>),
+        }, {} as Record<string, Array<{ section: string; text: string; confidence: number; pattern?: string; domain: string }>>),
         // Low confidence samples
         lowConfidenceSamples: classifiedResult.requirements
           .filter(r => r.typeConfidence < 70)
@@ -199,6 +204,7 @@ export async function POST(request: NextRequest) {
             type: r.type,
             confidence: r.typeConfidence,
             pattern: r.typePattern,
+            domain: r.domainContext,
           })),
       });
     }

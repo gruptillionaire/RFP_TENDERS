@@ -21,6 +21,7 @@ import {
   TypeClassification,
   MandatoryClassification,
 } from "./heuristic-classifier";
+import { DomainContext, detectDomainContext } from "../domain-context";
 
 // =============================================================================
 // TYPES
@@ -148,8 +149,20 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 
     // Strip trailing section number + title contamination
     // Pattern: X.Y or X.Y.Z followed by title-like text at end (e.g., "...testing? 3.5 Integrations")
-    const cleanedText = rawText.replace(
+    let cleanedText = rawText.replace(
       /\s+\d+\.\d+(?:\.\d+)?\s+[A-Z][A-Za-z\s,&\-:]+$/,
+      ''
+    ).trim();
+
+    // Strip page numbers and document titles (e.g., "29 of 38 Request for Proposal: Website Design...")
+    cleanedText = cleanedText.replace(
+      /\s+\d+\s+of\s+\d+\s+Request\s+for\s+Proposal[^]*$/i,
+      ''
+    ).trim();
+
+    // Strip other common page header/footer patterns
+    cleanedText = cleanedText.replace(
+      /\s+Page\s+\d+\s+of\s+\d+[^]*$/i,
       ''
     ).trim();
 
@@ -390,6 +403,8 @@ export interface ClassifiedRequirement {
   typeConfidence: number;
   /** Pattern that matched for type (debugging) */
   typePattern?: string;
+  /** Domain context: FEATURE, PROCESS, or LEGAL */
+  domainContext: DomainContext;
   /** Whether this is mandatory */
   isMandatory: boolean;
   /** Confidence in mandatory classification (0-100) */
@@ -492,6 +507,9 @@ export function extractAndClassifyHeuristically(
     totalTypeConfidence += typeClassification.confidence;
     totalMandatoryConfidence += mandatoryClassification.confidence;
 
+    // Detect domain context (FEATURE, PROCESS, LEGAL)
+    const domainContext = detectDomainContext(candidate.rawText);
+
     // Create classified requirement
     requirements.push({
       id,
@@ -501,6 +519,7 @@ export function extractAndClassifyHeuristically(
       type: typeClassification.type,
       typeConfidence: typeClassification.confidence,
       typePattern: typeClassification.matchedPattern,
+      domainContext,
       isMandatory: mandatoryClassification.isMandatory,
       mandatoryConfidence: mandatoryClassification.confidence,
       mandatoryPattern: mandatoryClassification.matchedPattern,

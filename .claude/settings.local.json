@@ -36,7 +36,8 @@
       "Bash(npx prisma migrate dev:*)",
       "mcp__rfp-extraction__extract_pdf",
       "Bash(node -e:*)",
-      "Bash(dir \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\" /s /b)"
+      "Bash(dir \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\" /s /b)",
+      "Bash(timeout /t 100 /nobreak)"
     ]
   }
 }
