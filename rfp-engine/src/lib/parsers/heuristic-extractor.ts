@@ -459,8 +459,8 @@ export function extractAndClassifyHeuristically(
     const majorSection = majorSections.get(candidate.majorSection);
     const sectionGroup = majorSection?.title || `Section ${candidate.majorSection}`;
 
-    // Classify type
-    const typeClassification = classifyTypeHeuristically(candidate.rawText);
+    // Classify type (pass section title for context boost)
+    const typeClassification = classifyTypeHeuristically(candidate.rawText, sectionGroup);
 
     // Classify mandatory (pass section title for context)
     const mandatoryClassification = classifyMandatoryHeuristically(

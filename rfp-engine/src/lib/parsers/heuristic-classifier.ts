@@ -1,9 +1,17 @@
 /**
- * Heuristic Classifier for RFP Requirements
+ * Heuristic Classifier for RFP Requirements (v2)
  *
- * Classifies requirement type and mandatory status using pattern matching.
- * This provides instant classification without API calls, with confidence scores
- * to indicate when LLM refinement might be beneficial.
+ * Two-pass classification architecture:
+ * - Pass 1: Detect QUESTION STRUCTURE (yes/no, open-ended, list, confirmation, statement)
+ * - Pass 2: Detect TOPIC/CONTENT (staffing, financial, reference, etc.)
+ * - Combine with weighted logic and multi-factor confidence scoring
+ *
+ * Key improvements over v1:
+ * - Action-verb anchored patterns (avoids catching contextual mentions)
+ * - Anti-patterns to reduce false positives
+ * - Question structure takes priority over keyword matching
+ * - Multi-factor confidence scoring
+ * - Section context boosts
  *
  * Part of the Hybrid Heuristic + LLM architecture.
  */
@@ -18,6 +26,8 @@ export interface TypeClassification {
   type: RequirementType;
   confidence: number; // 0-100
   matchedPattern?: string; // For debugging
+  questionStructure?: QuestionStructure; // Pass 1 result
+  topicMatch?: string; // Pass 2 result
 }
 
 export interface MandatoryClassification {
@@ -27,194 +37,581 @@ export interface MandatoryClassification {
 }
 
 // =============================================================================
-// TYPE CLASSIFICATION PATTERNS
+// PASS 1: QUESTION STRUCTURE DETECTION
 // =============================================================================
 
-interface TypePattern {
-  type: RequirementType;
-  priority: number; // Higher = checked first (more specific patterns)
-  patterns: RegExp[];
+type QuestionStructureType =
+  | 'yes_no'        // "Does your system...", "Can you...", "Is there..."
+  | 'open_ended'    // "Describe...", "Explain...", "How does..."
+  | 'list_request'  // "List...", "Provide [items]...", "Identify..."
+  | 'confirmation'  // "Confirm...", "Acknowledge...", "Certify..."
+  | 'statement'     // Not a question - declarative statement
+  | 'unknown';      // Can't determine
+
+interface QuestionStructure {
+  type: QuestionStructureType;
+  confidence: number;
+  indicator?: string;
 }
 
 /**
- * Type patterns ordered by priority (highest first).
- * Higher priority patterns are more specific and should be checked first.
+ * PASS 1: Detect the question structure.
+ * This determines HOW the requirement is asking for information.
  */
-const TYPE_PATTERNS: TypePattern[] = [
-  // STAFFING - Highest priority, very specific patterns
+function detectQuestionStructure(text: string): QuestionStructure {
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+
+  // === YES/NO QUESTIONS (highest priority) ===
+  // Direct yes/no starters
+  if (/^(does|do)\s+(the|your|it|this|a|an|you)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 95, indicator: 'does/do start' };
+  }
+  if (/^can\s+(the|your|you|it|this|users?|a|an|we)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 95, indicator: 'can start' };
+  }
+  if (/^is\s+(the|your|it|this|there|a|an)\s/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 95, indicator: 'is start' };
+  }
+  if (/^are\s+(the|your|there|these|those|you|we)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 95, indicator: 'are start' };
+  }
+  if (/^will\s+(the|your|it|this|you|there)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 90, indicator: 'will start' };
+  }
+  if (/^would\s+(the|your|it|this|you)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 85, indicator: 'would start' };
+  }
+  if (/^has\s+(the|your|it|this)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 90, indicator: 'has start' };
+  }
+  if (/^have\s+(you|your|the)/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 90, indicator: 'have start' };
+  }
+
+  // Embedded yes/no questions
+  if (/\b(confirm|indicate|specify)\s+(whether|if)\s+(the|your|you)/i.test(lower)) {
+    return { type: 'yes_no', confidence: 90, indicator: 'confirm whether/if' };
+  }
+  if (/\bplease\s+(confirm|indicate|specify)\s+(that|if|whether)/i.test(lower)) {
+    return { type: 'yes_no', confidence: 88, indicator: 'please confirm' };
+  }
+
+  // === CONFIRMATION REQUESTS ===
+  if (/^(please\s+)?(confirm|acknowledge|agree|accept|certify|attest)\b/i.test(trimmed)) {
+    return { type: 'confirmation', confidence: 95, indicator: 'confirmation verb start' };
+  }
+  if (/\bconfirm\s+(that|your|you|receipt|acceptance|compliance|understanding)/i.test(lower)) {
+    return { type: 'confirmation', confidence: 90, indicator: 'confirm that' };
+  }
+  if (/\backnowledge\s+(that|your|you|receipt|understanding)/i.test(lower)) {
+    return { type: 'confirmation', confidence: 90, indicator: 'acknowledge that' };
+  }
+
+  // === OPEN-ENDED QUESTIONS ===
+  if (/^describe\b/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 95, indicator: 'describe start' };
+  }
+  if (/^explain\b/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 95, indicator: 'explain start' };
+  }
+  if (/^(how|what|why)\s+(does|do|is|are|will|would|can|could|should|has|have)/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 92, indicator: 'how/what/why question' };
+  }
+  if (/^please\s+(describe|explain|detail|elaborate|discuss)/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 93, indicator: 'please describe/explain' };
+  }
+  if (/^(outline|detail|discuss|elaborate)\b/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 90, indicator: 'outline/detail start' };
+  }
+
+  // === LIST REQUESTS ===
+  if (/^(list|identify|name|enumerate)\b/i.test(trimmed)) {
+    return { type: 'list_request', confidence: 92, indicator: 'list/identify start' };
+  }
+  if (/^provide\s+(a\s+)?(list|listing|breakdown|inventory)\b/i.test(trimmed)) {
+    return { type: 'list_request', confidence: 90, indicator: 'provide list' };
+  }
+
+  // === STATEMENT DETECTION (not a question) ===
+  // Instructions/statements about what vendor SHALL do
+  if (/^(the\s+)?(vendor|contractor|respondent|proposer|bidder)\s+(shall|must|will)\s/i.test(trimmed)) {
+    return { type: 'statement', confidence: 85, indicator: 'vendor shall statement' };
+  }
+  // Background/context statements
+  if (/^(this\s+section|the\s+following|note\s+that|note:|for\s+the\s+purposes?\s+of)/i.test(trimmed)) {
+    return { type: 'statement', confidence: 90, indicator: 'section intro' };
+  }
+  if (/^(all\s+)?(proposals?|responses?|submissions?)\s+(shall|must|should)\s+(be|include|contain)/i.test(trimmed)) {
+    return { type: 'statement', confidence: 85, indicator: 'proposal shall statement' };
+  }
+
+  // === FALLBACK HEURISTICS ===
+  // Ends with question mark but no clear structure
+  if (trimmed.endsWith('?')) {
+    // Check for embedded question words
+    if (/\b(what|how|why|when|where|which)\b/i.test(lower)) {
+      return { type: 'open_ended', confidence: 65, indicator: 'question mark + wh-word' };
+    }
+    if (/\b(does|do|can|is|are|will|would|has|have)\b/i.test(lower)) {
+      return { type: 'yes_no', confidence: 60, indicator: 'question mark + aux verb' };
+    }
+    return { type: 'unknown', confidence: 50, indicator: 'question mark only' };
+  }
+
+  // Starts with action verb (likely a request)
+  if (/^(provide|submit|include|attach|upload)\b/i.test(trimmed)) {
+    // Could be list_request or something else - low confidence
+    return { type: 'unknown', confidence: 45, indicator: 'action verb start' };
+  }
+
+  return { type: 'unknown', confidence: 30, indicator: 'no pattern matched' };
+}
+
+// =============================================================================
+// PASS 2: TOPIC CLASSIFICATION PATTERNS (with anti-patterns)
+// =============================================================================
+
+interface TopicPattern {
+  type: RequirementType;
+  patterns: RegExp[];
+  antiPatterns?: RegExp[];       // If matched, SKIP this type (reduce confidence to 0)
+  weakenPatterns?: RegExp[];     // If matched, reduce confidence by 20
+  requiresActionVerb?: boolean;  // Pattern must have action verb context
+  sectionBoostKeywords?: string[]; // Section titles that boost this type
+}
+
+/**
+ * Topic patterns with anti-patterns and action-verb requirements.
+ * These detect WHAT the requirement is about, not HOW it asks.
+ */
+const TOPIC_PATTERNS: TopicPattern[] = [
+  // STAFFING - Requires action verb to avoid contextual mentions
   {
     type: "STAFFING",
-    priority: 100,
     patterns: [
-      /\b(staff(ing)?|personnel|team\s+member|FTE|employee|human\s+resource)\b/i,
-      /\b(resume|CV|curriculum\s+vitae|bio(graphy)?)\b/i,
-      /\bprovide.{0,30}(name|contact|title|role).{0,20}(staff|team|personnel|manager|lead)/i,
-      /\b(project\s+manager|team\s+lead|account\s+manager|coordinator|specialist)\b.*\b(name|contact|assign)/i,
-      /\bkey\s+(staff|personnel|team\s+member)/i,
-      /\borganizational?\s+chart/i,
+      // Action-verb anchored patterns
+      /\b(provide|submit|include|list|identify).{0,30}(staff|personnel|team\s+member|FTE|employee)/i,
+      /\b(provide|submit|include|attach).{0,30}(resume|CV|curriculum\s+vitae)/i,
+      /\b(provide|identify|list).{0,30}(key\s+staff|key\s+personnel|project\s+team)/i,
+      /\b(provide|include|attach).{0,30}organizational?\s+chart/i,
+      // Specific staffing requests
+      /\b(name|identify).{0,20}(project\s+manager|team\s+lead|account\s+manager)/i,
+      /\bwho\s+will\s+(be\s+)?(assigned|responsible|leading|managing)/i,
+      /\bproposed\s+(staff|team|personnel)\b/i,
+      /\bstaffing\s+(plan|proposal|approach)\b/i,
     ],
+    antiPatterns: [
+      // "Describe your staffing approach" is DESCRIPTIVE, not STAFFING
+      /^describe\s+(your\s+)?(staffing|team|personnel)/i,
+      /^explain\s+(your\s+)?(staffing|team|personnel)/i,
+      // Staff mentioned as contact, not as requirement
+      /\bstaff\s+will\s+(review|contact|respond)/i,
+      /\bour\s+staff\b/i,  // Talking about their own staff
+    ],
+    sectionBoostKeywords: ['staffing', 'personnel', 'team', 'resources', 'key staff'],
   },
 
-  // REFERENCE_BASED - High priority, specific patterns
+  // REFERENCE_BASED - Distinguish from "describe similar work"
   {
     type: "REFERENCE_BASED",
-    priority: 95,
     patterns: [
-      /\b(client|customer)\s+reference/i,
-      /\breference.{0,20}(client|customer|contact)/i,
-      /\bcase\s+stud(y|ies)/i,
-      /\bsimilar\s+(project|engagement|contract|work)/i,
-      /\bpast\s+performance/i,
-      /\bprior\s+(experience|work|project)/i,
-      /\bportfolio/i,
-      /\bprovide.{0,30}(example|sample).{0,20}(project|work|engagement)/i,
-      /\blist.{0,20}(client|customer|project).{0,20}(similar|comparable|relevant)/i,
+      // Asking for actual references/contacts
+      /\b(provide|submit|include|list).{0,30}(client|customer)\s+reference/i,
+      /\b(provide|submit|include|list).{0,30}reference.{0,15}(contact|name|phone|email)/i,
+      /\bcontact\s+information.{0,20}(reference|client)/i,
+      // Case studies as documents
+      /\b(provide|submit|include|attach).{0,30}case\s+stud(y|ies)/i,
+      // Past performance documentation
+      /\bpast\s+performance\s+(reference|record|rating)/i,
+      /\bCPARS\b/i, // Contractor Performance Assessment Reporting System
     ],
+    antiPatterns: [
+      // "Describe similar projects" is DESCRIPTIVE
+      /^describe\s+(a\s+)?(similar|comparable|relevant)/i,
+      /^explain\s+(your\s+)?(experience|work)\s+(with|on|in)/i,
+    ],
+    weakenPatterns: [
+      // "Describe a similar project" - could be either
+      /\bdescribe.{0,20}similar\s+(project|engagement)/i,
+    ],
+    sectionBoostKeywords: ['reference', 'experience', 'past performance', 'qualifications'],
   },
 
-  // EVIDENCE_BASED - High priority, documentation requests
+  // EVIDENCE_BASED - Only for actual documents/certificates
   {
     type: "EVIDENCE_BASED",
-    priority: 90,
     patterns: [
-      /\b(attach|upload|include|submit|provide).{0,30}(copy|copies|proof|evidence|documentation)/i,
-      /\b(attach|upload|include|submit|provide).{0,30}(certificate|certification|license|permit)/i,
-      /\b(ISO|SOC|SOC2|HIPAA|PCI|GDPR|FedRAMP)\s*[-\s]?\d*/i,
-      /\bcertificate\s+of\s+(insurance|compliance|incorporation)/i,
-      /\bproof\s+of\s+(insurance|compliance|registration|bonding)/i,
-      /\bfinancial\s+statement/i,
-      /\baudit(ed)?\s+(report|statement|financial)/i,
-      /\bW-?9\b/i,
+      // Specific document types
+      /\b(attach|upload|include|submit|provide).{0,30}(certificate|certification|license|permit)\b/i,
+      /\bcertificate\s+of\s+(insurance|compliance|incorporation|good\s+standing)/i,
+      /\bproof\s+of\s+(insurance|compliance|registration|bonding|licensure)/i,
+      // Compliance certifications
+      /\b(ISO|SOC|SOC2|HIPAA|PCI|GDPR|FedRAMP|FISMA)\s*[-\s]?\d*/i,
+      // Financial documentation
+      /\b(attach|provide|submit).{0,30}(financial\s+statement|audit(ed)?\s+report|W-?9)\b/i,
+      /\b(attach|provide|submit).{0,30}(balance\s+sheet|income\s+statement|tax\s+return)/i,
+      // Insurance documents
+      /\binsurance\s+(certificate|policy|coverage)\b/i,
     ],
+    antiPatterns: [
+      // General documentation requests are DESCRIPTIVE
+      /\bdocumentation\s+of\s+(your\s+)?(approach|methodology|process)/i,
+      /\bprovide\s+documentation\s+(describing|explaining|outlining)/i,
+    ],
+    sectionBoostKeywords: ['attachment', 'evidence', 'documentation', 'certificate', 'compliance'],
   },
 
-  // QUANTITATIVE - Financial/numeric requests
+  // QUANTITATIVE - Only when asking FOR numbers, not about numbers
   {
     type: "QUANTITATIVE",
-    priority: 85,
     patterns: [
-      /\$\s*[\d,]+/,  // Dollar amounts
-      /\b(price|pricing|cost|fee|rate|budget|amount|total)\s*(for|of|per|breakdown)?/i,
-      /\bhow\s+much\b/i,
-      /\bhow\s+many\b/i,
-      /\bnumber\s+of\b/i,
-      /\bquantity\b/i,
-      /\bpercentage\b|\b%\b/i,
-      /\bprovide.{0,20}(breakdown|estimate|quote|bid|proposal)\b/i,
-      /\b(hourly|daily|weekly|monthly|annual)\s+rate/i,
+      // Direct price/cost requests
+      /\bwhat\s+(is|are)\s+(the|your)\s+(price|cost|fee|rate|total)/i,
+      /\bprovide\s+(your\s+)?(pricing|costs?|fees?|rates?|quote|bid)\b/i,
+      /\bsubmit\s+(your\s+)?(pricing|costs?|fees?|quote|bid)\b/i,
+      // Actual currency amounts
+      /[£$€¥]\s*[\d,]+/,
+      /\b\d+(\.\d+)?\s*%/,  // Percentages with numbers
+      // Specific quantitative requests
+      /\bhow\s+much\s+(does|will|would|is)/i,
+      /\btotal\s+(cost|price|amount|fee)\b/i,
       /\bunit\s+price/i,
+      /\b(hourly|daily|weekly|monthly|annual)\s+(rate|fee|cost)/i,
+      /\bprice\s+(per|for|of)\b/i,
+      /\bcost\s+breakdown\b/i,
+      /\bitemized\s+(cost|price|fee)/i,
     ],
+    antiPatterns: [
+      // Asking about pricing APPROACH/METHODOLOGY is DESCRIPTIVE
+      /\b(describe|explain)\s+(your\s+)?(pricing|cost)\s+(approach|methodology|strategy|model)/i,
+      /\bhow\s+(do|does|would)\s+you\s+(determine|calculate|approach)\s+(pricing|costs?)/i,
+      // Asking about understanding/handling is DESCRIPTIVE
+      /\bexplain\s+how\s+you\s+handle\s+(pricing|costs?)/i,
+    ],
+    weakenPatterns: [
+      // Generic mentions of numbers
+      /\bnumber\s+of\b/i,
+      /\bamount\s+of\b/i,
+    ],
+    sectionBoostKeywords: ['pricing', 'cost', 'fee', 'financial', 'budget', 'price'],
   },
 
-  // PROCEDURAL - Confirmations and acknowledgments
+  // PROCEDURAL - Confirmations and signatures
   {
     type: "PROCEDURAL",
-    priority: 75,
     patterns: [
-      /^(please\s+)?(confirm|acknowledge|agree|accept|certify|attest)\b/i,
-      /\bconfirm\s+(that|your|you|receipt|acceptance|compliance)/i,
-      /\backnowledge\s+(that|your|you|receipt|understanding)/i,
-      /\bsign(ed|ature)?\s*(and\s+)?(return|submit|date)/i,
-      /\bexecute.{0,20}(agreement|contract|form)/i,
-      /\binitial\s+(here|each|all)/i,
+      /\bsign(ed|ature)?\s*(and\s+)?(return|submit|date|below)/i,
+      /\bexecute\s+(the\s+)?(agreement|contract|form|document)/i,
+      /\binitial\s+(here|each|all|below)/i,
+      /\breturn\s+(this|the)\s+(form|document|page).{0,20}(signed|completed)/i,
+      /\bcomplete\s+and\s+(sign|return|submit)/i,
+      /\bsigned\s+(copy|form|document|agreement)/i,
     ],
+    sectionBoostKeywords: ['signature', 'execution', 'acknowledgment', 'certification'],
   },
 
-  // CONTEXTUAL - Background, instructions, warnings (not questions)
+  // CONTEXTUAL - Background, instructions, non-questions
   {
     type: "CONTEXTUAL",
-    priority: 70,
     patterns: [
-      /^(this\s+section|the\s+following|note\s+that|note:|background|introduction|overview)\b/i,
-      /\bfailure\s+to.{0,40}(may|will|shall)\s+(result|cause|lead)/i,
-      /\bshall\s+be\s+(submitted|received|delivered|provided)\s+(by|to|on|before)/i,
-      /\bmust\s+be\s+(submitted|received|delivered|provided)\s+(by|to|on|before)/i,
-      /\bproposal(s)?\s+(shall|must|should)\s+(be|include|contain)/i,
-      /\bresponse(s)?\s+(shall|must|should)\s+(be|include|contain)/i,
-      /\bvendor(s)?\s+(shall|must|should)\s+(ensure|provide|submit)/i,
-      /\bdeadline\s*(for|is|:)/i,
-      /\bdue\s+date\s*(is|:)/i,
-      /\bsubmission\s+(deadline|date|requirement)/i,
+      // Section introductions
+      /^(this\s+section|the\s+following|below\s+are|the\s+purpose\s+of)/i,
+      /^(note|please\s+note|important):/i,
+      /^for\s+the\s+purposes?\s+of\s+(this|the)/i,
+      // Deadlines and submission instructions
+      /\b(deadline|due\s+date|closing\s+date)\s*(is|:)/i,
+      /\bsubmission\s+(deadline|date|instructions?)\b/i,
+      /\bproposals?\s+(must|shall)\s+be\s+(received|submitted|delivered)\s+(by|before|no\s+later)/i,
+      // Evaluation criteria statements
+      /\bevaluation\s+(criteria|factors?)\s*(are|include|:)/i,
+      /\bwill\s+be\s+(evaluated|scored|assessed)\s+(based\s+on|according\s+to)/i,
+      // Warnings/consequences
+      /\bfailure\s+to.{0,40}(may|will|shall)\s+(result|cause|lead|disqualify)/i,
+      /\bnon-?compliance.{0,20}(may|will|shall)\s+(result|cause)/i,
+      // Definitions
+      /^"[^"]+"\s+(means|refers\s+to|is\s+defined\s+as)/i,
+      /\bfor\s+purposes\s+of\s+this\s+(RFP|solicitation|document)/i,
+      // General instructions
+      /\b(vendor|contractor|respondent)s?\s+(shall|must|should)\s+(ensure|provide|submit|comply)/i,
+      /\ball\s+(proposals?|responses?)\s+(shall|must|should)\s/i,
     ],
-  },
-
-  // DECLARATIVE - Yes/no questions (very common in RFPs)
-  {
-    type: "DECLARATIVE",
-    priority: 55,
-    patterns: [
-      /^does\s+(the|your|it|this)/i,
-      /^do\s+you(r)?\s/i,
-      /^can\s+(the|your|you|it|this|users?|a|an)/i,
-      /^is\s+(the|your|it|this|there|a|an)\s/i,
-      /^are\s+(the|your|there|these|those|you)/i,
-      /^will\s+(the|your|it|this|you)/i,
-      /^would\s+(the|your|it|this|you)/i,
-      /^has\s+(the|your|it|this)/i,
-      /^have\s+you(r)?\s/i,
-      /^shall\s+(the|your)/i,
-      // Questions ending with ? that start with these patterns
-      /^(does|do|can|is|are|will|would|has|have)\b.+\?$/i,
-    ],
-  },
-
-  // DESCRIPTIVE - Open-ended questions (default for most questions)
-  {
-    type: "DESCRIPTIVE",
-    priority: 45,
-    patterns: [
-      /^describe\b/i,
-      /^explain\b/i,
-      /^outline\b/i,
-      /^detail\b/i,
-      /^discuss\b/i,
-      /^elaborate\b/i,
-      /^(how|what|why|when|where)\s+(does|do|is|are|will|would|can|could|should)/i,
-      /^please\s+(describe|explain|provide|detail|outline)/i,
-      /^provide\s+(a\s+)?(description|explanation|overview|summary|detail)/i,
-      /\bplease\s+explain\b/i,
-      /\bdescribe\s+(how|what|your|the)/i,
-    ],
+    sectionBoostKeywords: ['introduction', 'overview', 'background', 'instructions', 'evaluation', 'deadline'],
   },
 ];
 
-// Sort patterns by priority (highest first)
-const SORTED_TYPE_PATTERNS = [...TYPE_PATTERNS].sort((a, b) => b.priority - a.priority);
+// =============================================================================
+// MAPPING: QUESTION STRUCTURE -> DEFAULT TYPE
+// =============================================================================
+
+const QUESTION_STRUCTURE_TYPE_MAP: Record<QuestionStructureType, RequirementType> = {
+  'yes_no': 'DECLARATIVE',
+  'open_ended': 'DESCRIPTIVE',
+  'list_request': 'DESCRIPTIVE',  // Lists often need description too
+  'confirmation': 'PROCEDURAL',
+  'statement': 'CONTEXTUAL',
+  'unknown': 'DESCRIPTIVE',  // Default for questions
+};
 
 // =============================================================================
-// MANDATORY CLASSIFICATION PATTERNS
+// CONFIDENCE CALCULATION
+// =============================================================================
+
+interface TopicMatch {
+  type: RequirementType;
+  pattern: string;
+  baseConfidence: number;
+  hasAntiPattern: boolean;
+  hasWeakenPattern: boolean;
+}
+
+function findTopicMatches(text: string, sectionTitle?: string): TopicMatch[] {
+  const matches: TopicMatch[] = [];
+  const lower = text.toLowerCase();
+  const sectionLower = sectionTitle?.toLowerCase() || '';
+
+  for (const topic of TOPIC_PATTERNS) {
+    // Check anti-patterns first - if matched, skip this type entirely
+    let hasAntiPattern = false;
+    if (topic.antiPatterns) {
+      for (const antiPattern of topic.antiPatterns) {
+        if (antiPattern.test(text)) {
+          hasAntiPattern = true;
+          break;
+        }
+      }
+    }
+
+    // Check weaken patterns
+    let hasWeakenPattern = false;
+    if (topic.weakenPatterns) {
+      for (const weakenPattern of topic.weakenPatterns) {
+        if (weakenPattern.test(lower)) {
+          hasWeakenPattern = true;
+          break;
+        }
+      }
+    }
+
+    // Check main patterns
+    for (const pattern of topic.patterns) {
+      if (pattern.test(text)) {
+        // Calculate base confidence
+        let baseConfidence = 75;
+
+        // Boost if section title contains relevant keywords
+        if (topic.sectionBoostKeywords && sectionTitle) {
+          for (const keyword of topic.sectionBoostKeywords) {
+            if (sectionLower.includes(keyword)) {
+              baseConfidence += 10;
+              break;
+            }
+          }
+        }
+
+        matches.push({
+          type: topic.type,
+          pattern: pattern.source.substring(0, 50),
+          baseConfidence,
+          hasAntiPattern,
+          hasWeakenPattern,
+        });
+        break; // Only one match per topic type
+      }
+    }
+  }
+
+  return matches;
+}
+
+function calculateFinalConfidence(
+  questionStructure: QuestionStructure,
+  topicMatch: TopicMatch | null,
+  finalType: RequirementType,
+  sectionTitle?: string
+): number {
+  let confidence = 50; // Base
+
+  // Factor 1: Question structure confidence
+  if (questionStructure.type !== 'unknown') {
+    confidence += questionStructure.confidence * 0.3; // Up to +30
+  }
+
+  // Factor 2: Topic pattern match
+  if (topicMatch && !topicMatch.hasAntiPattern) {
+    confidence += topicMatch.baseConfidence * 0.3; // Up to +30
+
+    // Penalty for weaken patterns
+    if (topicMatch.hasWeakenPattern) {
+      confidence -= 15;
+    }
+  }
+
+  // Factor 3: Alignment between question structure and topic
+  const expectedTypeFromStructure = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
+  if (topicMatch) {
+    // If topic matches expected type from structure, boost confidence
+    if (topicMatch.type === expectedTypeFromStructure) {
+      confidence += 15;
+    }
+    // If they conflict, reduce confidence (but topic wins)
+    else if (questionStructure.type !== 'unknown' && questionStructure.confidence > 70) {
+      confidence -= 10;
+    }
+  }
+
+  // Factor 4: Section context alignment
+  if (sectionTitle) {
+    const sectionLower = sectionTitle.toLowerCase();
+    const typeKeywords: Record<RequirementType, string[]> = {
+      'STAFFING': ['staff', 'personnel', 'team', 'resource'],
+      'QUANTITATIVE': ['price', 'pricing', 'cost', 'fee', 'financial', 'budget'],
+      'REFERENCE_BASED': ['reference', 'experience', 'qualification', 'past performance'],
+      'EVIDENCE_BASED': ['attachment', 'evidence', 'document', 'certificate'],
+      'PROCEDURAL': ['signature', 'certify', 'acknowledgment'],
+      'CONTEXTUAL': ['introduction', 'overview', 'instruction', 'background'],
+      'DECLARATIVE': ['technical', 'functional', 'requirement'],
+      'DESCRIPTIVE': ['technical', 'functional', 'requirement'],
+    };
+
+    const keywords = typeKeywords[finalType] || [];
+    for (const keyword of keywords) {
+      if (sectionLower.includes(keyword)) {
+        confidence += 8;
+        break;
+      }
+    }
+  }
+
+  // Factor 5: Anti-pattern penalty
+  if (topicMatch?.hasAntiPattern) {
+    confidence -= 30;
+  }
+
+  return Math.max(30, Math.min(95, Math.round(confidence)));
+}
+
+// =============================================================================
+// MAIN CLASSIFICATION FUNCTION (Two-Pass)
+// =============================================================================
+
+/**
+ * Classify the type of a requirement using two-pass analysis.
+ *
+ * Pass 1: Detect question structure (HOW it asks)
+ * Pass 2: Detect topic/content (WHAT it's about)
+ * Combine: Weight both passes to determine final type
+ */
+export function classifyTypeHeuristically(
+  text: string,
+  sectionTitle?: string
+): TypeClassification {
+  const trimmed = text.trim();
+
+  // === PASS 1: Question Structure Detection ===
+  const questionStructure = detectQuestionStructure(trimmed);
+
+  // === PASS 2: Topic Detection ===
+  const topicMatches = findTopicMatches(trimmed, sectionTitle);
+
+  // Filter out matches with anti-patterns
+  const validTopicMatches = topicMatches.filter(m => !m.hasAntiPattern);
+
+  // === COMBINE PASSES ===
+  let finalType: RequirementType;
+  let matchedPattern: string;
+  let bestTopicMatch: TopicMatch | null = null;
+
+  if (validTopicMatches.length > 0) {
+    // Sort by confidence (including section boost)
+    validTopicMatches.sort((a, b) => b.baseConfidence - a.baseConfidence);
+    bestTopicMatch = validTopicMatches[0];
+
+    // Special case: If question structure is very confident yes/no,
+    // but topic suggests something else, check if we should override
+    if (questionStructure.type === 'yes_no' && questionStructure.confidence >= 90) {
+      // Yes/no questions stay DECLARATIVE unless topic is VERY specific
+      if (bestTopicMatch.baseConfidence < 85) {
+        finalType = 'DECLARATIVE';
+        matchedPattern = `${questionStructure.indicator} (yes/no overrides topic)`;
+      } else {
+        // Strong topic match wins
+        finalType = bestTopicMatch.type;
+        matchedPattern = bestTopicMatch.pattern;
+      }
+    }
+    // Confirmation structure always wins
+    else if (questionStructure.type === 'confirmation') {
+      finalType = 'PROCEDURAL';
+      matchedPattern = questionStructure.indicator || 'confirmation';
+    }
+    // Statement structure suggests CONTEXTUAL
+    else if (questionStructure.type === 'statement') {
+      finalType = 'CONTEXTUAL';
+      matchedPattern = questionStructure.indicator || 'statement';
+    }
+    // Otherwise, topic match wins (but consider structure)
+    else {
+      finalType = bestTopicMatch.type;
+      matchedPattern = bestTopicMatch.pattern;
+    }
+  } else {
+    // No topic match - use question structure
+    finalType = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
+    matchedPattern = questionStructure.indicator || 'structure only';
+  }
+
+  // === CALCULATE CONFIDENCE ===
+  const confidence = calculateFinalConfidence(
+    questionStructure,
+    bestTopicMatch,
+    finalType,
+    sectionTitle
+  );
+
+  return {
+    type: finalType,
+    confidence,
+    matchedPattern,
+    questionStructure,
+    topicMatch: bestTopicMatch?.pattern,
+  };
+}
+
+// =============================================================================
+// MANDATORY CLASSIFICATION (unchanged from v1, but with improvements)
 // =============================================================================
 
 const MANDATORY_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
-  { pattern: /\bshall\b/i, confidence: 90 },
-  { pattern: /\bmust\b/i, confidence: 90 },
-  { pattern: /\brequired\b/i, confidence: 85 },
   { pattern: /\bmandatory\b/i, confidence: 95 },
-  { pattern: /\bwill\s+be\s+(evaluated|scored|assessed|rated)/i, confidence: 80 },
   { pattern: /\bnon-?negotiable\b/i, confidence: 95 },
+  { pattern: /\bshall\b/i, confidence: 88 },
+  { pattern: /\bmust\b/i, confidence: 88 },
+  { pattern: /\brequired\b/i, confidence: 85 },
+  { pattern: /\bwill\s+be\s+(evaluated|scored|assessed|rated)/i, confidence: 80 },
   { pattern: /\bessential\b/i, confidence: 75 },
   { pattern: /\bcritical\b/i, confidence: 70 },
-  { pattern: /\bnecessary\b/i, confidence: 70 },
+  { pattern: /\bnecessary\b/i, confidence: 65 },
 ];
 
 const OPTIONAL_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
   { pattern: /\boptional\b/i, confidence: 95 },
-  { pattern: /\bmay\b/i, confidence: 70 },
-  { pattern: /\bif\s+(applicable|available|desired|possible)/i, confidence: 85 },
-  { pattern: /\bpreferred\b/i, confidence: 80 },
-  { pattern: /\brecommended\b/i, confidence: 75 },
-  { pattern: /\bdesired\b/i, confidence: 80 },
   { pattern: /\bnot\s+required\b/i, confidence: 95 },
   { pattern: /\bnice\s+to\s+have\b/i, confidence: 90 },
+  { pattern: /\bif\s+(applicable|available|desired|possible)/i, confidence: 85 },
   { pattern: /\bbonus\b/i, confidence: 85 },
+  { pattern: /\bpreferred\s+(but\s+not\s+required)?/i, confidence: 82 },
+  { pattern: /\bdesired\b/i, confidence: 80 },
   { pattern: /\bwhere\s+(applicable|possible)/i, confidence: 80 },
+  { pattern: /\brecommended\b/i, confidence: 75 },
+  { pattern: /\bmay\s+(include|provide|submit)/i, confidence: 72 },
 ];
 
-// Section header patterns that indicate mandatory/optional for all items in section
 const SECTION_MANDATORY_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
   { pattern: /\bmandatory\s+(requirement|section|item)/i, confidence: 95 },
   { pattern: /\brequired\s+(requirement|section|item)/i, confidence: 90 },
   { pattern: /\bmust\s+have/i, confidence: 85 },
+  { pattern: /\bminimum\s+requirement/i, confidence: 85 },
 ];
 
 const SECTION_OPTIONAL_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
@@ -222,65 +619,11 @@ const SECTION_OPTIONAL_PATTERNS: Array<{ pattern: RegExp; confidence: number }> 
   { pattern: /\bpreferred\s+(qualification|requirement)/i, confidence: 90 },
   { pattern: /\bnice\s+to\s+have/i, confidence: 90 },
   { pattern: /\bdesired\s+(qualification|requirement)/i, confidence: 85 },
+  { pattern: /\bvalue[\s-]added/i, confidence: 80 },
 ];
-
-// =============================================================================
-// CLASSIFICATION FUNCTIONS
-// =============================================================================
-
-/**
- * Classify the type of a requirement using pattern matching.
- *
- * Returns a type classification with confidence score.
- * Higher confidence = more certain the pattern match is correct.
- */
-export function classifyTypeHeuristically(text: string): TypeClassification {
-  const trimmed = text.trim();
-
-  // Check patterns in priority order
-  for (const { type, priority, patterns } of SORTED_TYPE_PATTERNS) {
-    for (const pattern of patterns) {
-      if (pattern.test(trimmed)) {
-        // Base confidence from priority, plus bonus for strong matches
-        const baseConfidence = Math.min(95, 50 + (priority / 2));
-
-        // Boost confidence if pattern matches at start of text
-        const startsWithMatch = pattern.source.startsWith("^") ? 10 : 0;
-
-        const confidence = Math.min(98, baseConfidence + startsWithMatch);
-
-        return {
-          type,
-          confidence,
-          matchedPattern: pattern.source.substring(0, 50),
-        };
-      }
-    }
-  }
-
-  // No pattern matched - use defaults based on text characteristics
-  if (trimmed.endsWith("?")) {
-    // Questions default to DESCRIPTIVE
-    return {
-      type: "DESCRIPTIVE",
-      confidence: 45,
-      matchedPattern: "ends with ?",
-    };
-  }
-
-  // Non-questions without patterns default to CONTEXTUAL with low confidence
-  return {
-    type: "CONTEXTUAL",
-    confidence: 30,
-    matchedPattern: "no match - default",
-  };
-}
 
 /**
  * Classify whether a requirement is mandatory using pattern matching.
- *
- * Checks both the requirement text and the section title (if provided)
- * for mandatory/optional indicators.
  */
 export function classifyMandatoryHeuristically(
   text: string,
@@ -335,7 +678,6 @@ export function classifyMandatoryHeuristically(
   }
 
   // Default: mandatory with moderate confidence
-  // (Most RFP requirements are mandatory unless explicitly marked optional)
   return {
     isMandatory: true,
     confidence: 55,
@@ -343,19 +685,36 @@ export function classifyMandatoryHeuristically(
   };
 }
 
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
 /**
  * Get a human-readable explanation for a type classification.
  */
 export function explainTypeClassification(classification: TypeClassification): string {
-  if (classification.confidence >= 90) {
-    return `Strong match for ${classification.type}`;
-  } else if (classification.confidence >= 70) {
-    return `Good match for ${classification.type}`;
-  } else if (classification.confidence >= 50) {
-    return `Possible ${classification.type}`;
+  const { confidence, questionStructure, topicMatch } = classification;
+
+  let explanation = '';
+
+  if (confidence >= 85) {
+    explanation = `Strong match for ${classification.type}`;
+  } else if (confidence >= 70) {
+    explanation = `Good match for ${classification.type}`;
+  } else if (confidence >= 55) {
+    explanation = `Likely ${classification.type}`;
   } else {
-    return `Uncertain - defaulted to ${classification.type}`;
+    explanation = `Uncertain - defaulted to ${classification.type}`;
   }
+
+  if (questionStructure && questionStructure.type !== 'unknown') {
+    explanation += ` (structure: ${questionStructure.type})`;
+  }
+  if (topicMatch) {
+    explanation += ` (topic: ${topicMatch.substring(0, 20)}...)`;
+  }
+
+  return explanation;
 }
 
 /**
@@ -371,3 +730,7 @@ export function needsRefinement(
     mandatoryClassification.confidence < threshold
   );
 }
+
+// Export question structure detection for testing
+export { detectQuestionStructure };
+export type { QuestionStructure, QuestionStructureType };
