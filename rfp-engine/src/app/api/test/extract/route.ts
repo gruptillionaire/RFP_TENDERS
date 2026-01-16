@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parsePDF } from "@/lib/parsers/pdf";
 import { extractRequirements } from "@/lib/openai";
-import { extractCandidatesHeuristically } from "@/lib/parsers/heuristic-extractor";
+import { extractCandidatesHeuristically, extractAndClassifyHeuristically } from "@/lib/parsers/heuristic-extractor";
 import { sanitizeForLLM } from "@/lib/security";
 
 export const maxDuration = 300; // 5 minutes
@@ -130,6 +130,76 @@ export async function POST(request: NextRequest) {
           majorSection: c.majorSection,
           rawTextPreview: c.rawText.substring(0, 150),
         })),
+      });
+    }
+
+    // Debug mode: return heuristic extraction WITH classification (no LLM)
+    if (debugMode === "classified") {
+      console.log(`[test/extract] Debug mode: heuristic + classification (no LLM)`);
+      const sanitizedText = sanitizeForLLM(text);
+      const classifyStart = Date.now();
+      const classifiedResult = extractAndClassifyHeuristically(sanitizedText);
+      const classifyTime = Date.now() - classifyStart;
+
+      // Generate type counts
+      const typeCounts: Record<string, number> = {};
+      const confidenceByType: Record<string, number[]> = {};
+      let mandatoryCount = 0;
+      let totalTypeConfidence = 0;
+
+      for (const req of classifiedResult.requirements) {
+        typeCounts[req.type] = (typeCounts[req.type] || 0) + 1;
+        if (!confidenceByType[req.type]) confidenceByType[req.type] = [];
+        confidenceByType[req.type].push(req.typeConfidence);
+        totalTypeConfidence += req.typeConfidence;
+        if (req.isMandatory) mandatoryCount++;
+      }
+
+      // Calculate average confidence per type
+      const avgConfidenceByType: Record<string, number> = {};
+      for (const [type, confidences] of Object.entries(confidenceByType)) {
+        avgConfidenceByType[type] = Math.round(
+          confidences.reduce((a, b) => a + b, 0) / confidences.length
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        mode: "heuristic_classified",
+        meta: {
+          fileName: file.name,
+          fileSize: file.size,
+          textLength: text.length,
+          classifyTimeMs: classifyTime,
+        },
+        stats: classifiedResult.stats,
+        typeCounts,
+        avgConfidenceByType,
+        lowConfidenceCount: classifiedResult.lowConfidenceIds.length,
+        // Sample of requirements by type
+        samplesByType: Object.keys(typeCounts).reduce((acc, type) => {
+          acc[type] = classifiedResult.requirements
+            .filter(r => r.type === type)
+            .slice(0, 5)
+            .map(r => ({
+              section: r.sectionNumber,
+              text: r.text.substring(0, 200),
+              confidence: r.typeConfidence,
+              pattern: r.typePattern,
+            }));
+          return acc;
+        }, {} as Record<string, Array<{ section: string; text: string; confidence: number; pattern?: string }>>),
+        // Low confidence samples
+        lowConfidenceSamples: classifiedResult.requirements
+          .filter(r => r.typeConfidence < 70)
+          .slice(0, 10)
+          .map(r => ({
+            section: r.sectionNumber,
+            text: r.text.substring(0, 200),
+            type: r.type,
+            confidence: r.typeConfidence,
+            pattern: r.typePattern,
+          })),
       });
     }
 
