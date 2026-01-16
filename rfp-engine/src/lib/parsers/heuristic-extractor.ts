@@ -610,7 +610,6 @@ export function detectMajorSections(text: string): Map<string, MajorSection> {
     while ((match = pattern.exec(text)) !== null) {
       const sectionNum = match[1];
       let title = (match[2] || '').trim();
-      console.log(`[detectMajorSections] Pattern ${pIdx + 1} matched: ${sectionNum} -> "${title.substring(0, 40)}..."`);
 
       // Skip if already found (first match wins - earlier patterns have priority)
       if (sections.has(sectionNum)) continue;
