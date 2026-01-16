@@ -561,6 +561,58 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       .replace(/\s+(?:I{1,3}|IV|VI{0,3}|IX|X{1,3})\.?[A-Z]?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/i, '')
       .trim();
 
+    // Strip DOCX table markers that may have bled into requirement text
+    cleanedText = cleanedText
+      .replace(/\[TABLE START\]/g, '')
+      .replace(/\[TABLE END\]/g, '')
+      .replace(/\[ROW \d+\]/g, '')
+      .replace(/\[HEADER\]/g, '')
+      .replace(/\[Col \d+\]\s*/g, '')
+      // Strip box-drawing characters (table borders from DOCX)
+      .replace(/[═─│╔╗╚╝╠╣╦╩╬╒╓╘╙╛╜╞╟╡╢╤╥╧╨╪╫]+/g, '')
+      // Strip stray table cell separators
+      .replace(/\s*\|\s*$/g, '')
+      .replace(/^\s*\|\s*/g, '')
+      .trim();
+
+    // Detect and format inline lists (items separated by double-space OR matching "N - Item" pattern)
+    // Pattern 1: Double-space separated items
+    const doubleSpaceCount = (cleanedText.match(/  +/g) || []).length;
+    if (doubleSpaceCount >= 3) {
+      const potentialItems = cleanedText.split(/  +/);
+      const listLikeItems = potentialItems.filter(item =>
+        /^(\d+\s*[-–—]|[A-Z][a-zA-Z\s]+\s*[-–—])/i.test(item.trim())
+      );
+      if (listLikeItems.length >= 3 && listLikeItems.length >= potentialItems.length * 0.5) {
+        cleanedText = potentialItems
+          .map(item => item.trim())
+          .filter(item => item.length > 0)
+          .map(item => `• ${item}`)
+          .join('\n');
+      }
+    }
+
+    // Pattern 2: Inline "N - Description" items (e.g., "2 - General Operating Accounts ... 2 - Controlled...")
+    // Look for 3+ occurrences of "N - " pattern indicating embedded list
+    const inlineListMatches = cleanedText.match(/\d+\s*[-–—]\s*[A-Z][^.?!]*(?=[.?!]|\d+\s*[-–—]|$)/g);
+    if (inlineListMatches && inlineListMatches.length >= 3 && !cleanedText.includes('\n•')) {
+      // Split on the pattern and format as bullets
+      const parts = cleanedText.split(/(?=\d+\s*[-–—]\s*[A-Z])/);
+      if (parts.length >= 3) {
+        cleanedText = parts
+          .map(p => p.trim())
+          .filter(p => p.length > 0)
+          .map(p => `• ${p}`)
+          .join('\n');
+      }
+    }
+
+    // Clean up resulting multiple spaces/newlines
+    cleanedText = cleanedText
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/  +/g, ' ')
+      .trim();
+
     // Strip page numbers and document titles (e.g., "29 of 38 Request for Proposal: Website Design...")
     cleanedText = cleanedText.replace(
       /\s+\d+\s+of\s+\d+\s+Request\s+for\s+Proposal[^]*$/i,
