@@ -146,8 +146,15 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 
     const rawText = text.substring(startIndex, endIndex).trim();
 
+    // Strip trailing section number + title contamination
+    // Pattern: X.Y or X.Y.Z followed by title-like text at end (e.g., "...testing? 3.5 Integrations")
+    const cleanedText = rawText.replace(
+      /\s+\d+\.\d+(?:\.\d+)?\s+[A-Z][A-Za-z\s,&\-:]+$/,
+      ''
+    ).trim();
+
     // Skip very short matches (likely false positives)
-    if (rawText.length < 10) {
+    if (cleanedText.length < 10) {
       continue;
     }
 
@@ -159,7 +166,7 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 
     candidates.push({
       sectionNumber: current.sectionNumber,
-      rawText,
+      rawText: cleanedText,
       startIndex: current.index,
       endIndex,
       majorSection: current.majorSection,

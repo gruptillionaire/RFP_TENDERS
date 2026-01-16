@@ -1,17 +1,22 @@
 /**
- * Heuristic Classifier for RFP Requirements (v2)
+ * Heuristic Classifier for RFP Requirements (v3)
  *
  * Two-pass classification architecture:
  * - Pass 1: Detect QUESTION STRUCTURE (yes/no, open-ended, list, confirmation, statement)
  * - Pass 2: Detect TOPIC/CONTENT (staffing, financial, reference, etc.)
  * - Combine with weighted logic and multi-factor confidence scoring
  *
- * Key improvements over v1:
- * - Action-verb anchored patterns (avoids catching contextual mentions)
- * - Anti-patterns to reduce false positives
- * - Question structure takes priority over keyword matching
- * - Multi-factor confidence scoring
- * - Section context boosts
+ * Key improvements over v2:
+ * - Fixed EVIDENCE_BASED regex (no more "SOC" in "Social" false positives)
+ * - Broader "Can [noun] be..." patterns for yes/no questions
+ * - Subordinate wh-word handling (aux verb priority over embedded wh-words)
+ * - Compound sentence detection for embedded requests
+ * - Expanded anti-patterns for STAFFING, REFERENCE_BASED, QUANTITATIVE
+ * - Added DESCRIPTIVE topic patterns for better type reinforcement
+ * - Tuned confidence formula (raised base, stronger structure weight)
+ * - Differentiated section keywords for DECLARATIVE vs DESCRIPTIVE
+ * - Added weaken patterns for STAFFING and EVIDENCE_BASED
+ * - Negation handling for mandatory classification
  *
  * Part of the Hybrid Heuristic + LLM architecture.
  */
@@ -69,6 +74,14 @@ function detectQuestionStructure(text: string): QuestionStructure {
   }
   if (/^can\s+(the|your|you|it|this|users?|a|an|we)/i.test(trimmed)) {
     return { type: 'yes_no', confidence: 95, indicator: 'can start' };
+  }
+  // "Can [noun] be [verb]" pattern - catches "Can designs be...", "Can images be..."
+  if (/^can\s+\w+(\s+\w+){0,3}\s+be\s+/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 88, indicator: 'can X be' };
+  }
+  // "Can [noun phrase] [verb]?" pattern - must end with ? and not contain wh-words
+  if (/^can\s+[^?]+\?$/i.test(trimmed) && !/\b(what|how|why|where|when|which)\b/i.test(trimmed)) {
+    return { type: 'yes_no', confidence: 85, indicator: 'can...?' };
   }
   if (/^is\s+(the|your|it|this|there|a|an)\s/i.test(trimmed)) {
     return { type: 'yes_no', confidence: 95, indicator: 'is start' };
@@ -149,12 +162,19 @@ function detectQuestionStructure(text: string): QuestionStructure {
   // === FALLBACK HEURISTICS ===
   // Ends with question mark but no clear structure
   if (trimmed.endsWith('?')) {
-    // Check for embedded question words
-    if (/\b(what|how|why|when|where|which)\b/i.test(lower)) {
-      return { type: 'open_ended', confidence: 65, indicator: 'question mark + wh-word' };
+    // Check if this is primarily a wh-question (wh-word near the START - first 15 chars)
+    const first15 = lower.substring(0, 15);
+    if (/^(what|how|why|when|where|which)\b/.test(first15)) {
+      return { type: 'open_ended', confidence: 70, indicator: 'wh-question start' };
     }
+    // Check for aux verb anywhere (yes/no question) - takes priority over embedded wh-words
     if (/\b(does|do|can|is|are|will|would|has|have)\b/i.test(lower)) {
-      return { type: 'yes_no', confidence: 60, indicator: 'question mark + aux verb' };
+      return { type: 'yes_no', confidence: 65, indicator: 'question mark + aux verb' };
+    }
+    // Check for embedded wh-word (lower confidence open-ended)
+    // This catches subordinate clauses but at lower confidence
+    if (/\b(what|how|why)\b/i.test(lower)) {
+      return { type: 'open_ended', confidence: 55, indicator: 'embedded wh-word' };
     }
     return { type: 'unknown', confidence: 50, indicator: 'question mark only' };
   }
@@ -163,6 +183,19 @@ function detectQuestionStructure(text: string): QuestionStructure {
   if (/^(provide|submit|include|attach|upload)\b/i.test(trimmed)) {
     // Could be list_request or something else - low confidence
     return { type: 'unknown', confidence: 45, indicator: 'action verb start' };
+  }
+
+  // Check for embedded list/describe requests in compound sentences
+  // Pattern: "The solution must X. Please list Y." or "... required. Describe how..."
+  if (/\.\s*(please\s+)?(list|provide|describe|explain|identify|specify)\b/i.test(lower)) {
+    const embeddedMatch = lower.match(/\.\s*(please\s+)?(list|provide|describe|explain|identify|specify)/i);
+    if (embeddedMatch) {
+      const verb = embeddedMatch[2]?.toLowerCase();
+      if (verb === 'list' || verb === 'identify' || verb === 'specify') {
+        return { type: 'list_request', confidence: 75, indicator: 'embedded list request' };
+      }
+      return { type: 'open_ended', confidence: 72, indicator: 'embedded describe request' };
+    }
   }
 
   return { type: 'unknown', confidence: 30, indicator: 'no pattern matched' };
@@ -205,9 +238,17 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       // "Describe your staffing approach" is DESCRIPTIVE, not STAFFING
       /^describe\s+(your\s+)?(staffing|team|personnel)/i,
       /^explain\s+(your\s+)?(staffing|team|personnel)/i,
+      // Broader "describe/explain how your team handles..." patterns
+      /\bdescribe.{0,30}(your\s+)?(team|staff|personnel)\b/i,
+      /\bexplain.{0,30}(your\s+)?(approach|methodology).{0,20}(staff|team)/i,
+      /\bhow\s+(do|does|will|would)\s+(your|the)\s+(team|staff)/i,
       // Staff mentioned as contact, not as requirement
       /\bstaff\s+will\s+(review|contact|respond)/i,
       /\bour\s+staff\b/i,  // Talking about their own staff
+    ],
+    weakenPatterns: [
+      /\bteam\s+structure\b/i,  // Could be staffing or descriptive
+      /\bstaff.{0,20}(approach|plan)\b/i,
     ],
     sectionBoostKeywords: ['staffing', 'personnel', 'team', 'resources', 'key staff'],
   },
@@ -230,6 +271,9 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       // "Describe similar projects" is DESCRIPTIVE
       /^describe\s+(a\s+)?(similar|comparable|relevant)/i,
       /^explain\s+(your\s+)?(experience|work)\s+(with|on|in)/i,
+      // Broader "describe experience" patterns
+      /\bdescribe.{0,30}(similar|previous|past)\s+(project|work|experience)/i,
+      /\bexplain.{0,30}(your\s+)?experience/i,
     ],
     weakenPatterns: [
       // "Describe a similar project" - could be either
@@ -246,8 +290,9 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       /\b(attach|upload|include|submit|provide).{0,30}(certificate|certification|license|permit)\b/i,
       /\bcertificate\s+of\s+(insurance|compliance|incorporation|good\s+standing)/i,
       /\bproof\s+of\s+(insurance|compliance|registration|bonding|licensure)/i,
-      // Compliance certifications
-      /\b(ISO|SOC|SOC2|HIPAA|PCI|GDPR|FedRAMP|FISMA)\s*[-\s]?\d*/i,
+      // Compliance certifications - require word boundary to avoid matching "SOC" in "Social"
+      /\b(HIPAA|PCI|GDPR|FedRAMP|FISMA)\b/i,
+      /\b(ISO|SOC|SOC2)\s*[-\s]?\d+\b/i,  // ISO/SOC only with actual numbers (ISO 27001, SOC 2)
       // Financial documentation
       /\b(attach|provide|submit).{0,30}(financial\s+statement|audit(ed)?\s+report|W-?9)\b/i,
       /\b(attach|provide|submit).{0,30}(balance\s+sheet|income\s+statement|tax\s+return)/i,
@@ -258,6 +303,9 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       // General documentation requests are DESCRIPTIVE
       /\bdocumentation\s+of\s+(your\s+)?(approach|methodology|process)/i,
       /\bprovide\s+documentation\s+(describing|explaining|outlining)/i,
+    ],
+    weakenPatterns: [
+      /\bdocument(s|ation)?\b/i,  // Generic "documentation" could be anything
     ],
     sectionBoostKeywords: ['attachment', 'evidence', 'documentation', 'certificate', 'compliance'],
   },
@@ -288,6 +336,9 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       /\bhow\s+(do|does|would)\s+you\s+(determine|calculate|approach)\s+(pricing|costs?)/i,
       // Asking about understanding/handling is DESCRIPTIVE
       /\bexplain\s+how\s+you\s+handle\s+(pricing|costs?)/i,
+      // Broader "describe pricing" patterns
+      /\bdescribe.{0,30}(your\s+)?(pricing|cost)\s+(approach|model|strategy)/i,
+      /\bexplain.{0,30}how.{0,20}(price|cost|fee)/i,
     ],
     weakenPatterns: [
       // Generic mentions of numbers
@@ -337,6 +388,26 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       /\ball\s+(proposals?|responses?)\s+(shall|must|should)\s/i,
     ],
     sectionBoostKeywords: ['introduction', 'overview', 'background', 'instructions', 'evaluation', 'deadline'],
+  },
+
+  // DESCRIPTIVE - Reinforces type from question structure with topic patterns
+  {
+    type: "DESCRIPTIVE",
+    patterns: [
+      /\bdescribe\s+(your|the|how|in\s+detail)/i,
+      /\bexplain\s+(your|the|how|in\s+detail)/i,
+      /\bprovide\s+(a\s+)?(detailed\s+)?(description|explanation|overview)/i,
+      /\boutline\s+(your|the|how)/i,
+      /\bdetail\s+(your|the|how)/i,
+      /\belaborate\s+on/i,
+      /\bhow\s+(do|does|would|will|can)\s+(your|the|you)/i,
+      /\bwhat\s+(is|are)\s+(your|the)\s+(approach|methodology|strategy|process)/i,
+    ],
+    antiPatterns: [
+      // Don't classify as DESCRIPTIVE if asking for specific artifacts
+      /\bprovide\s+(a\s+)?(list|resume|certificate|reference)/i,
+    ],
+    sectionBoostKeywords: ['approach', 'methodology', 'narrative', 'response'],
   },
 ];
 
@@ -430,29 +501,29 @@ function calculateFinalConfidence(
   finalType: RequirementType,
   sectionTitle?: string
 ): number {
-  let confidence = 50; // Base
+  let confidence = 55; // Base - raised from 50 to reduce low-confidence count
 
-  // Factor 1: Question structure confidence
+  // Factor 1: Question structure confidence (weight raised from 0.3 to 0.35)
   if (questionStructure.type !== 'unknown') {
-    confidence += questionStructure.confidence * 0.3; // Up to +30
+    confidence += questionStructure.confidence * 0.35; // Up to +35
   }
 
-  // Factor 2: Topic pattern match
+  // Factor 2: Topic pattern match (keep at 0.3)
   if (topicMatch && !topicMatch.hasAntiPattern) {
-    confidence += topicMatch.baseConfidence * 0.3; // Up to +30
+    confidence += topicMatch.baseConfidence * 0.30; // Up to +30
 
-    // Penalty for weaken patterns
+    // Penalty for weaken patterns (reduced from 15 to 12)
     if (topicMatch.hasWeakenPattern) {
-      confidence -= 15;
+      confidence -= 12;
     }
   }
 
-  // Factor 3: Alignment between question structure and topic
+  // Factor 3: Alignment between question structure and topic (bonus raised from 15 to 18)
   const expectedTypeFromStructure = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
   if (topicMatch) {
     // If topic matches expected type from structure, boost confidence
     if (topicMatch.type === expectedTypeFromStructure) {
-      confidence += 15;
+      confidence += 18;
     }
     // If they conflict, reduce confidence (but topic wins)
     else if (questionStructure.type !== 'unknown' && questionStructure.confidence > 70) {
@@ -460,7 +531,7 @@ function calculateFinalConfidence(
     }
   }
 
-  // Factor 4: Section context alignment
+  // Factor 4: Section context alignment (keep at 8)
   if (sectionTitle) {
     const sectionLower = sectionTitle.toLowerCase();
     const typeKeywords: Record<RequirementType, string[]> = {
@@ -470,8 +541,8 @@ function calculateFinalConfidence(
       'EVIDENCE_BASED': ['attachment', 'evidence', 'document', 'certificate'],
       'PROCEDURAL': ['signature', 'certify', 'acknowledgment'],
       'CONTEXTUAL': ['introduction', 'overview', 'instruction', 'background'],
-      'DECLARATIVE': ['technical', 'functional', 'requirement'],
-      'DESCRIPTIVE': ['technical', 'functional', 'requirement'],
+      'DECLARATIVE': ['capability', 'feature', 'support', 'compliance', 'functional'],
+      'DESCRIPTIVE': ['approach', 'methodology', 'narrative', 'solution', 'technical'],
     };
 
     const keywords = typeKeywords[finalType] || [];
@@ -483,12 +554,18 @@ function calculateFinalConfidence(
     }
   }
 
-  // Factor 5: Anti-pattern penalty
+  // Factor 5: Anti-pattern penalty (reduced from 30 to 25)
   if (topicMatch?.hasAntiPattern) {
-    confidence -= 30;
+    confidence -= 25;
   }
 
-  return Math.max(30, Math.min(95, Math.round(confidence)));
+  // Factor 6: Strong question structure bonus
+  // If structure detection is very confident, boost overall
+  if (questionStructure.confidence >= 90) {
+    confidence += 5;
+  }
+
+  return Math.max(35, Math.min(95, Math.round(confidence)));
 }
 
 // =============================================================================
@@ -597,6 +674,12 @@ const MANDATORY_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
 const OPTIONAL_PATTERNS: Array<{ pattern: RegExp; confidence: number }> = [
   { pattern: /\boptional\b/i, confidence: 95 },
   { pattern: /\bnot\s+required\b/i, confidence: 95 },
+  // Negation patterns
+  { pattern: /\bnot\s+mandatory\b/i, confidence: 95 },
+  { pattern: /\bis\s+not\s+required\b/i, confidence: 95 },
+  { pattern: /\bnot\s+essential\b/i, confidence: 90 },
+  { pattern: /\b(need|require)s?\s+not\b/i, confidence: 85 },
+  // Standard optional indicators
   { pattern: /\bnice\s+to\s+have\b/i, confidence: 90 },
   { pattern: /\bif\s+(applicable|available|desired|possible)/i, confidence: 85 },
   { pattern: /\bbonus\b/i, confidence: 85 },
