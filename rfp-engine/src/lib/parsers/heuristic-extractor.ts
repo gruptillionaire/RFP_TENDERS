@@ -22,6 +22,7 @@ import {
   MandatoryClassification,
 } from "./heuristic-classifier";
 import { DomainContext, detectDomainContext } from "../domain-context";
+import { classifyAttestation } from "../attestation";
 
 // =============================================================================
 // TYPES
@@ -405,6 +406,8 @@ export interface ClassifiedRequirement {
   typePattern?: string;
   /** Domain context: FEATURE, PROCESS, or LEGAL */
   domainContext: DomainContext;
+  /** Whether this requirement is attestation-eligible (binary compliant/non-compliant) */
+  isAttestation: boolean;
   /** Whether this is mandatory */
   isMandatory: boolean;
   /** Confidence in mandatory classification (0-100) */
@@ -510,6 +513,9 @@ export function extractAndClassifyHeuristically(
     // Detect domain context (FEATURE, PROCESS, LEGAL)
     const domainContext = detectDomainContext(candidate.rawText);
 
+    // Classify attestation eligibility
+    const attestationResult = classifyAttestation(candidate.rawText);
+
     // Create classified requirement
     requirements.push({
       id,
@@ -520,6 +526,7 @@ export function extractAndClassifyHeuristically(
       typeConfidence: typeClassification.confidence,
       typePattern: typeClassification.matchedPattern,
       domainContext,
+      isAttestation: attestationResult.isAttestation,
       isMandatory: mandatoryClassification.isMandatory,
       mandatoryConfidence: mandatoryClassification.confidence,
       mandatoryPattern: mandatoryClassification.matchedPattern,

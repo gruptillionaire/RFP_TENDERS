@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
       const confidenceByType: Record<string, number[]> = {};
       const domainCounts: Record<string, number> = { FEATURE: 0, PROCESS: 0, LEGAL: 0 };
       let mandatoryCount = 0;
+      let attestationCount = 0;
       let totalTypeConfidence = 0;
 
       for (const req of classifiedResult.requirements) {
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
         confidenceByType[req.type].push(req.typeConfidence);
         totalTypeConfidence += req.typeConfidence;
         if (req.isMandatory) mandatoryCount++;
+        if (req.isAttestation) attestationCount++;
         // Count domain contexts
         domainCounts[req.domainContext] = (domainCounts[req.domainContext] || 0) + 1;
       }
@@ -178,6 +180,8 @@ export async function POST(request: NextRequest) {
         stats: classifiedResult.stats,
         typeCounts,
         domainCounts,
+        attestationCount,
+        writtenResponseCount: classifiedResult.requirements.length - attestationCount,
         avgConfidenceByType,
         lowConfidenceCount: classifiedResult.lowConfidenceIds.length,
         // Sample of requirements by type
@@ -191,9 +195,20 @@ export async function POST(request: NextRequest) {
               confidence: r.typeConfidence,
               pattern: r.typePattern,
               domain: r.domainContext,
+              isAttestation: r.isAttestation,
             }));
           return acc;
-        }, {} as Record<string, Array<{ section: string; text: string; confidence: number; pattern?: string; domain: string }>>),
+        }, {} as Record<string, Array<{ section: string; text: string; confidence: number; pattern?: string; domain: string; isAttestation: boolean }>>),
+        // Sample attestation-eligible requirements
+        attestationSamples: classifiedResult.requirements
+          .filter(r => r.isAttestation)
+          .slice(0, 10)
+          .map(r => ({
+            section: r.sectionNumber,
+            text: r.text.substring(0, 200),
+            type: r.type,
+            domain: r.domainContext,
+          })),
         // Low confidence samples
         lowConfidenceSamples: classifiedResult.requirements
           .filter(r => r.typeConfidence < 70)
@@ -205,6 +220,7 @@ export async function POST(request: NextRequest) {
             confidence: r.typeConfidence,
             pattern: r.typePattern,
             domain: r.domainContext,
+            isAttestation: r.isAttestation,
           })),
       });
     }
