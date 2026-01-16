@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
     // Debug mode: heuristic extraction + LLM refinement for low-confidence items
     if (debugMode === "refined") {
       try {
-        console.log(`[test/extract] Debug mode: heuristic + LLM refinement`);
+        console.log(`[test/extract] Debug mode: heuristic + LLM refinement (v2026-01-16b)`);
         const sanitizedText = sanitizeForLLM(text);
 
         // Step 1: Heuristic classification
@@ -295,6 +295,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         mode: "heuristic_refined",
+        _version: "2026-01-16b",
         meta: {
           fileName: file.name,
           fileSize: file.size,
