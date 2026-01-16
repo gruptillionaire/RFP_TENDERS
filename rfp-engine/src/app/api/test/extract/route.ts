@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Check for debug mode
     const debugMode = request.nextUrl.searchParams.get("debug");
+    console.log(`[test/extract] Debug mode parameter: "${debugMode}"`);
 
     // Debug mode: return just heuristic extraction results
     if (debugMode === "heuristic") {
@@ -178,6 +179,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         mode: "heuristic_classified",
+        _version: "2026-01-16-v2", // For debugging deployment
         meta: {
           fileName: file.name,
           fileSize: file.size,
@@ -357,6 +359,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      _debugModeReceived: debugMode, // For debugging deployment issues
       meta: {
         fileName: file.name,
         fileSize: file.size,
