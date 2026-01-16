@@ -105,6 +105,9 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
   // Only match if NOT followed by another digit (which would make it X.Y.Z)
   const pattern2Level = /(?:^|\n)\s*(\d+)\.(\d+)(?!\.?\d)\s+/gm;
 
+  // Track major sections we've seen from 3-level patterns to validate 2-level patterns
+  const seenMajorSections = new Set(matches.map(m => m.majorSection));
+
   while ((match = pattern2Level.exec(text)) !== null) {
     const major = match[1];
     const minor = match[2];
@@ -115,14 +118,43 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       Math.abs(m.index - match!.index) < 10 && m.sectionNumber.startsWith(sectionNumber)
     );
 
-    if (!isDuplicate) {
-      matches.push({
-        sectionNumber,
-        index: match.index,
-        majorSection: major,
-        textStart: match.index + match[0].length,
-      });
+    if (isDuplicate) continue;
+
+    // Skip if this looks like a partial match from a 3-level section
+    // e.g., "9.7" appearing when we've seen "3.9.7" suggests it's not a real section
+    // Check if this pattern could be the .Y.Z part of an existing X.Y.Z pattern
+    const couldBePartialOf3Level = matches.some(m => {
+      const parts = m.sectionNumber.split('.');
+      if (parts.length === 3) {
+        // Check if this 2-level pattern matches the Y.Z part of a 3-level
+        return parts[1] === major && parts[2] === minor;
+      }
+      return false;
+    });
+
+    if (couldBePartialOf3Level) continue;
+
+    // Skip if major section seems inconsistent (e.g., jumping from 3 to 9)
+    // Only apply this check if we have established patterns
+    if (seenMajorSections.size > 0) {
+      const majorNum = parseInt(major);
+      const existingNums = Array.from(seenMajorSections).map(s => parseInt(s)).filter(n => !isNaN(n));
+      if (existingNums.length > 0) {
+        const maxExisting = Math.max(...existingNums);
+        const minExisting = Math.min(...existingNums);
+        // Skip if major section is way out of range (more than 3 away from known sections)
+        if (majorNum > maxExisting + 3 || majorNum < minExisting - 1) {
+          continue;
+        }
+      }
     }
+
+    matches.push({
+      sectionNumber,
+      index: match.index,
+      majorSection: major,
+      textStart: match.index + match[0].length,
+    });
   }
 
   // Sort matches by position in document
@@ -501,8 +533,11 @@ export function extractAndClassifyHeuristically(
     const id = `req_${candidate.sectionNumber.replace(/\./g, '_')}_${i}`;
 
     // Find section group from major sections
+    // Format: "3.0: Direct Query Questions" (include section number with colon)
     const majorSection = majorSections.get(candidate.majorSection);
-    const sectionGroup = majorSection?.title || `Section ${candidate.majorSection}`;
+    const sectionGroup = majorSection
+      ? `${majorSection.number}.0: ${majorSection.title}`
+      : `Section ${candidate.majorSection}`;
 
     // Classify type (pass section title for context boost)
     const typeClassification = classifyTypeHeuristically(candidate.rawText, sectionGroup);
