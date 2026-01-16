@@ -18,8 +18,11 @@ import {
 } from "./parsers/section-chunker";
 import {
   extractCandidatesHeuristically,
+  extractAndClassifyHeuristically,
   RequirementCandidate,
   HeuristicExtractionResult,
+  ClassifiedRequirement,
+  ClassifiedExtractionResult,
 } from "./parsers/heuristic-extractor";
 
 // =============================================================================
@@ -2116,6 +2119,9 @@ export interface ExtractedRequirement {
   wordLimit: number | null;
   characterLimit: number | null;
   isAttestation: boolean;
+  // Confidence scores (optional - only present in heuristic extraction)
+  typeConfidence?: number;       // 0-100 confidence in type classification
+  mandatoryConfidence?: number;  // 0-100 confidence in mandatory classification
 }
 
 export interface ExtractionResult {
@@ -2618,7 +2624,104 @@ async function extractRequirementsChunked(
 }
 
 // =============================================================================
-// EXTRACTION FUNCTION
+// HEURISTICS-ONLY EXTRACTION (Phase 1 of Hybrid Architecture)
+// =============================================================================
+
+/**
+ * Heuristics-only extraction result with confidence scores.
+ * This is the result of Phase 1 extraction - no API calls required.
+ */
+export interface HeuristicExtractionResponse {
+  deadline: string | null;
+  deadlineText: string | null;
+  requirements: ExtractedRequirement[];
+  /** Stats about the extraction */
+  stats: {
+    total: number;
+    byType: Record<RequirementType, number>;
+    mandatory: number;
+    optional: number;
+    lowConfidenceCount: number;
+    avgTypeConfidence: number;
+    avgMandatoryConfidence: number;
+    extractionTimeMs: number;
+  };
+  /** IDs of requirements that may benefit from LLM refinement */
+  lowConfidenceIds: string[];
+  /** Method used for extraction */
+  extractionMethod: "heuristic";
+}
+
+/**
+ * Extract requirements using only heuristics - NO API calls.
+ *
+ * This is Phase 1 of the hybrid architecture:
+ * - Instant results (<2 seconds)
+ * - Zero API calls = zero cost
+ * - ~75-80% accuracy for type classification
+ * - Confidence scores indicate when LLM refinement may help
+ *
+ * Users can optionally trigger Phase 2 (LLM refinement) for low-confidence items.
+ */
+export async function extractRequirementsHeuristicsOnly(
+  documentText: string
+): Promise<HeuristicExtractionResponse> {
+  console.log("[heuristicsOnly] Starting heuristics-only extraction");
+  const startTime = Date.now();
+
+  // Step 1: Sanitize input
+  const sanitizedText = sanitizeForLLM(documentText);
+
+  // Truncate if too long
+  const maxLength = 250000;
+  const truncatedText = sanitizedText.length > maxLength
+    ? sanitizedText.substring(0, maxLength)
+    : sanitizedText;
+
+  // Step 2: Run heuristic extraction + classification
+  const classifiedResult = extractAndClassifyHeuristically(truncatedText);
+
+  // Step 3: Convert to ExtractedRequirement format for API compatibility
+  const requirements: ExtractedRequirement[] = classifiedResult.requirements.map(req => ({
+    section: req.sectionNumber,
+    sectionGroup: req.sectionGroup,
+    text: req.text,
+    type: req.type,
+    isMandatory: req.isMandatory,
+    domainContext: detectDomainContext(req.text),
+    wordLimit: null,
+    characterLimit: null,
+    isAttestation: false,
+    // Add confidence fields (will be ignored by existing code but available for new features)
+    typeConfidence: req.typeConfidence,
+    mandatoryConfidence: req.mandatoryConfidence,
+  }));
+
+  // Step 4: Extract deadline using simple pattern matching
+  const deadlineMatch = truncatedText.match(
+    /(?:deadline|submission date|due date|closing date)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+  );
+
+  const elapsed = Date.now() - startTime;
+
+  console.log(`[heuristicsOnly] Complete in ${elapsed}ms:`, {
+    total: requirements.length,
+    lowConfidence: classifiedResult.lowConfidenceIds.length,
+    avgTypeConfidence: classifiedResult.stats.avgTypeConfidence,
+  });
+
+  return {
+    deadline: deadlineMatch ? deadlineMatch[1] : null,
+    deadlineText: deadlineMatch ? deadlineMatch[0] : null,
+    requirements,
+    stats: classifiedResult.stats,
+    lowConfidenceIds: classifiedResult.lowConfidenceIds,
+    extractionMethod: "heuristic",
+  };
+}
+
+// =============================================================================
+// EXTRACTION FUNCTION (LLM-based - existing)
 // =============================================================================
 
 export async function extractRequirements(documentText: string): Promise<ExtractionResult> {

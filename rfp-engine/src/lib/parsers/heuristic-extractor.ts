@@ -1,14 +1,26 @@
 /**
  * Heuristic Requirement Extractor
  *
- * Phase 1 of two-phase extraction: Find requirement candidates using regex/heuristics.
+ * Complete heuristic-based extraction for RFP requirements.
  * No LLM calls - pure pattern matching for speed and reliability.
  *
- * This solves the fundamental problem with chunked extraction:
- * - Chunking loses section context and corrupts section numbers
- * - Here, we find EXACT section numbers and their text directly
- * - The LLM's job (Phase 2) is just classification, not hunting
+ * Part of the Hybrid Heuristic + LLM architecture:
+ * - Phase 1: This file extracts AND classifies requirements (0 API calls)
+ * - Phase 2: Optional LLM refinement for low-confidence items only
+ *
+ * Key functions:
+ * - extractAndClassifyHeuristically() - Full extraction with classification
+ * - findRequirementCandidates() - Find numbered section patterns
+ * - detectMajorSections() - Detect section headers for grouping
  */
+
+import { RequirementType } from "../constants";
+import {
+  classifyTypeHeuristically,
+  classifyMandatoryHeuristically,
+  TypeClassification,
+  MandatoryClassification,
+} from "./heuristic-classifier";
 
 // =============================================================================
 // TYPES
@@ -345,5 +357,180 @@ export function extractCandidatesHeuristically(text: string): HeuristicExtractio
       questionCandidates: questionCandidates.length,
       majorSectionsDetected: majorSections.size,
     },
+  };
+}
+
+// =============================================================================
+// CLASSIFIED REQUIREMENT TYPE
+// =============================================================================
+
+/**
+ * A fully classified requirement ready for storage/display.
+ * This is the output of the heuristic extraction process.
+ */
+export interface ClassifiedRequirement {
+  /** Unique ID (generated) */
+  id: string;
+  /** Section number: "3.1.2", "A.1", etc. */
+  sectionNumber: string;
+  /** Section group/title: "Technical Requirements", etc. */
+  sectionGroup: string;
+  /** The requirement text */
+  text: string;
+  /** Requirement type classification */
+  type: RequirementType;
+  /** Confidence in type classification (0-100) */
+  typeConfidence: number;
+  /** Pattern that matched for type (debugging) */
+  typePattern?: string;
+  /** Whether this is mandatory */
+  isMandatory: boolean;
+  /** Confidence in mandatory classification (0-100) */
+  mandatoryConfidence: number;
+  /** Pattern that matched for mandatory (debugging) */
+  mandatoryPattern?: string;
+  /** Original position in document */
+  position: number;
+}
+
+export interface ClassifiedExtractionResult {
+  requirements: ClassifiedRequirement[];
+  stats: {
+    total: number;
+    byType: Record<RequirementType, number>;
+    mandatory: number;
+    optional: number;
+    lowConfidenceCount: number;
+    avgTypeConfidence: number;
+    avgMandatoryConfidence: number;
+    extractionTimeMs: number;
+  };
+  /** Requirement IDs that may benefit from LLM refinement */
+  lowConfidenceIds: string[];
+}
+
+// =============================================================================
+// MAIN CLASSIFIED EXTRACTION FUNCTION
+// =============================================================================
+
+/**
+ * Extract and classify all requirements from a document using only heuristics.
+ *
+ * This is the main entry point for Phase 1 of the hybrid architecture.
+ * Returns fully classified requirements with confidence scores.
+ *
+ * @param text - The preprocessed document text
+ * @param confidenceThreshold - Below this, mark for LLM refinement (default: 70)
+ */
+export function extractAndClassifyHeuristically(
+  text: string,
+  confidenceThreshold: number = 70
+): ClassifiedExtractionResult {
+  console.log(`[heuristic-extractor] Starting full heuristic extraction + classification`);
+  const startTime = Date.now();
+
+  // Step 1: Extract candidates and detect sections
+  const { candidates, majorSections, stats: candidateStats } = extractCandidatesHeuristically(text);
+
+  // Step 2: Classify each candidate
+  const requirements: ClassifiedRequirement[] = [];
+  const lowConfidenceIds: string[] = [];
+  const typeCounters: Record<RequirementType, number> = {
+    DECLARATIVE: 0,
+    DESCRIPTIVE: 0,
+    QUANTITATIVE: 0,
+    REFERENCE_BASED: 0,
+    EVIDENCE_BASED: 0,
+    STAFFING: 0,
+    PROCEDURAL: 0,
+    CONTEXTUAL: 0,
+  };
+  let mandatoryCount = 0;
+  let totalTypeConfidence = 0;
+  let totalMandatoryConfidence = 0;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+
+    // Generate unique ID
+    const id = `req_${candidate.sectionNumber.replace(/\./g, '_')}_${i}`;
+
+    // Find section group from major sections
+    const majorSection = majorSections.get(candidate.majorSection);
+    const sectionGroup = majorSection?.title || `Section ${candidate.majorSection}`;
+
+    // Classify type
+    const typeClassification = classifyTypeHeuristically(candidate.rawText);
+
+    // Classify mandatory (pass section title for context)
+    const mandatoryClassification = classifyMandatoryHeuristically(
+      candidate.rawText,
+      sectionGroup
+    );
+
+    // Track if low confidence
+    const isLowConfidence =
+      typeClassification.confidence < confidenceThreshold ||
+      mandatoryClassification.confidence < confidenceThreshold;
+
+    if (isLowConfidence) {
+      lowConfidenceIds.push(id);
+    }
+
+    // Update counters
+    typeCounters[typeClassification.type]++;
+    if (mandatoryClassification.isMandatory) {
+      mandatoryCount++;
+    }
+    totalTypeConfidence += typeClassification.confidence;
+    totalMandatoryConfidence += mandatoryClassification.confidence;
+
+    // Create classified requirement
+    requirements.push({
+      id,
+      sectionNumber: candidate.sectionNumber,
+      sectionGroup,
+      text: candidate.rawText,
+      type: typeClassification.type,
+      typeConfidence: typeClassification.confidence,
+      typePattern: typeClassification.matchedPattern,
+      isMandatory: mandatoryClassification.isMandatory,
+      mandatoryConfidence: mandatoryClassification.confidence,
+      mandatoryPattern: mandatoryClassification.matchedPattern,
+      position: i,
+    });
+  }
+
+  const elapsed = Date.now() - startTime;
+
+  // Build stats
+  const stats = {
+    total: requirements.length,
+    byType: typeCounters,
+    mandatory: mandatoryCount,
+    optional: requirements.length - mandatoryCount,
+    lowConfidenceCount: lowConfidenceIds.length,
+    avgTypeConfidence: requirements.length > 0
+      ? Math.round(totalTypeConfidence / requirements.length)
+      : 0,
+    avgMandatoryConfidence: requirements.length > 0
+      ? Math.round(totalMandatoryConfidence / requirements.length)
+      : 0,
+    extractionTimeMs: elapsed,
+  };
+
+  console.log(`[heuristic-extractor] Classification complete:`, {
+    total: stats.total,
+    lowConfidence: stats.lowConfidenceCount,
+    avgTypeConfidence: stats.avgTypeConfidence,
+    avgMandatoryConfidence: stats.avgMandatoryConfidence,
+    timeMs: elapsed,
+  });
+  console.log(`[heuristic-extractor] Type distribution:`, typeCounters);
+
+  return {
+    requirements,
+    stats,
+    lowConfidenceIds,
   };
 }
