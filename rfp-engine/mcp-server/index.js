@@ -232,9 +232,13 @@ class MCPServer {
           meta: result.meta,
           stats: result.stats,
           typeCounts: result.typeCounts,
+          domainCounts: result.domainCounts,
+          attestationCount: result.attestationCount,
+          writtenResponseCount: result.writtenResponseCount,
           avgConfidenceByType: result.avgConfidenceByType,
           lowConfidenceCount: result.lowConfidenceCount,
           samplesByType: result.samplesByType,
+          attestationSamples: result.attestationSamples,
           lowConfidenceSamples: result.lowConfidenceSamples,
           _note: "This is heuristic classification (no LLM). Check typeCounts for distribution and samplesByType for examples.",
         };
