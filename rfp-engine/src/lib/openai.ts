@@ -2777,10 +2777,19 @@ export async function refineLowConfidenceRequirements(
   }
 
   const elapsed = Date.now() - startTime;
-  const refinedCount = results.filter(r => r.typeConfidence && r.typeConfidence >= 90).length;
-  console.log(`[refine] Complete in ${elapsed}ms: ${refinedCount}/${requirements.length} refined to high confidence`);
 
-  return results;
+  // Track success/failure counts for debugging
+  const successCount = results.filter(r => (r as ExtractedRequirement & { _refinementSuccess?: boolean })._refinementSuccess === true).length;
+  const failureCount = results.filter(r => (r as ExtractedRequirement & { _refinementSuccess?: boolean })._refinementSuccess === false).length;
+  const refinedCount = results.filter(r => r.typeConfidence && r.typeConfidence >= 90).length;
+
+  console.log(`[refine] Complete in ${elapsed}ms: ${successCount} succeeded, ${failureCount} failed, ${refinedCount}/${requirements.length} high confidence`);
+
+  // Clean up internal tracking flag before returning
+  return results.map(r => {
+    const { _refinementSuccess, ...clean } = r as ExtractedRequirement & { _refinementSuccess?: boolean };
+    return clean as ExtractedRequirement;
+  });
 }
 
 /**
@@ -2862,10 +2871,14 @@ MANDATORY INDICATORS:
       isMandatory: typeof parsed.isMandatory === "boolean" ? parsed.isMandatory : req.isMandatory,
       typeConfidence: 95, // LLM classification = high confidence
       mandatoryConfidence: 95,
-    };
+      _refinementSuccess: true, // Track successful refinement
+    } as ExtractedRequirement & { _refinementSuccess?: boolean };
   } catch (error) {
     console.error(`[refine] Error refining requirement ${req.section}:`, error);
-    return req; // Return unchanged on error
+    return {
+      ...req,
+      _refinementSuccess: false, // Track failed refinement
+    } as ExtractedRequirement & { _refinementSuccess?: boolean };
   }
 }
 
@@ -2912,25 +2925,31 @@ export async function extractRequirementsHybrid(documentText: string): Promise<E
   }));
 
   // Step 4: Identify low-confidence items for LLM refinement
-  const lowConfidenceReqs = requirements.filter(
-    r => (r.typeConfidence && r.typeConfidence < 70) ||
-         (r.mandatoryConfidence && r.mandatoryConfidence < 70)
-  );
+  // Track indices to avoid section key collision issues (multiple items can share same section)
+  const lowConfidenceIndices: number[] = [];
+  const lowConfidenceReqs: ExtractedRequirement[] = [];
+
+  requirements.forEach((r, i) => {
+    if ((r.typeConfidence && r.typeConfidence < 70) ||
+        (r.mandatoryConfidence && r.mandatoryConfidence < 70)) {
+      lowConfidenceIndices.push(i);
+      lowConfidenceReqs.push(r);
+    }
+  });
   console.log(`[extractHybrid] Found ${lowConfidenceReqs.length} low-confidence items for LLM refinement`);
 
   // Step 5: Refine low-confidence items with LLM (parallel processing)
-  let finalRequirements = requirements;
+  let finalRequirements = [...requirements]; // Create mutable copy
   if (lowConfidenceReqs.length > 0) {
     const refineStart = Date.now();
     const refinedReqs = await refineLowConfidenceRequirements(lowConfidenceReqs);
     const refineTime = Date.now() - refineStart;
     console.log(`[extractHybrid] LLM refinement: ${refinedReqs.length} items in ${refineTime}ms`);
 
-    // Merge refined items back
-    const refinedMap = new Map(refinedReqs.map(r => [r.section, r]));
-    finalRequirements = requirements.map(req =>
-      refinedMap.has(req.section) ? refinedMap.get(req.section)! : req
-    );
+    // Merge refined items back using indices (avoids section key collision)
+    refinedReqs.forEach((refined, idx) => {
+      finalRequirements[lowConfidenceIndices[idx]] = refined;
+    });
   }
 
   // Step 6: Extract deadline (quick regex-based, no LLM)

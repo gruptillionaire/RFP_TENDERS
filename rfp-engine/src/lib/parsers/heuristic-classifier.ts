@@ -243,10 +243,11 @@ const TOPIC_PATTERNS: TopicPattern[] = [
   },
 
   // REFERENCE_BASED - Past work, experience, clients (content matters)
+  // Narrowed patterns to require clear past/previous/prior context OR client/customer reference requests
   {
     type: "REFERENCE_BASED",
     patterns: [
-      // Reference contacts
+      // Reference contacts - must be about client/customer references
       /\b(provide|submit|include|list).{0,30}(client|customer)\s+reference/i,
       /\b(provide|submit|include|list).{0,30}reference.{0,15}(contact|name|phone|email)/i,
       /\bcontact\s+information.{0,20}(reference|client)/i,
@@ -258,13 +259,42 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       /\bpast\s+performance/i,
       /\btrack\s+record/i,
       /\bCPARS\b/i,
-      // Experience questions
-      /\b(your|the)\s+(experience|expertise)\s+(with|in|on)/i,
+      // Experience questions - NARROWED to require past/previous/prior context
+      /\b(your|the)\s+(past|previous|prior)\s+(experience|expertise)\s+(with|in|on)/i,
       /\bhow\s+(long|many).{0,20}(experience|years|projects)/i,
-      /\bexamples?\s+of\s+(similar|past|previous|your)/i,
+      /\bexamples?\s+of\s+(similar|past|previous|your)\s+(project|work|experience)/i,
     ],
-    antiPatterns: [],  // Content about references/experience should stay REFERENCE_BASED
+    antiPatterns: [
+      // Questions about system/product capabilities are NOT about past experience
+      /^(does|do|can|is|are|will)\s+(the|your)\s+\w+\s+(provide|support|offer|have|allow|enable)/i,
+    ],
     sectionBoostKeywords: ['reference', 'experience', 'past performance', 'qualifications', 'case study'],
+  },
+
+  // DECLARATIVE - Yes/No capability questions about system features
+  // Must come before DESCRIPTIVE to catch capability questions first
+  {
+    type: "DECLARATIVE",
+    patterns: [
+      // Direct capability questions
+      /^does\s+(the|your)\s+\w+.{0,30}(provide|support|offer|have|allow|enable|include)\b/i,
+      /^can\s+(the|your)\s+\w+.{0,30}(provide|support|do|perform|handle|generate|track|manage)\b/i,
+      /^is\s+(the|your)\s+\w+.{0,30}(capable|able)\s+to\b/i,
+      // System capability statements
+      /\b(system|solution|platform|product|software)\s+(provides?|supports?|offers?|has|enables?|allows?|includes?)\b/i,
+      // Feature availability questions
+      /\b(does|can)\s+(it|the\s+system|the\s+solution|your\s+product)\s+(support|provide|allow|enable|offer|include)/i,
+      // Capability-focused questions (not about past work)
+      /^(does|do)\s+(your|the).{0,40}(support|provide|allow|enable|offer|include|have|track|manage)\b/i,
+    ],
+    antiPatterns: [
+      // Past experience questions are NOT declarative
+      /\b(past|previous|prior|similar)\s+(project|work|experience)\b/i,
+      // Reference requests are NOT declarative
+      /\b(client|customer)\s+reference/i,
+      /\bcase\s+stud(y|ies)/i,
+    ],
+    sectionBoostKeywords: ['capability', 'feature', 'functional', 'technical', 'requirements', 'support'],
   },
 
   // EVIDENCE_BASED - Compliance, certifications, attestations, and proof (content matters)
@@ -372,6 +402,7 @@ const TOPIC_PATTERNS: TopicPattern[] = [
   },
 
   // CONTEXTUAL - Background, instructions, non-questions
+  // Strictly for section intros, deadlines, and meta-information - NOT active requirements
   {
     type: "CONTEXTUAL",
     patterns: [
@@ -395,6 +426,13 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       // General instructions
       /\b(vendor|contractor|respondent)s?\s+(shall|must|should)\s+(ensure|provide|submit|comply)/i,
       /\ball\s+(proposals?|responses?)\s+(shall|must|should)\s/i,
+    ],
+    antiPatterns: [
+      // Questions are NOT contextual - they are active requirements
+      /^(does|do|can|is|are|will|has|have|what|how|describe|explain|provide|list)\s/i,
+      /\?$/,  // Anything ending with ? is not contextual
+      // Specific action requests are NOT contextual
+      /^(describe|explain|outline|detail|discuss|provide|list|identify)\b/i,
     ],
     sectionBoostKeywords: ['introduction', 'overview', 'background', 'instructions', 'evaluation', 'deadline'],
   },
