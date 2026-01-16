@@ -38,20 +38,24 @@ const ATTESTATION_SIGNALS = [
   // GENERAL yes/no capability questions (binary answers = attestation eligible)
   // "Does the/your solution/system/WCMS provide/support/have/offer/allow..."
   /^does\s+(the|your)\s+\w+\s+(provide|support|have|offer|allow|enable|include)\b/i,
-  // "Can the/your solution/system be/do..."
-  /^can\s+(the|your|a)\s+\w+\s+(be\s+)?\w+/i,
+  // "Can the/your/a [noun]..." - any "Can" question about capability
+  /^can\s+(the|your|a|an)\s+\w+/i,
+  // "Can [plural noun] be..." - "Can designs be imported?"
+  /^can\s+\w+s?\s+be\s+/i,
+  // "Can [noun] [verb]..." - general capability (but not "Can you describe...")
+  /^can\s+(?!you\s+(describe|explain|provide|detail))\w+\s+\w+/i,
   // "Is the/your solution/system able/capable..."
   /^is\s+(the|your)\s+\w+\s+(able|capable)\b/i,
   // "Does the solution/system [verb]..." (general capability)
   /^does\s+(the|your)\s+(solution|system|product|platform|software|tool|wcms|cms)\b/i,
-  // "Can [noun] be [verb]ed?" passive capability questions
-  /^can\s+\w+\s+be\s+\w+ed\b/i,
-  // "Do you have/offer/provide..."
-  /^do\s+you\s+(have|offer|provide|support)\b/i,
+  // "Do you have/offer/provide/support..."
+  /^do\s+you\s+(have|offer|provide|support|work)\b/i,
   // "Are there..." existence questions
   /^are\s+there\b/i,
   // "Is there..." existence questions
   /^is\s+there\b/i,
+  // "Are your [noun]..." qualification questions
+  /^are\s+your\s+\w+/i,
 ];
 
 // Regulatory citation patterns (strong signal for attestation)
