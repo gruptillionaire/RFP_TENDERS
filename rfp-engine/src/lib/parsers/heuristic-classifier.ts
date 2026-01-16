@@ -213,98 +213,95 @@ interface TopicPattern {
  * These detect WHAT the requirement is about, not HOW it asks.
  */
 const TOPIC_PATTERNS: TopicPattern[] = [
-  // STAFFING - Requires action verb to avoid contextual mentions
+  // STAFFING - Content about team/personnel (regardless of how asked)
   {
     type: "STAFFING",
     patterns: [
-      // Action-verb anchored patterns
-      /\b(provide|submit|include|list|identify).{0,30}(staff|personnel|team\s+member|FTE|employee)/i,
-      /\b(provide|submit|include|attach).{0,30}(resume|CV|curriculum\s+vitae)/i,
-      /\b(provide|identify|list).{0,30}(key\s+staff|key\s+personnel|project\s+team)/i,
-      /\b(provide|include|attach).{0,30}organizational?\s+chart/i,
-      // Specific staffing requests
+      // Direct staffing requests
+      /\b(provide|submit|include|list|identify|describe|explain).{0,30}(staff|personnel|team\s+member|FTE|employee)/i,
+      /\b(provide|submit|include|attach|describe).{0,30}(resume|CV|curriculum\s+vitae)/i,
+      /\b(provide|identify|list|describe).{0,30}(key\s+staff|key\s+personnel|project\s+team)/i,
+      /\b(provide|include|attach|describe).{0,30}organizational?\s+chart/i,
+      // Staffing-related questions
       /\b(name|identify).{0,20}(project\s+manager|team\s+lead|account\s+manager)/i,
       /\bwho\s+will\s+(be\s+)?(assigned|responsible|leading|managing)/i,
       /\bproposed\s+(staff|team|personnel)\b/i,
-      /\bstaffing\s+(plan|proposal|approach)\b/i,
+      /\bstaffing\s+(plan|proposal|approach|setup|structure)\b/i,
+      // Describe/explain staffing IS still staffing (content matters)
+      /\b(describe|explain)\s+(your\s+)?(staffing|team\s+structure|personnel)/i,
+      /\bhow.{0,20}(your|the)\s+(team|staff).{0,20}(organized|structured|assigned)/i,
+      // Qualifications and experience of team
+      /\b(team|staff)\s+(qualification|experience|background|expertise)/i,
+      /\b(developer|engineer|architect|analyst|manager)\s+(experience|qualification)/i,
     ],
     antiPatterns: [
-      // "Describe your staffing approach" is DESCRIPTIVE, not STAFFING
-      /^describe\s+(your\s+)?(staffing|team|personnel)/i,
-      /^explain\s+(your\s+)?(staffing|team|personnel)/i,
-      // Broader "describe/explain how your team handles..." patterns
-      /\bdescribe.{0,30}(your\s+)?(team|staff|personnel)\b/i,
-      /\bexplain.{0,30}(your\s+)?(approach|methodology).{0,20}(staff|team)/i,
-      /\bhow\s+(do|does|will|would)\s+(your|the)\s+(team|staff)/i,
-      // Staff mentioned as contact, not as requirement
-      /\bstaff\s+will\s+(review|contact|respond)/i,
-      /\bour\s+staff\b/i,  // Talking about their own staff
+      // Staff mentioned as issuer's contact, not vendor requirement
+      /\bour\s+staff\s+will\s+(review|contact|respond)/i,
+      /\bissuer('s)?\s+staff\b/i,
     ],
-    weakenPatterns: [
-      /\bteam\s+structure\b/i,  // Could be staffing or descriptive
-      /\bstaff.{0,20}(approach|plan)\b/i,
-    ],
-    sectionBoostKeywords: ['staffing', 'personnel', 'team', 'resources', 'key staff'],
+    sectionBoostKeywords: ['staffing', 'personnel', 'team', 'resources', 'key staff', 'qualifications'],
   },
 
-  // REFERENCE_BASED - Distinguish from "describe similar work"
+  // REFERENCE_BASED - Past work, experience, clients (content matters)
   {
     type: "REFERENCE_BASED",
     patterns: [
-      // Asking for actual references/contacts
+      // Reference contacts
       /\b(provide|submit|include|list).{0,30}(client|customer)\s+reference/i,
       /\b(provide|submit|include|list).{0,30}reference.{0,15}(contact|name|phone|email)/i,
       /\bcontact\s+information.{0,20}(reference|client)/i,
-      // Case studies as documents
-      /\b(provide|submit|include|attach).{0,30}case\s+stud(y|ies)/i,
-      // Past performance documentation
-      /\bpast\s+performance\s+(reference|record|rating)/i,
-      /\bCPARS\b/i, // Contractor Performance Assessment Reporting System
+      // Case studies and past work
+      /\b(provide|submit|include|attach|describe).{0,30}case\s+stud(y|ies)/i,
+      /\b(describe|provide|explain).{0,30}(similar|comparable|relevant)\s+(project|work|engagement|experience)/i,
+      /\b(describe|explain|provide).{0,30}(past|previous|prior)\s+(project|work|experience|engagement)/i,
+      // Past performance
+      /\bpast\s+performance/i,
+      /\btrack\s+record/i,
+      /\bCPARS\b/i,
+      // Experience questions
+      /\b(your|the)\s+(experience|expertise)\s+(with|in|on)/i,
+      /\bhow\s+(long|many).{0,20}(experience|years|projects)/i,
+      /\bexamples?\s+of\s+(similar|past|previous|your)/i,
     ],
-    antiPatterns: [
-      // "Describe similar projects" is DESCRIPTIVE
-      /^describe\s+(a\s+)?(similar|comparable|relevant)/i,
-      /^explain\s+(your\s+)?(experience|work)\s+(with|on|in)/i,
-      // Broader "describe experience" patterns
-      /\bdescribe.{0,30}(similar|previous|past)\s+(project|work|experience)/i,
-      /\bexplain.{0,30}(your\s+)?experience/i,
-    ],
-    weakenPatterns: [
-      // "Describe a similar project" - could be either
-      /\bdescribe.{0,20}similar\s+(project|engagement)/i,
-    ],
-    sectionBoostKeywords: ['reference', 'experience', 'past performance', 'qualifications'],
+    antiPatterns: [],  // Content about references/experience should stay REFERENCE_BASED
+    sectionBoostKeywords: ['reference', 'experience', 'past performance', 'qualifications', 'case study'],
   },
 
-  // EVIDENCE_BASED - Only for actual documents/certificates
+  // EVIDENCE_BASED - Compliance, certifications, attestations, and proof (content matters)
   {
     type: "EVIDENCE_BASED",
     patterns: [
       // Specific document types
-      /\b(attach|upload|include|submit|provide).{0,30}(certificate|certification|license|permit)\b/i,
+      /\b(attach|upload|include|submit|provide|describe).{0,30}(certificate|certification|license|permit)\b/i,
       /\bcertificate\s+of\s+(insurance|compliance|incorporation|good\s+standing)/i,
       /\bproof\s+of\s+(insurance|compliance|registration|bonding|licensure)/i,
       // Compliance certifications - require word boundary to avoid matching "SOC" in "Social"
-      /\b(HIPAA|PCI|GDPR|FedRAMP|FISMA)\b/i,
+      /\b(HIPAA|PCI|GDPR|FedRAMP|FISMA|NIST|CIS)\b/i,
       /\b(ISO|SOC|SOC2)\s*[-\s]?\d+\b/i,  // ISO/SOC only with actual numbers (ISO 27001, SOC 2)
       // Financial documentation
-      /\b(attach|provide|submit).{0,30}(financial\s+statement|audit(ed)?\s+report|W-?9)\b/i,
+      /\b(attach|provide|submit|describe).{0,30}(financial\s+statement|audit(ed)?\s+report|W-?9)\b/i,
       /\b(attach|provide|submit).{0,30}(balance\s+sheet|income\s+statement|tax\s+return)/i,
       // Insurance documents
       /\binsurance\s+(certificate|policy|coverage)\b/i,
+      // Security compliance questions (content is about compliance even if asking "describe")
+      /\b(describe|explain).{0,30}(your\s+)?(security|compliance|certification)\s+(posture|status|measures|controls)/i,
+      /\b(describe|explain).{0,30}(how\s+)?(you|your).{0,20}(comply|compliant|certified|meet).{0,30}(standard|regulation|requirement)/i,
+      /\b(what|which)\s+(security\s+)?(certification|compliance|audit|attestation)/i,
+      // Disaster recovery / business continuity evidence
+      /\b(describe|provide|explain).{0,30}(disaster\s+recovery|business\s+continuity|DR|BCP)\s+(plan|capability|procedure)/i,
+      // Attestations
+      /\battest(ation)?\b/i,
+      /\b(are|is)\s+(you|your).{0,20}(certified|compliant|audited)/i,
     ],
     antiPatterns: [
-      // General documentation requests are DESCRIPTIVE
-      /\bdocumentation\s+of\s+(your\s+)?(approach|methodology|process)/i,
-      /\bprovide\s+documentation\s+(describing|explaining|outlining)/i,
+      // Only block generic "documentation of approach" - NOT compliance/security approach
+      /\bdocumentation\s+of\s+(your\s+)?(development|implementation)\s+(approach|methodology)/i,
     ],
-    weakenPatterns: [
-      /\bdocument(s|ation)?\b/i,  // Generic "documentation" could be anything
-    ],
-    sectionBoostKeywords: ['attachment', 'evidence', 'documentation', 'certificate', 'compliance'],
+    weakenPatterns: [],  // Removed - let content keywords win
+    sectionBoostKeywords: ['attachment', 'evidence', 'documentation', 'certificate', 'compliance', 'security', 'audit'],
   },
 
-  // QUANTITATIVE - Only when asking FOR numbers, not about numbers
+  // QUANTITATIVE - Pricing, SLAs, metrics, capacity (content about numbers/pricing matters)
   {
     type: "QUANTITATIVE",
     patterns: [
@@ -323,37 +320,55 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       /\bprice\s+(per|for|of)\b/i,
       /\bcost\s+breakdown\b/i,
       /\bitemized\s+(cost|price|fee)/i,
+      // SLA and metrics questions (content is quantitative even if asking "describe")
+      /\b(describe|provide|explain|what).{0,30}(your\s+)?(SLA|service\s+level|uptime|availability)\b/i,
+      /\b(what|describe|provide).{0,30}(your\s+)?(response\s+time|resolution\s+time|turnaround)/i,
+      /\b(what|describe).{0,30}(your\s+)?(capacity|scalability|throughput|performance)\s+(limit|metric|number)/i,
+      // Pricing schedule/table questions
+      /\bpricing\s+(schedule|table|sheet|breakdown|detail)/i,
+      /\bfee\s+(schedule|structure|breakdown)/i,
+      // Discount/volume pricing
+      /\b(volume|bulk|quantity)\s+(discount|pricing)/i,
+      /\bdiscount\s+(for|on|rate|structure)/i,
+      // License/seat pricing
+      /\b(per-seat|per-user|per-license|seat-based|user-based)\s*(pricing|cost|fee)?/i,
+      /\blicens(e|ing)\s+(cost|fee|price|model)/i,
     ],
     antiPatterns: [
-      // Asking about pricing APPROACH/METHODOLOGY is DESCRIPTIVE
-      /\b(describe|explain)\s+(your\s+)?(pricing|cost)\s+(approach|methodology|strategy|model)/i,
-      /\bhow\s+(do|does|would)\s+you\s+(determine|calculate|approach)\s+(pricing|costs?)/i,
-      // Asking about understanding/handling is DESCRIPTIVE
-      /\bexplain\s+how\s+you\s+handle\s+(pricing|costs?)/i,
-      // Broader "describe pricing" patterns
-      /\bdescribe.{0,30}(your\s+)?(pricing|cost)\s+(approach|model|strategy)/i,
-      /\bexplain.{0,30}how.{0,20}(price|cost|fee)/i,
+      // Only block PURE methodology questions (no pricing terms in the actual question)
+      /\b(describe|explain)\s+your\s+(general\s+)?approach\s+to\s+business/i,
     ],
-    weakenPatterns: [
-      // Generic mentions of numbers
-      /\bnumber\s+of\b/i,
-      /\bamount\s+of\b/i,
-    ],
-    sectionBoostKeywords: ['pricing', 'cost', 'fee', 'financial', 'budget', 'price'],
+    weakenPatterns: [],  // Removed - let content keywords win
+    sectionBoostKeywords: ['pricing', 'cost', 'fee', 'financial', 'budget', 'price', 'sla', 'metrics'],
   },
 
-  // PROCEDURAL - Confirmations and signatures
+  // PROCEDURAL - Processes, workflows, implementation, signatures (content about processes matters)
   {
     type: "PROCEDURAL",
     patterns: [
+      // Signature/form completion
       /\bsign(ed|ature)?\s*(and\s+)?(return|submit|date|below)/i,
       /\bexecute\s+(the\s+)?(agreement|contract|form|document)/i,
       /\binitial\s+(here|each|all|below)/i,
       /\breturn\s+(this|the)\s+(form|document|page).{0,20}(signed|completed)/i,
       /\bcomplete\s+and\s+(sign|return|submit)/i,
       /\bsigned\s+(copy|form|document|agreement)/i,
+      // Implementation/deployment process questions
+      /\b(describe|explain|provide|what).{0,30}(your\s+)?(implementation|deployment|rollout)\s+(process|plan|approach|steps)/i,
+      /\b(describe|explain|outline).{0,30}(your\s+)?(onboarding|migration|transition)\s+(process|plan|procedure)/i,
+      /\b(what|describe).{0,30}(your\s+)?(installation|setup|configuration)\s+(process|procedure|steps)/i,
+      // Workflow questions
+      /\b(describe|explain|outline).{0,30}(your\s+)?(workflow|process|procedure)\s+(for|to)\b/i,
+      /\bhow\s+(do|does|will|would)\s+(you|your|the).{0,30}(implement|deploy|install|migrate|onboard)/i,
+      // Steps/phases questions
+      /\bwhat\s+(are|is)\s+(the\s+)?(steps?|phases?|stages?)\s+(for|to|in|of)\b/i,
+      /\b(list|describe|outline)\s+(the\s+)?(steps?|phases?|stages?)\s+(for|to|in|of|required)/i,
+      // Maintenance/support process
+      /\b(describe|explain).{0,30}(your\s+)?(maintenance|support|upgrade|update)\s+(process|procedure|workflow)/i,
+      // Change management
+      /\b(describe|explain).{0,30}(your\s+)?(change\s+management|release\s+management|version\s+control)\b/i,
     ],
-    sectionBoostKeywords: ['signature', 'execution', 'acknowledgment', 'certification'],
+    sectionBoostKeywords: ['signature', 'execution', 'acknowledgment', 'certification', 'implementation', 'process', 'workflow', 'onboarding'],
   },
 
   // CONTEXTUAL - Background, instructions, non-questions
@@ -384,7 +399,8 @@ const TOPIC_PATTERNS: TopicPattern[] = [
     sectionBoostKeywords: ['introduction', 'overview', 'background', 'instructions', 'evaluation', 'deadline'],
   },
 
-  // DESCRIPTIVE - Reinforces type from question structure with topic patterns
+  // DESCRIPTIVE - General describe/explain questions WITHOUT specific content keywords
+  // This is the fallback for narrative responses when no specific type applies
   {
     type: "DESCRIPTIVE",
     patterns: [
@@ -400,8 +416,18 @@ const TOPIC_PATTERNS: TopicPattern[] = [
     antiPatterns: [
       // Don't classify as DESCRIPTIVE if asking for specific artifacts
       /\bprovide\s+(a\s+)?(list|resume|certificate|reference)/i,
+      // Let STAFFING handle team/personnel content
+      /\b(staff|personnel|team\s+member|FTE|employee|staffing|resume|cv)\b/i,
+      // Let REFERENCE_BASED handle past work/experience content
+      /\b(reference|case\s+stud|similar\s+project|past\s+performance|past\s+project|previous\s+work)\b/i,
+      // Let EVIDENCE_BASED handle compliance/certification content
+      /\b(certificate|certification|compliance|hipaa|pci|gdpr|fedramp|soc\s*2?|iso\s*27|audit)\b/i,
+      // Let QUANTITATIVE handle pricing/SLA content
+      /\b(pricing|sla|service\s+level|uptime|response\s+time|fee\s+schedule)\b/i,
+      // Let PROCEDURAL handle process/workflow content
+      /\b(implementation\s+process|onboarding\s+process|migration\s+process|deployment\s+process|workflow\s+for)\b/i,
     ],
-    sectionBoostKeywords: ['approach', 'methodology', 'narrative', 'response'],
+    sectionBoostKeywords: ['approach', 'methodology', 'narrative', 'response', 'solution'],
   },
 ];
 

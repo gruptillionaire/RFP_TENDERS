@@ -34,7 +34,9 @@
       "WebFetch(domain:www.npmjs.com)",
       "Bash(curl:*)",
       "Bash(npx prisma migrate dev:*)",
-      "mcp__rfp-extraction__extract_pdf"
+      "mcp__rfp-extraction__extract_pdf",
+      "Bash(node -e:*)",
+      "Bash(dir \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\" /s /b)"
     ]
   }
 }
