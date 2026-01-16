@@ -48,7 +48,8 @@ export async function GET(
             select: {
               id: true,
               name: true,
-              email: true,
+              // SECURITY: email intentionally excluded to prevent information disclosure
+              // Only the user ID and name are needed for version history display
             },
           },
         },

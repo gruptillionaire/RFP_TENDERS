@@ -488,13 +488,64 @@ export function constructWebhookEvent(
 
 ## 13. Database Security
 
-### 13.1 Prisma ORM
+### 13.1 Row-Level Security (RLS)
+
+**Location**: `prisma/migrations/20260116_enable_rls/migration.sql`, `src/lib/prisma.ts`
+
+PostgreSQL Row-Level Security provides **defense-in-depth** user isolation at the database layer. Even if application code has bugs, the database will prevent cross-user data access.
+
+**Tables Protected by RLS**:
+
+| Table | Isolation Method |
+|-------|-----------------|
+| Project | Direct userId match |
+| Requirement | Via Project.userId (subquery) |
+| RequirementVersion | Via Requirement → Project.userId |
+| ProjectExport | Via Project.userId (subquery) |
+| PastResponse | Direct userId match |
+| ConsentLog | Direct userId match |
+| DataExportRequest | Direct userId match |
+| SingleUsePurchase | Direct userId match |
+| AuditLog | Users read own logs only; service writes all |
+
+**How It Works**:
+
+1. **User Context**: API routes set `app.current_user_id` session variable after authentication:
+```typescript
+await setRLSContext(session.user.id);
+```
+
+2. **Policy Check**: PostgreSQL policies check `current_user_id()` function:
+```sql
+CREATE POLICY project_isolation_policy ON "Project"
+  USING ("userId" = current_user_id())
+  WITH CHECK ("userId" = current_user_id());
+```
+
+3. **Service Bypass**: When `current_user_id()` is NULL (cron jobs, migrations), policies allow access.
+
+**RLS Helper Functions** (`src/lib/prisma.ts`):
+
+```typescript
+// Set user context for RLS
+await setRLSContext(userId);
+
+// Clear context (for cleanup)
+await clearRLSContext();
+
+// Execute with automatic context management
+const result = await withRLSContext(userId, async () => {
+  return prisma.project.findMany();
+});
+```
+
+### 13.2 Prisma ORM
 
 - Parameterized queries prevent SQL injection
 - Type-safe database operations
 - No raw SQL queries in application code
 
-### 13.2 Cascade Deletion
+### 13.3 Cascade Deletion
 
 All user-related data properly cascades on deletion:
 - Projects
@@ -504,14 +555,15 @@ All user-related data properly cascades on deletion:
 - Audit logs
 - Sessions
 
-### 13.3 Soft Delete Support
+### 13.4 Soft Delete Support
 
 User model includes `deletedAt` field for soft delete option when needed.
 
-### 13.4 Sensitive Data Handling
+### 13.5 Sensitive Data Handling
 
 - Password hashes excluded from data exports
 - Email anonymization in deletion audit logs
+- 2FA secrets encrypted with AES-256-GCM
 
 ---
 
@@ -538,17 +590,20 @@ User model includes `deletedAt` field for soft delete option when needed.
 - [x] Cookie consent management
 - [x] Stripe webhook signature verification
 - [x] Resource ownership verification
+- [x] Row-Level Security (RLS) for database-level isolation
+- [x] Authenticated encryption (AES-256-GCM) for 2FA secrets
 
 ### Recommended Improvements
 
 - [ ] Redis-based rate limiting for distributed deployments
 - [ ] Email verification for new accounts
-- [ ] Two-factor authentication (2FA)
+- [x] Two-factor authentication (2FA) - Implemented with TOTP
 - [ ] Security event alerting
 - [ ] Penetration testing
 - [ ] Regular dependency vulnerability scanning
 - [ ] Database encryption at rest
 - [ ] Secrets management (e.g., HashiCorp Vault)
+- [x] Row-Level Security (RLS) for database-level user isolation
 
 ---
 
@@ -568,6 +623,8 @@ User model includes `deletedAt` field for soft delete option when needed.
 | Account Deletion | `src/app/api/user/delete/route.ts` |
 | Stripe Security | `src/lib/stripe.ts`, `src/app/api/billing/webhook/route.ts` |
 | Password Reset | `src/app/api/auth/forgot-password/route.ts`, `src/app/api/auth/reset-password/route.ts` |
+| Row-Level Security | `prisma/migrations/20260116_enable_rls/migration.sql`, `src/lib/prisma.ts`, `src/lib/api-auth.ts` |
+| Encryption (2FA) | `src/lib/crypto.ts` |
 
 ---
 

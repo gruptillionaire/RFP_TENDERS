@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendDeadlineReminderEmail } from "@/lib/email";
 
-// Cron secret for security
+// Cron secret for security - REQUIRED in production
 const CRON_SECRET = process.env.CRON_SECRET;
 
 // Reminder thresholds in days
@@ -73,10 +73,20 @@ function calculateCompletionStats(requirements: { status: string; isMandatory: b
 }
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret
+  // SECURITY: Always require cron secret in production
+  // This prevents unauthorized triggering of email sending operations
+  if (!CRON_SECRET) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("CRITICAL: CRON_SECRET not configured in production");
+      return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    }
+    console.warn("WARNING: CRON_SECRET not set - cron endpoints are unprotected");
+  }
+
+  // Verify cron secret (required when secret is configured)
   const authHeader = req.headers.get("authorization");
   if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    console.log("Unauthorized cron request");
+    console.log("Unauthorized cron request - invalid or missing authorization header");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, setRLSContext } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import type { EvaluationCriterion } from "@/lib/compliance-scoring";
 
@@ -14,6 +14,9 @@ export async function GET(request: Request, { params }: Props) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Set RLS context for database-level user isolation
+    await setRLSContext(session.user.id);
 
     const { id } = await params;
 
@@ -46,6 +49,9 @@ export async function PATCH(request: Request, { params }: Props) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Set RLS context for database-level user isolation
+    await setRLSContext(session.user.id);
 
     const { id } = await params;
     const body = await request.json();
@@ -198,6 +204,9 @@ export async function DELETE(request: Request, { params }: Props) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Set RLS context for database-level user isolation
+    await setRLSContext(session.user.id);
 
     const { id } = await params;
 

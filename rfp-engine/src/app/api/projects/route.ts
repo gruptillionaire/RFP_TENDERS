@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, setRLSContext } from "@/lib/prisma";
 import { parsePDF } from "@/lib/parsers/pdf";
 import { parseDOCX } from "@/lib/parsers/docx";
 import {
@@ -26,6 +26,9 @@ export async function POST(request: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Set RLS context for database-level user isolation
+    await setRLSContext(session.user.id);
 
     // Rate limiting
     const rateLimit = rateLimiters.projects(session.user.id);

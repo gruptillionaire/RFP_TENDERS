@@ -25,18 +25,23 @@ import { classifyAttestation } from "@/lib/attestation";
 
 export const maxDuration = 300; // 5 minutes
 
+// SECURITY: Maximum file size for test uploads (10MB)
+const MAX_TEST_FILE_SIZE = 10 * 1024 * 1024;
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Check API key auth
+    // SECURITY: Check API key auth
     const authHeader = request.headers.get("Authorization");
     const testApiKey = process.env.TEST_API_KEY;
 
+    // SECURITY: Require TEST_API_KEY to be configured
     if (!testApiKey) {
+      console.error("SECURITY: TEST_API_KEY not configured - test endpoint disabled");
       return NextResponse.json(
-        { error: "TEST_API_KEY not configured on server" },
-        { status: 500 }
+        { error: "Test endpoint not configured" },
+        { status: 503 }
       );
     }
 
@@ -47,8 +52,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SECURITY: Use constant-time comparison to prevent timing attacks
     const providedKey = authHeader.replace("Bearer ", "");
-    if (providedKey !== testApiKey) {
+    const keyBuffer = Buffer.from(providedKey);
+    const expectedBuffer = Buffer.from(testApiKey);
+    if (keyBuffer.length !== expectedBuffer.length ||
+        !require("crypto").timingSafeEqual(keyBuffer, expectedBuffer)) {
       return NextResponse.json(
         { error: "Invalid API key" },
         { status: 401 }
@@ -62,6 +71,14 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json(
         { error: "No file provided. Send as multipart/form-data with 'file' field." },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Validate file size to prevent DoS
+    if (file.size > MAX_TEST_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `File too large. Maximum size is ${MAX_TEST_FILE_SIZE / 1024 / 1024}MB.` },
         { status: 400 }
       );
     }

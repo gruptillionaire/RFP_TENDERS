@@ -100,6 +100,11 @@ model User {
 
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
+
+  // SECURITY INDEXES: Optimize queries to prevent slow queries (DoS vector)
+  // stripeCustomerId already has @unique which creates an index
+  @@index([deletedAt]) // For filtering active users
+  @@index([singleUseExpiresAt]) // For cron cleanup queries
 }
 
 enum Plan {
@@ -271,6 +276,7 @@ model ConsentLog {
 
   @@index([userId])
   @@index([consentType])
+  @@index([userId, consentType, createdAt(sort: Desc)]) // Optimized consent history queries
 }
 
 // Audit trail for all significant user actions (GDPR Art. 30)
@@ -322,6 +328,7 @@ model PasswordResetToken {
 
   @@index([email])
   @@index([token])
+  @@index([expiresAt]) // For cleanup queries
 }
 
 // =============================================================================
