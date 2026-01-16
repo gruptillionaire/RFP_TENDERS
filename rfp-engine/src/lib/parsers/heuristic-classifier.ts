@@ -293,6 +293,9 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       // Reference requests are NOT declarative
       /\b(client|customer)\s+reference/i,
       /\bcase\s+stud(y|ies)/i,
+      // Multi-question requirements with "how" questions need DESCRIPTIVE responses
+      // e.g., "Does X? What Y? How is this achieved?" - the "how" question requires explanation
+      /\?[^?]*\bhow\s+(is|are|do|does|will|would|can)\b/i,
     ],
     sectionBoostKeywords: ['capability', 'feature', 'functional', 'technical', 'requirements', 'support'],
   },
@@ -454,7 +457,10 @@ const TOPIC_PATTERNS: TopicPattern[] = [
       /\bdetail\s+(your|the|how)/i,
       /\belaborate\s+on/i,
       /\bhow\s+(do|does|would|will|can)\s+(your|the|you)/i,
+      /\bhow\s+(is|are)\s+(this|that|it)\s+(achieved|accomplished|done|handled|implemented|managed)/i,
       /\bwhat\s+(is|are)\s+(your|the)\s+(approach|methodology|strategy|process)/i,
+      // Multi-question requirements with "how" questions should be DESCRIPTIVE
+      /\?[^?]*\bhow\s+(is|are|do|does|will|would|can)\b/i,
     ],
     antiPatterns: [
       // Don't classify as DESCRIPTIVE if asking for specific artifacts
@@ -666,9 +672,13 @@ interface KeywordMatch {
 }
 
 function findBestKeywordMatch(text: string, excludeTypes: RequirementType[] = []): KeywordMatch | null {
+  // IMPORTANT: Exclude CONTEXTUAL from keyword density scoring
+  // CONTEXTUAL should only win via explicit topic patterns (section intros, deadlines, etc.)
+  // Not via vague keyword matching - keywords like 'overview', 'scope' appear in real requirements
   const allTypes: RequirementType[] = [
     'QUANTITATIVE', 'EVIDENCE_BASED', 'PROCEDURAL', 'STAFFING',
-    'REFERENCE_BASED', 'CONTEXTUAL', 'DECLARATIVE', 'DESCRIPTIVE'
+    'REFERENCE_BASED', 'DECLARATIVE', 'DESCRIPTIVE'
+    // CONTEXTUAL intentionally excluded from keyword density scoring
   ];
 
   const scores: KeywordMatch[] = [];
@@ -947,6 +957,51 @@ export function classifyTypeHeuristically(
       finalType = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
       matchedPattern = questionStructure.indicator || 'structure only';
     }
+  }
+
+  // ==========================================================================
+  // POST-PROCESSING: Question structure overrides that apply AFTER all matching
+  // ==========================================================================
+
+  // RULE 0: Multi-question requirements with "how" questions should be DESCRIPTIVE
+  // This takes priority over yes/no classification because "how" questions require explanation
+  // Pattern: "Does X? What Y? How is this achieved?" - the "how" question dominates
+  const hasHowQuestionAfterOther = /\?[^?]*\bhow\s+(is|are|do|does|will|would|can)\b/i.test(trimmed);
+  if (hasHowQuestionAfterOther) {
+    finalType = 'DESCRIPTIVE';
+    matchedPattern = 'multi-question with "how" → DESCRIPTIVE';
+  }
+
+  // RULE 1: Yes/no questions (Can/Does/Is/Are/Will/Has/Have) should be DECLARATIVE
+  // unless a very strong topic pattern matched OR it's a multi-question with "how"
+  else if (questionStructure.type === 'yes_no' && questionStructure.confidence >= 85) {
+    if (finalType === 'CONTEXTUAL' || finalType === 'DESCRIPTIVE') {
+      // Yes/no questions are asking about capability/compliance, not descriptions
+      finalType = 'DECLARATIVE';
+      matchedPattern = `${questionStructure.indicator} (yes/no → DECLARATIVE)`;
+    }
+  }
+
+  // RULE 2: Open-ended "Describe/Explain/How/What" questions should be DESCRIPTIVE
+  // NEVER CONTEXTUAL - contextual is for background info, not active requirements
+  if (questionStructure.type === 'open_ended' && questionStructure.confidence >= 85) {
+    if (finalType === 'CONTEXTUAL') {
+      finalType = 'DESCRIPTIVE';
+      matchedPattern = `${questionStructure.indicator} (open-ended → DESCRIPTIVE)`;
+    }
+  }
+
+  // RULE 3: Text starting with action verbs is NEVER contextual
+  // These are active requirements asking for information
+  const actionVerbStart = /^(describe|explain|provide|list|identify|outline|detail|discuss|how|what|why|can|does|do|is|are|will|has|have)\b/i;
+  if (actionVerbStart.test(trimmed) && finalType === 'CONTEXTUAL') {
+    // Force to DESCRIPTIVE or DECLARATIVE based on structure
+    if (questionStructure.type === 'yes_no') {
+      finalType = 'DECLARATIVE';
+    } else {
+      finalType = 'DESCRIPTIVE';
+    }
+    matchedPattern = `action-verb-start (not CONTEXTUAL)`;
   }
 
   // === CALCULATE CONFIDENCE ===

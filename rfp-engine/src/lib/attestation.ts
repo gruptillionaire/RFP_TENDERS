@@ -12,7 +12,9 @@ const WRITTEN_RESPONSE_SIGNALS = [
   /\b(or equivalent|if applicable|as appropriate|may propose)\b/i,
   /\b(alternative|exception|deviation|variance)\b/i,
   /\b(methodology|approach|strategy|plan for)\b/i,
-  /\b(how will|how do|how would|what is your)\b/i,
+  /\b(how will|how do|how does|how would|how is|how are|what is your)\b/i,
+  // Multi-question requirements with "how" questions need written responses
+  /\?[^?]*\bhow\s+(is|are|do|does|will|would|can)\b[^?]*\?/i,
 ];
 
 // Signals that suggest ATTESTATION eligible
