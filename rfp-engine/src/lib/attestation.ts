@@ -17,6 +17,7 @@ const WRITTEN_RESPONSE_SIGNALS = [
 
 // Signals that suggest ATTESTATION eligible
 const ATTESTATION_SIGNALS = [
+  // Regulatory/compliance command forms
   /\b(must hold|must maintain|must be certified|must be licensed|must be registered)\b/i,
   /\b(must have|shall possess|is required to be|shall maintain|shall hold)\b/i,
   /\b(must submit by|shall deliver|responses due|due by|deadline)\b/i,
@@ -26,14 +27,31 @@ const ATTESTATION_SIGNALS = [
   /\b(contractor shall|offeror shall|vendor shall|respondent shall)\s+(maintain|hold|provide|submit)\b/i,
   /\b(certify|attest|warrant|represent)\s+(that|compliance)\b/i,
   /\b(accept|agree to|acknowledge)\s+(all|the)?\s*(terms|conditions|requirements)\b/i,
-  // Yes/No compliance questions (binary answers)
+
+  // Compliance-specific yes/no questions
   /\bis\s+(the|your|it)\s+.{0,80}\s+compliant\b/i,  // "Is your solution X compliant?"
   /\bare\s+(you|your)\s+.{0,40}\s+(certified|compliant|registered|licensed)\b/i,  // "Are you X certified?"
   /\b(does|do)\s+(the|your|it)\s+.{0,60}\s+(comply|meet|conform)\s+(with|to)\b/i,  // "Does it comply with X?"
-  /\b(does|do)\s+(the|your|it)\s+support\s+.{0,40}\s+(standard|compliance|requirement)\b/i,  // "Does it support X standard?"
-  /\b(can|does)\s+(the|your|it)\s+.{0,40}\s+(integrate|interface)\s+with\b/i,  // "Can it integrate with X?" (binary)
-  /\bfully\s+\w*\s*(compliant|compatible|certified)\b/i,  // "fully X compliant" (allows word between)
-  /\b(compliant|compatible)\s+with\s+.{0,30}\s+(standard|specification|requirement)/i,  // "compliant with X standard"
+  /\bfully\s+\w*\s*(compliant|compatible|certified)\b/i,  // "fully X compliant"
+  /\b(compliant|compatible)\s+with\s+.{0,30}\s+(standard|specification|requirement)/i,
+
+  // GENERAL yes/no capability questions (binary answers = attestation eligible)
+  // "Does the/your solution/system/WCMS provide/support/have/offer/allow..."
+  /^does\s+(the|your)\s+\w+\s+(provide|support|have|offer|allow|enable|include)\b/i,
+  // "Can the/your solution/system be/do..."
+  /^can\s+(the|your|a)\s+\w+\s+(be\s+)?\w+/i,
+  // "Is the/your solution/system able/capable..."
+  /^is\s+(the|your)\s+\w+\s+(able|capable)\b/i,
+  // "Does the solution/system [verb]..." (general capability)
+  /^does\s+(the|your)\s+(solution|system|product|platform|software|tool|wcms|cms)\b/i,
+  // "Can [noun] be [verb]ed?" passive capability questions
+  /^can\s+\w+\s+be\s+\w+ed\b/i,
+  // "Do you have/offer/provide..."
+  /^do\s+you\s+(have|offer|provide|support)\b/i,
+  // "Are there..." existence questions
+  /^are\s+there\b/i,
+  // "Is there..." existence questions
+  /^is\s+there\b/i,
 ];
 
 // Regulatory citation patterns (strong signal for attestation)
