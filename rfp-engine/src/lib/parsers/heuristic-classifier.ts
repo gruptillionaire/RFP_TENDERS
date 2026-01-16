@@ -1,22 +1,16 @@
 /**
- * Heuristic Classifier for RFP Requirements (v3)
+ * Heuristic Classifier for RFP Requirements (v4)
  *
- * Two-pass classification architecture:
+ * Three-pass classification architecture:
  * - Pass 1: Detect QUESTION STRUCTURE (yes/no, open-ended, list, confirmation, statement)
- * - Pass 2: Detect TOPIC/CONTENT (staffing, financial, reference, etc.)
+ * - Pass 2: Detect TOPIC/CONTENT via regex patterns (staffing, financial, reference, etc.)
+ * - Pass 3: KEYWORD DENSITY scoring as fallback when no strong pattern matches
  * - Combine with weighted logic and multi-factor confidence scoring
  *
- * Key improvements over v2:
- * - Fixed EVIDENCE_BASED regex (no more "SOC" in "Social" false positives)
- * - Broader "Can [noun] be..." patterns for yes/no questions
- * - Subordinate wh-word handling (aux verb priority over embedded wh-words)
- * - Compound sentence detection for embedded requests
- * - Expanded anti-patterns for STAFFING, REFERENCE_BASED, QUANTITATIVE
- * - Added DESCRIPTIVE topic patterns for better type reinforcement
- * - Tuned confidence formula (raised base, stronger structure weight)
- * - Differentiated section keywords for DECLARATIVE vs DESCRIPTIVE
- * - Added weaken patterns for STAFFING and EVIDENCE_BASED
- * - Negation handling for mandatory classification
+ * Key improvements over v3:
+ * - Added keyword density scoring for all 8 types
+ * - Fallback to keyword density when no topic pattern matches
+ * - Better type distribution across PROCEDURAL, QUANTITATIVE, EVIDENCE_BASED, etc.
  *
  * Part of the Hybrid Heuristic + LLM architecture.
  */
@@ -412,6 +406,224 @@ const TOPIC_PATTERNS: TopicPattern[] = [
 ];
 
 // =============================================================================
+// PASS 3: KEYWORD DENSITY SCORING (fallback when no strong pattern matches)
+// =============================================================================
+
+/**
+ * Keyword sets for each requirement type.
+ * Used for density-based scoring when regex patterns don't match.
+ * Keywords are weighted: some are strong indicators, others are weak.
+ */
+const TYPE_KEYWORDS: Record<RequirementType, { strong: string[]; weak: string[] }> = {
+  QUANTITATIVE: {
+    strong: [
+      'price', 'pricing', 'cost', 'costs', 'fee', 'fees', 'rate', 'rates',
+      'budget', 'quote', 'bid', 'dollar', 'amount', 'total', 'payment',
+      'invoice', 'billing', 'expense', 'charge', 'tariff', 'discount',
+      'sla', 'uptime', 'availability', 'latency', 'throughput', 'capacity',
+      'volume', 'percentage', 'metric', 'metrics', 'kpi', 'benchmark',
+      'annual', 'monthly', 'hourly', 'per-user', 'per-seat', 'license',
+    ],
+    weak: [
+      'number', 'count', 'quantity', 'size', 'scale', 'measure', 'level',
+      'maximum', 'minimum', 'limit', 'threshold', 'target', 'goal',
+    ],
+  },
+  EVIDENCE_BASED: {
+    strong: [
+      'certificate', 'certification', 'certified', 'compliance', 'compliant',
+      'audit', 'audited', 'attestation', 'accreditation', 'accredited',
+      'hipaa', 'pci', 'pci-dss', 'gdpr', 'fedramp', 'fisma', 'sox', 'soc2',
+      'iso27001', 'iso-27001', 'nist', 'cis', 'owasp', 'fips',
+      'insurance', 'bonding', 'bond', 'liability', 'indemnification',
+      'license', 'licensed', 'licensure', 'permit', 'permitted',
+      'registration', 'registered', 'w-9', 'w9', 'ein', 'duns',
+      'financial-statement', 'balance-sheet', 'tax-return',
+    ],
+    weak: [
+      'secure', 'security', 'protection', 'privacy', 'encrypt', 'encrypted',
+      'document', 'documentation', 'proof', 'evidence', 'verify', 'verified',
+      'standards', 'regulatory', 'regulation', 'govern', 'governance',
+    ],
+  },
+  PROCEDURAL: {
+    strong: [
+      'workflow', 'process', 'procedure', 'step', 'steps', 'stage', 'stages',
+      'implement', 'implementation', 'deploy', 'deployment', 'rollout',
+      'migrate', 'migration', 'transition', 'onboard', 'onboarding',
+      'install', 'installation', 'configure', 'configuration', 'setup',
+      'integrate', 'integration', 'interface', 'api', 'connect', 'connection',
+      'maintain', 'maintenance', 'support', 'upgrade', 'update', 'patch',
+      'backup', 'restore', 'recovery', 'disaster', 'failover', 'redundancy',
+      'monitor', 'monitoring', 'alert', 'alerting', 'logging', 'logs',
+      'sign', 'signature', 'execute', 'acknowledge', 'return', 'submit',
+    ],
+    weak: [
+      'method', 'approach', 'strategy', 'plan', 'schedule', 'timeline',
+      'phase', 'milestone', 'deliverable', 'task', 'activity',
+    ],
+  },
+  STAFFING: {
+    strong: [
+      'staff', 'staffing', 'personnel', 'team', 'resource', 'resources',
+      'employee', 'employees', 'fte', 'headcount', 'hire', 'hiring',
+      'resume', 'cv', 'curriculum-vitae', 'bio', 'biography', 'background',
+      'qualification', 'qualifications', 'credential', 'credentials',
+      'manager', 'lead', 'director', 'architect', 'engineer', 'developer',
+      'analyst', 'consultant', 'specialist', 'expert', 'role', 'roles',
+      'organizational', 'org-chart', 'reporting', 'structure',
+    ],
+    weak: [
+      'experience', 'experienced', 'skilled', 'skill', 'skills',
+      'assign', 'assigned', 'responsible', 'responsibility', 'dedicated',
+    ],
+  },
+  REFERENCE_BASED: {
+    strong: [
+      'reference', 'references', 'referral', 'referrals', 'testimonial',
+      'client', 'clients', 'customer', 'customers', 'contact', 'contacts',
+      'case-study', 'case-studies', 'portfolio', 'project', 'projects',
+      'similar', 'comparable', 'relevant', 'past', 'previous', 'prior',
+      'performance', 'track-record', 'history', 'cpars', 'ppirs',
+    ],
+    weak: [
+      'example', 'examples', 'instance', 'demonstrate', 'demonstrated',
+      'proven', 'successful', 'success', 'outcome', 'result', 'results',
+    ],
+  },
+  CONTEXTUAL: {
+    strong: [
+      'background', 'overview', 'introduction', 'summary', 'scope',
+      'purpose', 'objective', 'objectives', 'goal', 'goals',
+      'instruction', 'instructions', 'guideline', 'guidelines', 'rule', 'rules',
+      'definition', 'definitions', 'term', 'terms', 'glossary', 'acronym',
+      'deadline', 'due-date', 'closing', 'submission', 'format', 'formatting',
+      'evaluation', 'criteria', 'scoring', 'weighting', 'weight',
+      'eligibility', 'eligible', 'disqualification', 'disqualified',
+      'amendment', 'addendum', 'clarification', 'question', 'questions',
+    ],
+    weak: [
+      'note', 'important', 'notice', 'attention', 'warning', 'caution',
+      'section', 'part', 'article', 'clause', 'provision', 'requirement',
+    ],
+  },
+  DECLARATIVE: {
+    strong: [
+      'capability', 'capabilities', 'feature', 'features', 'function', 'functions',
+      'functionality', 'module', 'modules', 'component', 'components',
+      'support', 'supports', 'enable', 'enables', 'allow', 'allows',
+      'provide', 'provides', 'include', 'includes', 'offer', 'offers',
+      'compatible', 'compatibility', 'interoperable', 'interoperability',
+      'native', 'built-in', 'out-of-box', 'ootb', 'standard', 'default',
+    ],
+    weak: [
+      'system', 'solution', 'platform', 'product', 'software', 'application',
+      'tool', 'tools', 'technology', 'technologies', 'available', 'availability',
+    ],
+  },
+  DESCRIPTIVE: {
+    strong: [
+      'describe', 'description', 'explain', 'explanation', 'detail', 'details',
+      'elaborate', 'outline', 'discuss', 'narrative', 'overview',
+      'approach', 'methodology', 'method', 'strategy', 'plan', 'proposal',
+      'how', 'what', 'why', 'rationale', 'justification', 'reasoning',
+    ],
+    weak: [
+      'information', 'info', 'response', 'answer', 'provide', 'submit',
+      'demonstrate', 'show', 'illustrate', 'clarify', 'specify',
+    ],
+  },
+};
+
+/**
+ * Calculate keyword density score for a given type.
+ * Returns a score from 0-100 based on keyword matches.
+ */
+function calculateKeywordScore(text: string, type: RequirementType): number {
+  const keywords = TYPE_KEYWORDS[type];
+  if (!keywords) return 0;
+
+  const lower = text.toLowerCase();
+  const words = lower.split(/\W+/).filter(w => w.length > 2);
+  const wordCount = words.length;
+  if (wordCount === 0) return 0;
+
+  let strongMatches = 0;
+  let weakMatches = 0;
+
+  // Count strong keyword matches
+  for (const keyword of keywords.strong) {
+    // Handle hyphenated keywords by checking both forms
+    const variants = [keyword, keyword.replace(/-/g, ' '), keyword.replace(/-/g, '')];
+    for (const variant of variants) {
+      if (lower.includes(variant)) {
+        strongMatches++;
+        break;
+      }
+    }
+  }
+
+  // Count weak keyword matches
+  for (const keyword of keywords.weak) {
+    const variants = [keyword, keyword.replace(/-/g, ' '), keyword.replace(/-/g, '')];
+    for (const variant of variants) {
+      if (lower.includes(variant)) {
+        weakMatches++;
+        break;
+      }
+    }
+  }
+
+  // Calculate score: strong matches worth 3 points, weak worth 1 point
+  // Normalize by dividing by expected matches for a "typical" requirement
+  const rawScore = (strongMatches * 3) + weakMatches;
+
+  // Scale to 0-100 (assume 5 strong matches = 100%)
+  const score = Math.min(100, (rawScore / 15) * 100);
+
+  return Math.round(score);
+}
+
+/**
+ * Find the best type match based on keyword density.
+ * Returns the type with the highest score if it exceeds threshold.
+ */
+interface KeywordMatch {
+  type: RequirementType;
+  score: number;
+}
+
+function findBestKeywordMatch(text: string, excludeTypes: RequirementType[] = []): KeywordMatch | null {
+  const allTypes: RequirementType[] = [
+    'QUANTITATIVE', 'EVIDENCE_BASED', 'PROCEDURAL', 'STAFFING',
+    'REFERENCE_BASED', 'CONTEXTUAL', 'DECLARATIVE', 'DESCRIPTIVE'
+  ];
+
+  const scores: KeywordMatch[] = [];
+
+  for (const type of allTypes) {
+    if (excludeTypes.includes(type)) continue;
+    const score = calculateKeywordScore(text, type);
+    if (score > 0) {
+      scores.push({ type, score });
+    }
+  }
+
+  if (scores.length === 0) return null;
+
+  // Sort by score descending
+  scores.sort((a, b) => b.score - a.score);
+
+  // Return best match if score is meaningful (> 15 = at least ~2 strong keywords)
+  const best = scores[0];
+  if (best.score >= 15) {
+    return best;
+  }
+
+  return null;
+}
+
+// =============================================================================
 // MAPPING: QUESTION STRUCTURE -> DEFAULT TYPE
 // =============================================================================
 
@@ -569,15 +781,16 @@ function calculateFinalConfidence(
 }
 
 // =============================================================================
-// MAIN CLASSIFICATION FUNCTION (Two-Pass)
+// MAIN CLASSIFICATION FUNCTION (Three-Pass)
 // =============================================================================
 
 /**
- * Classify the type of a requirement using two-pass analysis.
+ * Classify the type of a requirement using three-pass analysis.
  *
  * Pass 1: Detect question structure (HOW it asks)
- * Pass 2: Detect topic/content (WHAT it's about)
- * Combine: Weight both passes to determine final type
+ * Pass 2: Detect topic/content via regex patterns (WHAT it's about)
+ * Pass 3: Keyword density scoring (fallback when no strong pattern matches)
+ * Combine: Weight all passes to determine final type
  */
 export function classifyTypeHeuristically(
   text: string,
@@ -588,11 +801,15 @@ export function classifyTypeHeuristically(
   // === PASS 1: Question Structure Detection ===
   const questionStructure = detectQuestionStructure(trimmed);
 
-  // === PASS 2: Topic Detection ===
+  // === PASS 2: Topic Detection (regex patterns) ===
   const topicMatches = findTopicMatches(trimmed, sectionTitle);
 
   // Filter out matches with anti-patterns
   const validTopicMatches = topicMatches.filter(m => !m.hasAntiPattern);
+
+  // === PASS 3: Keyword Density Scoring ===
+  // Used as fallback when no strong regex pattern matches
+  const keywordMatch = findBestKeywordMatch(trimmed);
 
   // === COMBINE PASSES ===
   let finalType: RequirementType;
@@ -632,10 +849,32 @@ export function classifyTypeHeuristically(
       finalType = bestTopicMatch.type;
       matchedPattern = bestTopicMatch.pattern;
     }
+  } else if (keywordMatch && keywordMatch.score >= 20) {
+    // No regex pattern match, but keyword density suggests a type
+    // Only use if score is significant (20+ = decent keyword presence)
+    finalType = keywordMatch.type;
+    matchedPattern = `keyword:${keywordMatch.type.toLowerCase()}(${keywordMatch.score})`;
   } else {
-    // No topic match - use question structure
-    finalType = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
-    matchedPattern = questionStructure.indicator || 'structure only';
+    // No topic match and weak/no keyword match - use question structure
+    // But still check if keywords suggest something other than the default
+    if (keywordMatch && keywordMatch.score >= 10) {
+      // Weak keyword match - use it but with structure-based fallback consideration
+      const structureDefault = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
+      // If keywords suggest something different from structure default, prefer keywords
+      // unless it's just DECLARATIVE vs DESCRIPTIVE (which are the boring defaults)
+      if (keywordMatch.type !== structureDefault &&
+          keywordMatch.type !== 'DECLARATIVE' &&
+          keywordMatch.type !== 'DESCRIPTIVE') {
+        finalType = keywordMatch.type;
+        matchedPattern = `keyword-weak:${keywordMatch.type.toLowerCase()}(${keywordMatch.score})`;
+      } else {
+        finalType = structureDefault;
+        matchedPattern = questionStructure.indicator || 'structure only';
+      }
+    } else {
+      finalType = QUESTION_STRUCTURE_TYPE_MAP[questionStructure.type];
+      matchedPattern = questionStructure.indicator || 'structure only';
+    }
   }
 
   // === CALCULATE CONFIDENCE ===
