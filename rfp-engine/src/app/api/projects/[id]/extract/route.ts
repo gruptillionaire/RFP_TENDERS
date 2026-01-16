@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { extractRequirements } from "@/lib/openai";
+import { extractRequirementsHybrid } from "@/lib/openai";
 import {
   checkAndIncrementQuota,
   checkAndConsumeSingleUseExtraction,
@@ -88,13 +88,13 @@ export async function POST(
 
     try {
       // Add overall timeout for the entire extraction (5 minutes - Vercel Pro limit)
-      // Two-phase extraction should complete in ~4 minutes
-      const extractionPromise = extractRequirements(project.rawText);
+      // Hybrid extraction typically completes in ~10 seconds
+      const extractionPromise = extractRequirementsHybrid(project.rawText);
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error("Extraction timed out after 5 minutes")), 300000);
       });
 
-      console.log(`[Extract] Calling extractRequirements...`);
+      console.log(`[Extract] Calling extractRequirementsHybrid...`);
       const result = await Promise.race([extractionPromise, timeoutPromise]);
       const requirementCount = result.requirements.length;
 
