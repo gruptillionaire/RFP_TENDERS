@@ -50,115 +50,447 @@ export interface MajorSection {
 }
 
 // =============================================================================
+// PATTERN FAMILIES - Extensible pattern matching system
+// =============================================================================
+
+/**
+ * Pattern family definition for different RFP numbering schemes.
+ * Each family can have multiple patterns (2-level, 3-level, etc.)
+ */
+interface PatternFamily {
+  /** Unique identifier for this family */
+  id: string;
+  /** Human-readable name */
+  name: string;
+  /** Patterns to detect this family's presence in the document */
+  detectionPatterns: RegExp[];
+  /** Minimum matches needed to confirm this family is used */
+  minMatchesForDetection: number;
+  /** Patterns for extracting section numbers (in priority order) */
+  extractionPatterns: Array<{
+    pattern: RegExp;
+    /** How to extract major section from match groups */
+    getMajorSection: (match: RegExpMatchArray) => string;
+    /** How to build full section number from match groups */
+    getSectionNumber: (match: RegExpMatchArray) => string;
+    /** Priority level (higher = matched first) */
+    priority: number;
+    /** Whether this pattern requires line start */
+    requiresLineStart: boolean;
+  }>;
+  /** Patterns for detecting major section headers */
+  majorSectionPatterns: RegExp[];
+}
+
+/**
+ * Convert Roman numeral to number (for sorting/comparison)
+ */
+function romanToNumber(roman: string): number {
+  const values: Record<string, number> = {
+    'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000
+  };
+  let result = 0;
+  const upper = roman.toUpperCase();
+  for (let i = 0; i < upper.length; i++) {
+    const current = values[upper[i]] || 0;
+    const next = values[upper[i + 1]] || 0;
+    if (current < next) {
+      result -= current;
+    } else {
+      result += current;
+    }
+  }
+  return result;
+}
+
+/**
+ * Convert letter to number (A=1, B=2, etc.)
+ */
+function letterToNumber(letter: string): number {
+  return letter.toUpperCase().charCodeAt(0) - 64;
+}
+
+/**
+ * All supported pattern families
+ */
+const PATTERN_FAMILIES: PatternFamily[] = [
+  // ==========================================================================
+  // NUMERIC: 3.1.2, 3.1, etc. (most common)
+  // ==========================================================================
+  {
+    id: 'numeric',
+    name: 'Numeric (X.Y.Z)',
+    detectionPatterns: [
+      /\b\d+\.\d+\.\d+\s+/g,  // 3.1.2
+      /(?:^|\n)\s*\d+\.\d+\s+[A-Z]/gm,  // 3.1 at line start followed by text
+    ],
+    minMatchesForDetection: 3,
+    extractionPatterns: [
+      // 3-level: X.Y.Z - highest priority
+      {
+        pattern: /(?:^|\s)(\d+)\.(\d+)\.(\d+)\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}.${m[3]}`,
+        priority: 100,
+        requiresLineStart: false,
+      },
+      // 2-level: X.Y - requires line start
+      {
+        pattern: /(?:^|\n)\s*(\d+)\.(\d+)(?!\.?\d)\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}`,
+        priority: 50,
+        requiresLineStart: true,
+      },
+    ],
+    majorSectionPatterns: [
+      /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+      /(?:^|\n)\s*(?:SECTION|Section)\s+(\d+)[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+      /(?:^|\s)(\d+)\.0[:\-]?\s*([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|$)/gm,
+    ],
+  },
+
+  // ==========================================================================
+  // ROMAN: IV.A.1, II.3, III.2.a, etc.
+  // ==========================================================================
+  {
+    id: 'roman',
+    name: 'Roman Numerals (IV.A.1)',
+    detectionPatterns: [
+      /(?:^|\n)\s*(?:I{1,3}|IV|VI{0,3}|IX|X{1,3}|XI{1,3}|XIV|XV|XVI{0,3}|XIX|XX)\.\s*[A-Z0-9]/gim,
+    ],
+    minMatchesForDetection: 2,
+    extractionPatterns: [
+      // Roman.Letter.Number: IV.A.1
+      {
+        pattern: /(?:^|\n)\s*(I{1,3}|IV|VI{0,3}|IX|X{1,3}|XI{1,3}|XIV|XV|XVI{0,3}|XIX|XX)\.([A-Z])\.(\d+)\s+/gim,
+        getMajorSection: (m) => m[1].toUpperCase(),
+        getSectionNumber: (m) => `${m[1].toUpperCase()}.${m[2].toUpperCase()}.${m[3]}`,
+        priority: 100,
+        requiresLineStart: true,
+      },
+      // Roman.Number: II.3
+      {
+        pattern: /(?:^|\n)\s*(I{1,3}|IV|VI{0,3}|IX|X{1,3}|XI{1,3}|XIV|XV|XVI{0,3}|XIX|XX)\.(\d+)\s+/gim,
+        getMajorSection: (m) => m[1].toUpperCase(),
+        getSectionNumber: (m) => `${m[1].toUpperCase()}.${m[2]}`,
+        priority: 50,
+        requiresLineStart: true,
+      },
+      // Roman.Letter: IV.A (at line start)
+      {
+        pattern: /(?:^|\n)\s*(I{1,3}|IV|VI{0,3}|IX|X{1,3}|XI{1,3}|XIV|XV|XVI{0,3}|XIX|XX)\.([A-Z])(?!\.?\w)\s+/gim,
+        getMajorSection: (m) => m[1].toUpperCase(),
+        getSectionNumber: (m) => `${m[1].toUpperCase()}.${m[2].toUpperCase()}`,
+        priority: 40,
+        requiresLineStart: true,
+      },
+    ],
+    majorSectionPatterns: [
+      /(?:^|\n)\s*(I{1,3}|IV|VI{0,3}|IX|X{1,3}|XI{1,3}|XIV|XV|XVI{0,3}|XIX|XX)[\.\s:]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+      /(?:^|\n)\s*(?:SECTION|Section|PART|Part)\s+(I{1,3}|IV|VI{0,3}|IX|X{1,3})[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+    ],
+  },
+
+  // ==========================================================================
+  // LETTER-BASED: A.1.a, A.1, B.2.1, etc.
+  // ==========================================================================
+  {
+    id: 'letter',
+    name: 'Letter-based (A.1.a)',
+    detectionPatterns: [
+      /(?:^|\n)\s*[A-Z]\.\d+\.[a-z]\s+/gm,  // A.1.a
+      /(?:^|\n)\s*[A-Z]\.\d+\s+[A-Z]/gm,    // A.1 followed by text
+    ],
+    minMatchesForDetection: 3,
+    extractionPatterns: [
+      // Letter.Number.Letter: A.1.a
+      {
+        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)\.([a-z])\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}.${m[3]}`,
+        priority: 100,
+        requiresLineStart: true,
+      },
+      // Letter.Number.Number: A.1.2
+      {
+        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)\.(\d+)\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}.${m[3]}`,
+        priority: 90,
+        requiresLineStart: true,
+      },
+      // Letter.Number: A.1
+      {
+        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)(?!\.?\w)\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}`,
+        priority: 50,
+        requiresLineStart: true,
+      },
+    ],
+    majorSectionPatterns: [
+      /(?:^|\n)\s*([A-Z])[\.\s:]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+      /(?:^|\n)\s*(?:SECTION|Section|Appendix|APPENDIX)\s+([A-Z])[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+    ],
+  },
+
+  // ==========================================================================
+  // PARENTHETICAL: (1), (a), (i), 1), a)
+  // ==========================================================================
+  {
+    id: 'parenthetical',
+    name: 'Parenthetical ((1), (a))',
+    detectionPatterns: [
+      /(?:^|\n)\s*\(\d+\)\s+[A-Z]/gm,      // (1) followed by text
+      /(?:^|\n)\s*\([a-z]\)\s+[A-Z]/gm,    // (a) followed by text
+      /(?:^|\n)\s*\d+\)\s+[A-Z]/gm,        // 1) followed by text
+    ],
+    minMatchesForDetection: 3,
+    extractionPatterns: [
+      // (Number): (1), (2), (10)
+      {
+        pattern: /(?:^|\n)\s*\((\d+)\)\s+/gm,
+        getMajorSection: (m) => 'P',  // Parenthetical group
+        getSectionNumber: (m) => `(${m[1]})`,
+        priority: 80,
+        requiresLineStart: true,
+      },
+      // (Letter): (a), (b), (c)
+      {
+        pattern: /(?:^|\n)\s*\(([a-z])\)\s+/gm,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `(${m[1]})`,
+        priority: 70,
+        requiresLineStart: true,
+      },
+      // (Roman): (i), (ii), (iii)
+      {
+        pattern: /(?:^|\n)\s*\((i{1,3}|iv|vi{0,3}|ix|x{1,3})\)\s+/gim,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `(${m[1].toLowerCase()})`,
+        priority: 60,
+        requiresLineStart: true,
+      },
+      // Number): 1), 2), 10)
+      {
+        pattern: /(?:^|\n)\s*(\d+)\)\s+/gm,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `${m[1]})`,
+        priority: 50,
+        requiresLineStart: true,
+      },
+      // Letter): a), b), c)
+      {
+        pattern: /(?:^|\n)\s*([a-z])\)\s+/gm,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `${m[1]})`,
+        priority: 40,
+        requiresLineStart: true,
+      },
+    ],
+    majorSectionPatterns: [
+      // Parenthetical sections usually don't have major headers, but check for Section (1):
+      /(?:^|\n)\s*\((\d+)\)[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\n|$)/gm,
+    ],
+  },
+
+  // ==========================================================================
+  // BRACKET/ID: [REQ-001], [3.1], [R1], REQ-001, etc.
+  // ==========================================================================
+  {
+    id: 'bracket',
+    name: 'Bracket/ID ([REQ-001])',
+    detectionPatterns: [
+      /\[REQ[-_]?\d+\]/gi,                    // [REQ-001], [REQ001]
+      /\[R\d+\]/gi,                           // [R1], [R2]
+      /(?:^|\n)\s*REQ[-_]?\d+[.:\s]+/gim,     // REQ-001: at line start
+      /\[\d+\.\d+\]/g,                        // [3.1]
+    ],
+    minMatchesForDetection: 2,
+    extractionPatterns: [
+      // [REQ-NNN] or [REQ_NNN] or [REQNNN]
+      {
+        pattern: /(?:^|\s)\[(REQ)[-_]?(\d+)\]\s*/gim,
+        getMajorSection: (m) => 'REQ',
+        getSectionNumber: (m) => `REQ-${m[2]}`,
+        priority: 100,
+        requiresLineStart: false,
+      },
+      // [R1], [R2], etc.
+      {
+        pattern: /(?:^|\s)\[(R)(\d+)\]\s*/gim,
+        getMajorSection: (m) => 'R',
+        getSectionNumber: (m) => `R${m[2]}`,
+        priority: 90,
+        requiresLineStart: false,
+      },
+      // REQ-NNN: or REQ-NNN. at line start
+      {
+        pattern: /(?:^|\n)\s*(REQ)[-_]?(\d+)[.:]\s*/gim,
+        getMajorSection: (m) => 'REQ',
+        getSectionNumber: (m) => `REQ-${m[2]}`,
+        priority: 80,
+        requiresLineStart: true,
+      },
+      // [X.Y] bracket notation
+      {
+        pattern: /(?:^|\s)\[(\d+)\.(\d+)\]\s*/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `[${m[1]}.${m[2]}]`,
+        priority: 70,
+        requiresLineStart: false,
+      },
+    ],
+    majorSectionPatterns: [
+      // Bracket formats typically don't have traditional major sections
+      /(?:^|\n)\s*\[(REQ|SECTION)[-_]?(\d+)\][.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim,
+    ],
+  },
+];
+
+/**
+ * Detect which pattern families are present in the document.
+ * Returns families sorted by match count (most matches first).
+ */
+function detectPatternFamilies(text: string): PatternFamily[] {
+  const familyMatches: Array<{ family: PatternFamily; matchCount: number }> = [];
+
+  for (const family of PATTERN_FAMILIES) {
+    let totalMatches = 0;
+
+    for (const pattern of family.detectionPatterns) {
+      // Reset lastIndex for global patterns
+      pattern.lastIndex = 0;
+      const matches = text.match(pattern);
+      if (matches) {
+        totalMatches += matches.length;
+      }
+    }
+
+    if (totalMatches >= family.minMatchesForDetection) {
+      familyMatches.push({ family, matchCount: totalMatches });
+    }
+  }
+
+  // Sort by match count descending
+  familyMatches.sort((a, b) => b.matchCount - a.matchCount);
+
+  console.log(`[heuristic-extractor] Detected pattern families:`,
+    familyMatches.map(f => `${f.family.name} (${f.matchCount} matches)`));
+
+  return familyMatches.map(f => f.family);
+}
+
+// =============================================================================
 // CANDIDATE EXTRACTION
 // =============================================================================
 
 /**
  * Find all requirement candidates in a document using pattern matching.
  *
- * Looks for numbered patterns like:
- * - 3.1.2 (numeric three-level)
- * - 3.1 (numeric two-level)
- * - A.1.2 (letter + numeric)
+ * Supports multiple numbering formats:
+ * - Numeric: 3.1.2, 3.1
+ * - Roman numerals: IV.A.1, II.3
+ * - Letter-based: A.1.a, A.1
+ * - Parenthetical: (1), (a), 1)
+ * - Bracket/ID: [REQ-001], REQ-001
  *
  * For each match, extracts the text until the next numbered item.
  */
 export function findRequirementCandidates(text: string): RequirementCandidate[] {
-  // Step 0: Detect major sections FIRST to validate 2-level patterns later
-  // This prevents PDF artifacts like "9.7" from being detected when section 9 doesn't exist
+  // Step 0: Detect which pattern families are present in this document
+  const detectedFamilies = detectPatternFamilies(text);
+
+  // Step 0b: Detect major sections for validation
   const detectedMajorSections = detectMajorSections(text);
   const validMajorSectionNumbers = new Set(detectedMajorSections.keys());
 
-  // Step 1: Find all section number positions
-  // We use TWO patterns:
-  // 1. X.Y.Z (3 levels) - can appear after any whitespace (very likely section numbers)
-  // 2. X.Y (2 levels) - require newline/start (to avoid matching "version 2.0", dates, etc.)
-
+  // Step 1: Find all section number positions using detected pattern families
   interface Match {
     sectionNumber: string;
     index: number;
     majorSection: string;
     textStart: number; // Where the actual text starts (after the number)
+    priority: number;  // For deduplication
+    familyId: string;  // Which family this came from
   }
 
   const matches: Match[] = [];
 
-  // Pattern 1: X.Y.Z format - allow after any whitespace (common in RFPs like "3.1.1 Does the...")
-  // This catches inline section numbers that don't start on a new line
-  const pattern3Level = /(?:^|\s)(\d+)\.(\d+)\.(\d+)\s+/gm;
-  let match;
+  // If no families detected, fall back to numeric
+  const familiesToUse = detectedFamilies.length > 0
+    ? detectedFamilies
+    : [PATTERN_FAMILIES[0]]; // numeric is first
 
-  while ((match = pattern3Level.exec(text)) !== null) {
-    const major = match[1];
-    const minor = match[2];
-    const sub = match[3];
-    const sectionNumber = `${major}.${minor}.${sub}`;
+  // Extract matches from each detected family
+  for (const family of familiesToUse) {
+    for (const extPattern of family.extractionPatterns) {
+      // Reset pattern for fresh matching
+      extPattern.pattern.lastIndex = 0;
+      let match;
 
-    // Calculate actual match start (skip leading whitespace)
-    const leadingWhitespace = match[0].match(/^\s*/)?.[0].length || 0;
-    const actualIndex = match.index + leadingWhitespace;
+      while ((match = extPattern.pattern.exec(text)) !== null) {
+        const sectionNumber = extPattern.getSectionNumber(match);
+        const majorSection = extPattern.getMajorSection(match);
 
-    matches.push({
-      sectionNumber,
-      index: actualIndex,
-      majorSection: major,
-      textStart: match.index + match[0].length,
-    });
-  }
+        // Calculate actual match start (skip leading whitespace/newline)
+        const leadingChars = match[0].match(/^[\s\n]*/)?.[0].length || 0;
+        const actualIndex = match.index + leadingChars;
 
-  // Pattern 2: X.Y format at start of line only (to avoid false positives)
-  // Only match if NOT followed by another digit (which would make it X.Y.Z)
-  const pattern2Level = /(?:^|\n)\s*(\d+)\.(\d+)(?!\.?\d)\s+/gm;
+        // Skip if we already have a higher-priority match at similar position
+        const isDuplicate = matches.some(m =>
+          Math.abs(m.index - actualIndex) < 10 &&
+          (m.sectionNumber === sectionNumber || m.priority >= extPattern.priority)
+        );
+        if (isDuplicate) continue;
 
-  // Track major sections we've seen from 3-level patterns to validate 2-level patterns
-  const seenMajorSections = new Set(matches.map(m => m.majorSection));
+        // For numeric family with 2-level patterns, validate against major sections
+        if (family.id === 'numeric' && extPattern.priority < 100) {
+          // This is a 2-level pattern, validate
+          if (!validMajorSectionNumbers.has(majorSection)) {
+            continue;
+          }
 
-  while ((match = pattern2Level.exec(text)) !== null) {
-    const major = match[1];
-    const minor = match[2];
-    const sectionNumber = `${major}.${minor}`;
+          // Check for version number false positives
+          const beforeText = text.substring(Math.max(0, actualIndex - 15), actualIndex).toLowerCase();
+          const versionPattern = /(?:version|v\.|release)\s*$/;
+          if (versionPattern.test(beforeText)) {
+            continue;
+          }
 
-    // Skip if we already have a 3-level match at similar position
-    const isDuplicate = matches.some(m =>
-      Math.abs(m.index - match!.index) < 10 && m.sectionNumber.startsWith(sectionNumber)
-    );
-
-    if (isDuplicate) continue;
-
-    // Skip if this 2-level pattern's major section doesn't exist in the document structure
-    // This prevents PDF artifacts like "9.7" when section 9 doesn't exist
-    // (e.g., "3.9.7" being misread as "3." + "9.7" due to PDF line breaks)
-    if (!validMajorSectionNumbers.has(major)) {
-      continue;
-    }
-
-    // Skip if major section seems inconsistent (e.g., jumping from 3 to 9)
-    // Only apply this check if we have established patterns
-    if (seenMajorSections.size > 0) {
-      const majorNum = parseInt(major);
-      const existingNums = Array.from(seenMajorSections).map(s => parseInt(s)).filter(n => !isNaN(n));
-      if (existingNums.length > 0) {
-        const maxExisting = Math.max(...existingNums);
-        const minExisting = Math.min(...existingNums);
-        // Skip if major section is way out of range (more than 3 away from known sections)
-        if (majorNum > maxExisting + 3 || majorNum < minExisting - 1) {
-          continue;
+          // Skip if major section seems inconsistent
+          const existingNums = matches
+            .filter(m => m.familyId === 'numeric')
+            .map(m => parseInt(m.majorSection))
+            .filter(n => !isNaN(n));
+          if (existingNums.length > 0) {
+            const majorNum = parseInt(majorSection);
+            const maxExisting = Math.max(...existingNums);
+            const minExisting = Math.min(...existingNums);
+            if (majorNum > maxExisting + 3 || majorNum < minExisting - 1) {
+              continue;
+            }
+          }
         }
+
+        matches.push({
+          sectionNumber,
+          index: actualIndex,
+          majorSection,
+          textStart: match.index + match[0].length,
+          priority: extPattern.priority,
+          familyId: family.id,
+        });
       }
     }
-
-    matches.push({
-      sectionNumber,
-      index: match.index,
-      majorSection: major,
-      textStart: match.index + match[0].length,
-    });
   }
 
   // Sort matches by position in document
   matches.sort((a, b) => a.index - b.index);
 
-  console.log(`[heuristic-extractor] Found ${matches.length} section number patterns`);
+  console.log(`[heuristic-extractor] Found ${matches.length} section number patterns from families:`,
+    [...new Set(matches.map(m => m.familyId))].join(', '));
 
   // Step 2: Extract text for each match
   const candidates: RequirementCandidate[] = [];
@@ -178,11 +510,19 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
     const rawText = text.substring(startIndex, endIndex).trim();
 
     // Strip trailing section number + title contamination
-    // Pattern: X.Y or X.Y.Z followed by title-like text at end (e.g., "...testing? 3.5 Integrations")
-    let cleanedText = rawText.replace(
-      /\s+\d+\.\d+(?:\.\d+)?\s+[A-Z][A-Za-z\s,&\-:]+$/,
-      ''
-    ).trim();
+    // Handles multiple formats: X.Y, X.Y.Z, [X.Y], REQ-NNN, A.1, IV.A, etc.
+    let cleanedText = rawText
+      // Numeric: "...testing? 3.5 Integrations" or "...text 4.0: Section Title"
+      .replace(/\s+\d+\.\d+(?:\.\d+)?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/, '')
+      // Bracket: "...[3.1] Title"
+      .replace(/\s+\[\d+\.\d+\][:\s]+[A-Z][A-Za-z\s,&\-:]+$/, '')
+      // REQ-NNN: "...REQ-001 Title"
+      .replace(/\s+REQ[-_]?\d+[:\s]+[A-Z][A-Za-z\s,&\-:]+$/i, '')
+      // Letter-based: "...A.1 Title"
+      .replace(/\s+[A-Z]\.\d+(?:\.[a-z\d]+)?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/, '')
+      // Roman: "...IV.A Title"
+      .replace(/\s+(?:I{1,3}|IV|VI{0,3}|IX|X{1,3})\.?[A-Z]?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/i, '')
+      .trim();
 
     // Strip page numbers and document titles (e.g., "29 of 38 Request for Proposal: Website Design...")
     cleanedText = cleanedText.replace(
@@ -199,19 +539,6 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
     // Skip very short matches (likely false positives)
     if (cleanedText.length < 10) {
       continue;
-    }
-
-    // Skip if it looks like a version number (e.g., "version 2.0")
-    // IMPORTANT: Only apply this check to 2-level patterns (X.Y), NOT 3-level (X.Y.Z)
-    // 3-level patterns like "3.9.6" are almost never version numbers
-    // 2-level patterns like "2.0" after "version" or "release" are likely version numbers
-    const is3Level = current.sectionNumber.split('.').length === 3;
-    if (!is3Level) {
-      const beforeText = text.substring(Math.max(0, current.index - 15), current.index).toLowerCase();
-      const versionPattern = /(?:version|v\.|release)\s*$/;
-      if (versionPattern.test(beforeText)) {
-        continue;
-      }
     }
 
     candidates.push({
@@ -235,41 +562,41 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 /**
  * Detect major section headers and their titles.
  *
- * Looks for patterns like:
- * - "3.0 Technical Requirements"
- * - "3. TECHNICAL REQUIREMENTS"
- * - "Section 3: Technical Requirements"
+ * Supports multiple formats:
+ * - Numeric: "3.0 Technical Requirements", "Section 3: Title"
+ * - Roman: "IV. Technical Requirements", "Part IV: Title"
+ * - Letter: "A. Technical Requirements", "Section A: Title"
+ * - Bracket: "[SECTION-1] Title"
  *
  * Returns a map of section number -> title
  */
 export function detectMajorSections(text: string): Map<string, MajorSection> {
   const sections = new Map<string, MajorSection>();
 
-  // Pattern 1: "3.0 Title" or "3. Title" at start of line
-  const pattern1 = /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm;
+  // Collect all major section patterns from all families
+  const allPatterns: RegExp[] = [];
+  for (const family of PATTERN_FAMILIES) {
+    allPatterns.push(...family.majorSectionPatterns);
+  }
 
-  // Pattern 2: "Section 3: Title" or "SECTION 3 - Title"
-  const pattern2 = /(?:^|\n)\s*(?:SECTION|Section)\s+(\d+)[.:\-\s]+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gim;
+  // Also add some common generic patterns
+  const genericPatterns = [
+    // "3.0 Title" or "3. Title" at start of line (common numeric)
+    /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Za-z\s,&\-:'"()]{3,}?)(?=\n|$)/gm,
+    // ALL CAPS headers "3.0 DIRECT QUERY QUESTIONS"
+    /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Z\s,&\-:'"()]{5,}?)(?=\n|$)/gm,
+    // "X.0: Title" format
+    /(?:^|\s)(\d+)\.0[:\-]\s*([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|$)/gm,
+  ];
+  allPatterns.push(...genericPatterns);
 
-  // Pattern 3: ALL CAPS headers "3.0 DIRECT QUERY QUESTIONS"
-  const pattern3 = /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Z\s,&\-:'"()]{5,}?)(?=\n|$)/gm;
-
-  // Pattern 4: Inline "X.0 Title" (for PDFs without proper newlines)
-  // Matches: "3.0 Direct Query Questions" followed by subsection or page number
-  const pattern4 = /(?:^|\s)(\d+)\.0\s+([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|\s+\.{2,}|$)/gm;
-
-  // Pattern 5: "X.0: Title" or "X.0 - Title" format
-  const pattern5 = /(?:^|\s)(\d+)\.0[:\-]\s*([A-Z][A-Za-z\s,&\-:'"()]{5,}?)(?=\s+\d|$)/gm;
-
-  const patterns = [pattern1, pattern2, pattern3, pattern4, pattern5];
-
-  for (const pattern of patterns) {
+  for (const pattern of allPatterns) {
     pattern.lastIndex = 0;
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
       const sectionNum = match[1];
-      let title = match[2].trim();
+      let title = (match[2] || '').trim();
 
       // Skip if already found (first match wins)
       if (sections.has(sectionNum)) continue;
