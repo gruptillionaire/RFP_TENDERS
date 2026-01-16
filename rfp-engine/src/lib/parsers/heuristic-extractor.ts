@@ -170,11 +170,10 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
     // Text starts after the section number
     const startIndex = current.textStart;
 
-    // Text ends at next section number or max 1500 chars
-    const maxEnd = startIndex + 1500;
+    // Text ends at next section number, or max 3000 chars if no next section (last requirement)
     const endIndex = next
-      ? Math.min(next.index, maxEnd)
-      : Math.min(maxEnd, text.length);
+      ? next.index
+      : Math.min(startIndex + 3000, text.length);
 
     const rawText = text.substring(startIndex, endIndex).trim();
 
