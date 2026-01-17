@@ -383,6 +383,65 @@ const PATTERN_FAMILIES: PatternFamily[] = [
   },
 
   // ==========================================================================
+  // OUTLINE: a., b., c., i., ii., iii. (letters/roman numerals with periods)
+  // Common in formal/legal RFPs - different from parenthetical (a), a)
+  // ==========================================================================
+  {
+    id: 'outline',
+    name: 'Outline (a., b., i., ii.)',
+    detectionPatterns: [
+      // Lowercase letters with period at line start: a. b. c.
+      /(?:^|\n)\s*[a-z]\.\s+[A-Z]/gm,
+      // Lowercase roman numerals with period at line start: i. ii. iii. iv. v.
+      /(?:^|\n)\s*(?:i{1,3}|iv|vi{0,3}|ix|x{1,3})\.\s+[A-Z]/gim,
+      // Uppercase letters with period after numbers (nested): 1. A. text
+      /(?:^|\n)\s*\d+\.\s+[A-Z]\.\s+/gm,
+      // INLINE detection (after sentence endings) for PDFs without line breaks
+      /[.?!]\s+[a-z]\.\s+[A-Z]/gm,           // a. after sentence ending
+      /[.?!]\s+(?:i{1,3}|iv|vi{0,3})\.\s+[A-Z]/gim,  // i. ii. iii. after sentence
+    ],
+    minMatchesForDetection: 3,
+    extractionPatterns: [
+      // Lowercase letter with period: a. b. c. (at line start)
+      {
+        pattern: /(?:^|\n)\s*([a-z])\.\s+/gm,
+        getMajorSection: (m) => 'O',  // Outline group
+        getSectionNumber: (m) => `${m[1]}.`,
+        priority: 60,
+        requiresLineStart: true,
+      },
+      // Lowercase roman numeral with period: i. ii. iii. (at line start)
+      {
+        pattern: /(?:^|\n)\s*(i{1,3}|iv|vi{0,3}|ix|x{1,3})\.\s+/gim,
+        getMajorSection: (m) => 'O',
+        getSectionNumber: (m) => `${m[1].toLowerCase()}.`,
+        priority: 50,
+        requiresLineStart: true,
+      },
+      // INLINE: Lowercase letter with period after sentence ending
+      {
+        pattern: /[.?!]\s+([a-z])\.\s+/gm,
+        getMajorSection: (m) => 'O',
+        getSectionNumber: (m) => `${m[1]}.`,
+        priority: 55,
+        requiresLineStart: false,
+      },
+      // INLINE: Lowercase roman numeral with period after sentence ending
+      {
+        pattern: /[.?!]\s+(i{1,3}|iv|vi{0,3}|ix|x{1,3})\.\s+/gim,
+        getMajorSection: (m) => 'O',
+        getSectionNumber: (m) => `${m[1].toLowerCase()}.`,
+        priority: 45,
+        requiresLineStart: false,
+      },
+    ],
+    majorSectionPatterns: [
+      // Outline sections typically don't have major headers
+      /(?:^|\n)\s*([a-z])\.\s+([A-Z][A-Za-z\s,&\-:'"()]{10,}?)(?=\n|$)/gm,
+    ],
+  },
+
+  // ==========================================================================
   // BRACKET/ID: [REQ-001], [3.1], [R1], REQ-001, etc.
   // ==========================================================================
   {
@@ -764,6 +823,40 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
 
     // Skip very short matches (likely false positives)
     if (cleanedText.length < 10) {
+      continue;
+    }
+
+    // ==========================================================================
+    // GARBAGE FILTERING: Skip non-requirement content
+    // ==========================================================================
+
+    // Skip DEFINITIONS/GLOSSARY entries: "Term" means... or starts with "means"
+    // These are definitions, not requirements to respond to
+    // Handles straight quotes "", curly quotes "", and angled quotes «»
+    // Also handles "Term" or "Synonym" means... patterns
+    const quoteChars = '""\\u201C\\u201D\\u00AB\\u00BB';
+    if (/^[""\u201C\u201D\u00AB\u00BB][^""\u201C\u201D\u00AB\u00BB]+[""\u201C\u201D\u00AB\u00BB]?\s+means\b/i.test(cleanedText) ||
+        /^means\s+/i.test(cleanedText) ||
+        /^[""\u201C\u201D\u00AB\u00BB]?[A-Za-z\s\-]+[""\u201C\u201D\u00AB\u00BB]?\s+means\s+/i.test(cleanedText) ||
+        // "Term" or "Synonym" means... pattern
+        /^[""\u201C\u201D\u00AB\u00BB][^""\u201C\u201D\u00AB\u00BB]+[""\u201C\u201D\u00AB\u00BB]\s+or\s+[""\u201C\u201D\u00AB\u00BB][^""\u201C\u201D\u00AB\u00BB]+[""\u201C\u201D\u00AB\u00BB]\s+means\b/i.test(cleanedText)) {
+      continue;
+    }
+
+    // Skip BUILDING/LOCATION LISTS: Building name + address + sqft
+    // Common in facility RFPs - these are location info, not requirements
+    // Pattern: "Building Name Address City, State ZIP sqft"
+    // Handles numbers like 78,983 sqft or 115308 sqft
+    if (/[\d,]+\s*(?:sq\.?\s*ft|sqft|square\s*feet)\b/i.test(cleanedText) &&
+        cleanedText.length < 200) {
+      continue;
+    }
+
+    // Skip ADDRESS-ONLY entries: Just an address without actionable requirement
+    // Pattern: Street address followed by city/state/ZIP
+    if (/^\d+\s+[A-Za-z\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Way|Circle|Cir)\b/i.test(cleanedText) &&
+        /\b[A-Z]{2}\s+\d{5}\b/.test(cleanedText) &&
+        cleanedText.length < 150) {
       continue;
     }
 
