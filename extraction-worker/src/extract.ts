@@ -668,6 +668,45 @@ NOT flattened to: "Please describe your approach to: • Security measures • A
 - When uncertain between types, default to DESCRIPTIVE
 
 ==============================================================================
+SECTIONS TO SKIP (DO NOT EXTRACT)
+==============================================================================
+The following sections are BOILERPLATE and should NOT be extracted as requirements:
+
+1. FEDERAL CONTRACT CLAUSES / COMPLIANCE BOILERPLATE:
+   - Title VI Civil Rights provisions
+   - Nondiscrimination Acts and Authorities lists
+   - Federal Fair Labor Standards Act references
+   - Occupational Safety and Health Act references
+   - Domestic Preference clauses
+   - Standard FAR/CFR clause references
+   - Environmental justice executive orders
+   - ADA compliance boilerplate
+
+   HOW TO IDENTIFY: These sections typically:
+   - Reference specific laws by citation (42 USC §, 49 CFR part, PL 100-259)
+   - List multiple acts/statutes in sequence
+   - Contain standard legal language about discrimination, compliance
+   - Are labeled "Federal Contract Clauses" or similar
+
+   SKIP THESE ENTIRELY - they are standard legal text, not project-specific requirements.
+
+2. FILL-IN FORMS WITH BLANK LINES:
+   - Fee Submittal forms with underscores (______) for pricing
+   - Signature pages with blank lines
+   - Forms that are purely blank fields to complete
+
+   HOW TO IDENTIFY: Multiple consecutive lines with underscores or blank fields.
+
+   SKIP THESE - or if pricing info is needed, extract individual line items separately
+   (e.g., "Cost per hour for PM Services" as one requirement, not the entire form as one blob).
+
+3. STANDARD TERMS AND CONDITIONS:
+   - Rights to proposal materials
+   - General indemnification clauses
+   - Standard liability limitations
+   - Boilerplate contract termination language
+
+==============================================================================
 CRITICAL: EXTRACT THE COMPLETE DOCUMENT - DO NOT STOP EARLY
 ==============================================================================
 You MUST extract requirements from the ENTIRE document, including:
