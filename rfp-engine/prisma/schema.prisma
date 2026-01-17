@@ -138,6 +138,7 @@ model Project {
   user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   requirements     Requirement[]
   exports          ProjectExport[] // Cached document exports
+  extractionJobs   ExtractionJob[] // Async extraction job tracking
   status           ProjectStatus   @default(PROCESSING)
   // Deadline reminder tracking
   lastReminderSent DateTime?       // When last reminder was sent
@@ -398,4 +399,31 @@ model ProjectExport {
 
   @@index([projectId])
   @@index([projectId, format, template])
+}
+
+// =============================================================================
+// ASYNC EXTRACTION JOBS
+// =============================================================================
+
+// Tracks async extraction jobs for documents that take longer than Vercel timeout
+model ExtractionJob {
+  id           String              @id @default(cuid())
+  projectId    String
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status       ExtractionJobStatus @default(PROCESSING)
+  result       Json?               // Extracted requirements JSON (stored until processed)
+  error        String?             // Error message if failed
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  completedAt  DateTime?
+
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ExtractionJobStatus {
+  PROCESSING
+  COMPLETE
+  FAILED
 }

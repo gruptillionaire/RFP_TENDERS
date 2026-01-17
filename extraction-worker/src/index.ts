@@ -40,7 +40,81 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Main extraction endpoint
+// Async extraction endpoint (returns immediately, calls webhook when done)
+app.post('/extract-async', validateWorkerKey, async (req, res) => {
+  const { documentText, jobId, webhookUrl, model } = req.body;
+
+  if (!documentText || typeof documentText !== 'string') {
+    return res.status(400).json({ error: 'documentText is required' });
+  }
+
+  if (!jobId || !webhookUrl) {
+    return res.status(400).json({ error: 'jobId and webhookUrl are required' });
+  }
+
+  console.log(`[/extract-async] Job ${jobId}: Starting async extraction of ${documentText.length} chars`);
+
+  // Return immediately
+  res.json({ accepted: true, jobId });
+
+  // Process in background
+  const startTime = Date.now();
+
+  try {
+    const result = await extractRequirements(documentText, { model });
+    const elapsed = Date.now() - startTime;
+
+    console.log(`[/extract-async] Job ${jobId}: Complete with ${result.requirements.length} requirements in ${elapsed}ms`);
+    console.log(`[/extract-async] Job ${jobId}: Calling webhook at ${webhookUrl}`);
+
+    // Call webhook with success
+    const webhookResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Worker-Key': WORKER_KEY,
+      },
+      body: JSON.stringify({
+        jobId,
+        status: 'complete',
+        result,
+        elapsed,
+      }),
+    });
+
+    if (!webhookResponse.ok) {
+      console.error(`[/extract-async] Job ${jobId}: Webhook failed with status ${webhookResponse.status}`);
+    } else {
+      console.log(`[/extract-async] Job ${jobId}: Webhook callback successful`);
+    }
+  } catch (error: unknown) {
+    const elapsed = Date.now() - startTime;
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    console.error(`[/extract-async] Job ${jobId}: Failed after ${elapsed}ms:`, message);
+
+    // Call webhook with error
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Worker-Key': WORKER_KEY,
+        },
+        body: JSON.stringify({
+          jobId,
+          status: 'failed',
+          error: message,
+          elapsed,
+        }),
+      });
+    } catch (webhookError) {
+      console.error(`[/extract-async] Job ${jobId}: Webhook callback also failed:`, webhookError);
+    }
+  }
+});
+
+// Sync extraction endpoint (original - waits for completion)
 app.post('/extract', validateWorkerKey, async (req, res) => {
   const startTime = Date.now();
   const { documentText, model } = req.body;

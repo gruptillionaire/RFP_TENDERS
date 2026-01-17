@@ -4,44 +4,37 @@
  * Triggers requirement extraction for a project in PROCESSING status.
  * This endpoint is called by the frontend after project creation.
  *
- * Design:
+ * Design (Async Flow):
  * - Project creation returns quickly with PROCESSING status
  * - Frontend redirects to project page
  * - Project page calls this endpoint to trigger extraction
- * - This request has a 10-minute timeout (configured in vercel.json)
- * - Large documents use chunked extraction (parallel section processing)
- * - Frontend polls for status updates
+ * - This endpoint creates an ExtractionJob and calls the Fly.io worker async
+ * - Returns immediately with jobId for polling
+ * - Frontend polls /api/extract/status?jobId=xxx for updates
+ * - Worker calls /api/extract/webhook when done
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { extractRequirementsHybrid } from "@/lib/openai";
-import {
-  checkAndIncrementQuota,
-  checkAndConsumeSingleUseExtraction,
-} from "@/lib/quota";
+import { EXTRACTION_CONFIG } from "@/lib/constants";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log("[Extract] === Request received ===");
+  console.log("[Extract] === Async extraction request received ===");
 
   try {
-    console.log("[Extract] Checking auth...");
     const session = await auth();
-    console.log("[Extract] Auth complete, user:", session?.user?.id ? "authenticated" : "not authenticated");
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("[Extract] Getting params...");
     const { id } = await params;
     console.log("[Extract] Project ID:", id);
 
     // Fetch project with ownership check
-    console.log("[Extract] Fetching project from database...");
     const project = await prisma.project.findFirst({
       where: {
         id,
@@ -55,10 +48,26 @@ export async function POST(
         isSingleUseProject: true,
       },
     });
-    console.log("[Extract] Project fetched:", project ? `status=${project.status}, textLength=${project.rawText?.length}` : "not found");
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // Check if there's already an active extraction job
+    const existingJob = await prisma.extractionJob.findFirst({
+      where: {
+        projectId: id,
+        status: "PROCESSING",
+      },
+    });
+
+    if (existingJob) {
+      console.log(`[Extract] Existing job found: ${existingJob.id}`);
+      return NextResponse.json({
+        status: "processing",
+        jobId: existingJob.id,
+        message: "Extraction already in progress",
+      });
     }
 
     // Only extract if status is PROCESSING
@@ -83,93 +92,76 @@ export async function POST(
       );
     }
 
-    console.log(`[Extract] Starting extraction for project ${id}, text length: ${project.rawText.length}`);
-    const startTime = Date.now();
+    console.log(`[Extract] Starting async extraction for project ${id}, text length: ${project.rawText.length}`);
+
+    // Create extraction job
+    const job = await prisma.extractionJob.create({
+      data: {
+        projectId: id,
+        status: "PROCESSING",
+      },
+    });
+
+    console.log(`[Extract] Created job ${job.id}`);
+
+    // Build webhook URL
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
+    const webhookUrl = `${baseUrl}/api/extract/webhook`;
+
+    // Call worker async endpoint
+    const workerUrl = `${EXTRACTION_CONFIG.WORKER_URL}/extract-async`;
+    console.log(`[Extract] Calling worker at ${workerUrl}`);
 
     try {
-      // Add overall timeout for the entire extraction (5 minutes - Vercel Pro limit)
-      // Hybrid extraction typically completes in ~10 seconds
-      const extractionPromise = extractRequirementsHybrid(project.rawText);
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Extraction timed out after 5 minutes")), 300000);
+      const workerResponse = await fetch(workerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Worker-Key": process.env.EXTRACTION_WORKER_KEY || "",
+        },
+        body: JSON.stringify({
+          documentText: project.rawText,
+          jobId: job.id,
+          webhookUrl,
+          model: EXTRACTION_CONFIG.EXTRACTION_MODEL,
+        }),
       });
 
-      console.log(`[Extract] Calling extractRequirementsHybrid...`);
-      const result = await Promise.race([extractionPromise, timeoutPromise]);
-      const requirementCount = result.requirements.length;
-
-      console.log(`[Extract] Completed in ${Date.now() - startTime}ms, found ${requirementCount} requirements`);
-
-      if (requirementCount === 0) {
-        console.error("[Extract] No requirements found:", {
-          projectId: id,
-          fileName: project.fileName,
-          rawTextLength: project.rawText.length,
-        });
-        await prisma.project.update({
-          where: { id },
-          data: { status: "FAILED" },
-        });
-        return NextResponse.json(
-          {
-            error: "No requirements found in document",
-            status: "FAILED",
-          },
-          { status: 400 }
-        );
+      if (!workerResponse.ok) {
+        const errorText = await workerResponse.text();
+        throw new Error(`Worker returned ${workerResponse.status}: ${errorText}`);
       }
 
-      // Store requirements
-      await prisma.requirement.createMany({
-        data: result.requirements.map((req, index) => ({
-          projectId: id,
-          text: req.text,
-          section: req.section,
-          sectionGroup: req.sectionGroup,
-          isMandatory: req.isMandatory,
-          type: req.type,
-          domainContext: req.domainContext || "FEATURE",
-          requiresReview: req.domainContext === "LEGAL",
-          wordLimit: req.wordLimit,
-          characterLimit: req.characterLimit,
-          isAttestation: req.isAttestation || false,
-          status: "UNANSWERED",
-          order: index,
-        })),
-      });
+      const workerResult = await workerResponse.json();
+      console.log(`[Extract] Worker accepted job: ${workerResult.accepted}`);
 
-      // Update project status to READY
-      await prisma.project.update({
-        where: { id },
+      // Return immediately with job ID for polling
+      return NextResponse.json({
+        status: "processing",
+        jobId: job.id,
+        message: "Extraction started. Poll /api/extract/status?jobId=... for updates.",
+      });
+    } catch (workerError) {
+      console.error("[Extract] Worker call failed:", workerError);
+
+      // Mark job as failed
+      await prisma.extractionJob.update({
+        where: { id: job.id },
         data: {
-          status: "READY",
-          deadline: result.deadline ? new Date(result.deadline) : null,
-          deadlineText: result.deadlineText,
+          status: "FAILED",
+          error: workerError instanceof Error ? workerError.message : "Worker call failed",
+          completedAt: new Date(),
         },
       });
 
-      // Consume quota on successful extraction
-      if (project.isSingleUseProject) {
-        await checkAndConsumeSingleUseExtraction(session.user.id);
-      } else {
-        await checkAndIncrementQuota(session.user.id, true);
-      }
-
-      return NextResponse.json({
-        status: "READY",
-        requirementCount,
-        extractionTime: Date.now() - startTime,
-        warnings: result.warnings,
-      });
-    } catch (extractionError) {
-      console.error("[Extract] Extraction failed:", extractionError);
       await prisma.project.update({
         where: { id },
         data: { status: "FAILED" },
       });
+
       return NextResponse.json(
         {
-          error: "Extraction failed. Please try again.",
+          error: "Failed to start extraction. Please try again.",
           status: "FAILED",
         },
         { status: 500 }

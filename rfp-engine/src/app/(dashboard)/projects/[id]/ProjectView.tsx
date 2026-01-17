@@ -118,19 +118,18 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       return;
     }
 
-    let retryCount = 0;
-    let timeoutId: NodeJS.Timeout;
+    let pollTimeoutId: NodeJS.Timeout;
     let extractionTriggered = false;
+    let currentJobId: string | null = null;
     const abortController = new AbortController();
-    const MAX_RETRIES = 80; // ~15 minutes with backoff (large extractions can take up to 8 mins)
 
-    // Trigger extraction - this runs in a separate request with 5-minute timeout
+    // Trigger extraction - returns immediately with jobId for async processing
     const triggerExtraction = async () => {
       if (extractionTriggered) return;
       extractionTriggered = true;
 
       try {
-        console.log("[ProjectView] Triggering extraction...");
+        console.log("[ProjectView] Triggering async extraction...");
         const res = await fetch(`/api/projects/${project.id}/extract`, {
           method: "POST",
           signal: abortController.signal,
@@ -138,40 +137,66 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
 
         if (abortController.signal.aborted) return;
 
-        if (res.ok) {
-          const data = await res.json();
-          console.log("[ProjectView] Extraction complete:", data);
-          // Fetch fresh project data after extraction
-          const projectRes = await fetch(`/api/projects/${project.id}`, {
-            signal: abortController.signal,
-          });
-          if (projectRes.ok) {
-            const projectData = await projectRes.json();
-            setProject(projectData);
-            setRequirements(projectData.requirements || []);
-          }
-        } else {
-          console.error("[ProjectView] Extraction failed:", res.status);
-          // Fetch project to get updated status (likely FAILED)
-          const projectRes = await fetch(`/api/projects/${project.id}`, {
-            signal: abortController.signal,
-          });
-          if (projectRes.ok) {
-            const projectData = await projectRes.json();
-            setProject(projectData);
-            setRequirements(projectData.requirements || []);
-          }
+        const data = await res.json();
+        console.log("[ProjectView] Extraction response:", data);
+
+        if (data.jobId) {
+          currentJobId = data.jobId;
+          console.log("[ProjectView] Got jobId:", currentJobId);
+          // Start polling for job status
+          pollJobStatus();
+        } else if (data.status === "READY" || data.status === "FAILED") {
+          // Extraction already complete (maybe from a previous attempt)
+          refreshProjectData();
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
-        console.error("[ProjectView] Extraction error:", err);
+        console.error("[ProjectView] Extraction trigger error:", err);
       }
     };
 
-    // Poll for updates (in case extraction completes via another mechanism)
-    const poll = async () => {
+    // Poll job status endpoint
+    const pollJobStatus = async () => {
+      if (!currentJobId || abortController.signal.aborted) return;
+
+      try {
+        console.log("[ProjectView] Polling job status:", currentJobId);
+        const res = await fetch(`/api/extract/status?jobId=${currentJobId}`, {
+          signal: abortController.signal,
+        });
+
+        if (abortController.signal.aborted) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          console.log("[ProjectView] Job status:", data.status);
+
+          if (data.status === "COMPLETE") {
+            console.log("[ProjectView] Extraction complete! Refreshing project data...");
+            await refreshProjectData();
+            return; // Stop polling
+          } else if (data.status === "FAILED") {
+            console.error("[ProjectView] Extraction failed:", data.error);
+            await refreshProjectData();
+            return; // Stop polling
+          }
+          // Still processing - continue polling
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        console.error("[ProjectView] Job polling error:", err);
+      }
+
+      // Poll every 3 seconds while processing
+      pollTimeoutId = setTimeout(pollJobStatus, 3000);
+    };
+
+    // Refresh project data from server
+    const refreshProjectData = async () => {
       try {
         const res = await fetch(`/api/projects/${project.id}`, {
           signal: abortController.signal,
@@ -179,44 +204,25 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
 
         if (abortController.signal.aborted) return;
 
-        if (!res.ok) {
-          console.error(`Project polling failed: ${res.status}`);
-        } else {
+        if (res.ok) {
           const data = await res.json();
-          if (data.status !== "PROCESSING") {
-            setProject(data);
-            setRequirements(data.requirements || []);
-            return; // Success - stop polling
-          }
+          setProject(data);
+          setRequirements(data.requirements || []);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
-        console.error("Project polling error:", err);
+        console.error("[ProjectView] Project refresh error:", err);
       }
-
-      // Schedule retry with exponential backoff
-      retryCount++;
-      if (retryCount >= MAX_RETRIES) {
-        console.error("Project polling exceeded max retries");
-        return;
-      }
-
-      // Exponential backoff: 3s, 4.5s, 6.75s... capped at 15s
-      const delay = Math.min(3000 * Math.pow(1.5, retryCount - 1), 15000);
-      timeoutId = setTimeout(poll, delay);
     };
 
     // Trigger extraction immediately
     triggerExtraction();
 
-    // Also start polling after a short delay (as a fallback)
-    timeoutId = setTimeout(poll, 5000);
-
     return () => {
       abortController.abort();
-      clearTimeout(timeoutId);
+      clearTimeout(pollTimeoutId);
     };
   }, [project.id, project.status]);
 
