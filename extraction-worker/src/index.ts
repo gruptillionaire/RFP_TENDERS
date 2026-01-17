@@ -11,7 +11,8 @@ const WORKER_KEY = process.env.EXTRACTION_WORKER_KEY || '';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Allowed webhook URL patterns (SSRF prevention)
-const ALLOWED_WEBHOOK_HOSTS = (process.env.ALLOWED_WEBHOOK_HOSTS || 'localhost,rfp-tenders.vercel.app').split(',');
+// Default allows localhost and any Vercel deployment (*.vercel.app)
+const ALLOWED_WEBHOOK_HOSTS = (process.env.ALLOWED_WEBHOOK_HOSTS || 'localhost,vercel.app').split(',');
 
 // Middleware
 app.use(helmet());
