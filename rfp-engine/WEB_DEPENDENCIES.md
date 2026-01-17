@@ -19,19 +19,19 @@ External services and platforms that power RFP Matrix.
 
 ---
 
-### Railway
+### Fly.io
 - **Purpose:** External worker for LLM extraction (bypasses Vercel time limits)
-- **URL:** [railway.app](https://railway.app)
-- **Dashboard:** [railway.app/dashboard](https://railway.app/dashboard)
+- **URL:** [fly.io](https://fly.io)
+- **Dashboard:** [fly.io/dashboard](https://fly.io/dashboard)
 - **Used for:**
   - RFP requirement extraction for large documents (100K+ chars)
   - Full LLM extraction without serverless timeout constraints
   - Handles documents with 400+ requirements (can take 2-5 minutes)
-- **Cost:** ~$5/month (usage-based)
-- **Env vars (in Railway):**
+- **Cost:** Free tier (256MB RAM, no sleep, no timeout limits)
+- **Env vars (set via `fly secrets set`):**
   - `OPENAI_API_KEY`
   - `EXTRACTION_WORKER_KEY`
-  - `PORT` (auto-set by Railway)
+  - `PORT` (auto-set by Fly.io)
 
 ---
 
@@ -171,8 +171,8 @@ FROM_EMAIL=noreply@rfpmatrix.com
 # AI
 OPENAI_API_KEY=
 
-# Extraction Worker (Railway)
-EXTRACTION_WORKER_URL=https://your-worker.up.railway.app
+# Extraction Worker (Fly.io)
+EXTRACTION_WORKER_URL=https://your-app.fly.dev
 EXTRACTION_WORKER_KEY=
 ```
 
@@ -183,7 +183,7 @@ EXTRACTION_WORKER_KEY=
 | Service | Plan | Cost |
 |---------|------|------|
 | Vercel | Pro | ~$20/month |
-| Railway | Usage-based | ~$5/month |
+| Fly.io | Free tier | Free (256MB RAM) |
 | Database | Vercel Postgres | Usage-based |
 | Stripe | Standard | 2.9% + 30¢ per transaction |
 | Resend | Free tier | Free (3,000 emails/month) |
