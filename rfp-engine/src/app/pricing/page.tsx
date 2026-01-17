@@ -7,18 +7,19 @@ import { Button } from "@/components/ui/button";
 import { useSession } from "next-auth/react";
 
 // Plan hierarchy for determining upgrades
-const PLAN_HIERARCHY = ["FREE", "STARTER", "PRO", "TEAM", "BUSINESS"];
+const PLAN_HIERARCHY = ["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"];
 
 // Single-use one-time purchase
 const singleUsePlan = {
   id: "SINGLE_USE",
   name: "Single RFP",
-  price: 40,
+  price: 100,
   period: "one-time",
   description: "Perfect for a single RFP project",
   features: [
     "1 RFP extraction",
-    "60 AI draft responses",
+    "100 AI draft responses",
+    "150 page limit per upload",
     "Export to Word & PDF",
     "30-day project access",
   ],
@@ -34,63 +35,50 @@ const plans = [
   {
     id: "STARTER",
     name: "Starter",
-    price: 49,
+    price: 150,
     period: "/month",
     description: "For freelancers and individual consultants",
     features: [
-      "5 RFP extractions per month",
-      "250 AI draft responses per month",
+      "2 RFPs per month",
+      "200 AI draft responses per month",
+      "150 page limit per upload",
       "AI-powered requirement detection",
-      "Export to PDF",
+      "Export to Word & PDF",
     ],
     limitations: [
-      "No Word export (PDF only)",
       "No response library",
     ],
     popular: false,
+    isEnterprise: false,
   },
   {
     id: "PRO",
     name: "Pro",
-    price: 99,
+    price: 250,
     period: "/month",
     description: "For SMEs and growing businesses",
     features: [
-      "10 RFP extractions per month",
-      "500 AI draft responses per month",
+      "10 RFPs per month",
+      "600 AI draft responses per month",
+      "200 page limit per upload",
       "AI-powered requirement detection",
       "Response library",
       "Export to Word & PDF",
     ],
     limitations: [],
     popular: true,
-  },
-  {
-    id: "TEAM",
-    name: "Team",
-    price: 179,
-    period: "/month",
-    description: "For growing teams",
-    features: [
-      "25 RFP extractions per month",
-      "1,000 AI draft responses per month",
-      "AI-powered requirement detection",
-      "Response library",
-      "Export to Word & PDF",
-      "Priority support",
-    ],
-    limitations: [],
-    popular: false,
+    isEnterprise: false,
   },
   {
     id: "BUSINESS",
     name: "Business",
-    price: 249,
+    price: 500,
     period: "/month",
     description: "For agencies and high-volume users",
     features: [
-      "Unlimited RFP extractions",
-      "Unlimited AI draft responses",
+      "Unlimited RFPs",
+      "600 AI draft responses per month",
+      "No page limit",
       "AI-powered requirement detection",
       "Response library",
       "Export to Word & PDF",
@@ -98,6 +86,27 @@ const plans = [
     ],
     limitations: [],
     popular: false,
+    isEnterprise: false,
+  },
+  {
+    id: "ENTERPRISE",
+    name: "Enterprise",
+    price: 0,
+    period: "",
+    description: "For large organizations with custom needs",
+    features: [
+      "Unlimited RFPs",
+      "Unlimited AI draft responses",
+      "No page limit",
+      "AI-powered requirement detection",
+      "Response library",
+      "Export to Word & PDF",
+      "Priority support",
+      "Dedicated account manager",
+    ],
+    limitations: [],
+    popular: false,
+    isEnterprise: true,
   },
 ];
 
@@ -327,10 +336,16 @@ function PricingContent() {
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
                   <div className="mt-4 flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold text-gray-900">
-                      £{plan.price}
-                    </span>
-                    <span className="text-gray-500">{plan.period}</span>
+                    {plan.isEnterprise ? (
+                      <span className="text-2xl font-bold text-gray-900">Contact Sales</span>
+                    ) : (
+                      <>
+                        <span className="text-4xl font-bold text-gray-900">
+                          ${plan.price}
+                        </span>
+                        <span className="text-gray-500">{plan.period}</span>
+                      </>
+                    )}
                   </div>
                   <p className="mt-2 text-sm text-gray-500">{plan.description}</p>
                 </div>
@@ -378,6 +393,12 @@ function PricingContent() {
                   {(status === "loading" || (planLoading && status === "authenticated")) ? (
                     // Loading skeleton while determining session or fetching user's plan
                     <div className="w-full h-10 bg-gray-200 rounded-md animate-pulse" />
+                  ) : plan.isEnterprise ? (
+                    <a href="mailto:sales@rfpmatrix.com?subject=Enterprise%20Plan%20Inquiry">
+                      <Button className="w-full bg-gray-900 hover:bg-gray-800">
+                        Contact Sales
+                      </Button>
+                    </a>
                   ) : showButton && (
                     <Button
                       className={`w-full ${
@@ -438,7 +459,7 @@ function PricingContent() {
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-900">{singleUsePlan.name}</h3>
                 <div className="mt-4 flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold text-gray-900">£{singleUsePlan.price}</span>
+                  <span className="text-4xl font-bold text-gray-900">${singleUsePlan.price}</span>
                   <span className="text-gray-500">{singleUsePlan.period}</span>
                 </div>
                 <p className="mt-2 text-sm text-gray-500">{singleUsePlan.description}</p>
@@ -498,7 +519,7 @@ function PricingContent() {
                       Processing...
                     </span>
                   ) : (
-                    `${singleUsePlan.cta} - £${singleUsePlan.price}`
+                    `${singleUsePlan.cta} - $${singleUsePlan.price}`
                   )}
                 </Button>
               </div>

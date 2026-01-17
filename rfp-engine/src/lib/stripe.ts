@@ -34,7 +34,6 @@ export { getStripeClient };
 if (process.env.NODE_ENV === "development") {
   if (!process.env.STRIPE_STARTER_PRICE_ID) console.warn("Warning: STRIPE_STARTER_PRICE_ID not set - checkout will fail for Starter plan");
   if (!process.env.STRIPE_PRO_PRICE_ID) console.warn("Warning: STRIPE_PRO_PRICE_ID not set - checkout will fail for Pro plan");
-  if (!process.env.STRIPE_TEAM_PRICE_ID) console.warn("Warning: STRIPE_TEAM_PRICE_ID not set - checkout will fail for Team plan");
   if (!process.env.STRIPE_BUSINESS_PRICE_ID) console.warn("Warning: STRIPE_BUSINESS_PRICE_ID not set - checkout will fail for Business plan");
   if (!process.env.STRIPE_SINGLE_USE_PRICE_ID) console.warn("Warning: STRIPE_SINGLE_USE_PRICE_ID not set - checkout will fail for Single RFP purchase");
 }
@@ -43,35 +42,37 @@ export const PLAN_CONFIG = {
   STARTER: {
     name: "Starter",
     priceId: process.env.STRIPE_STARTER_PRICE_ID || "",
-    monthlyPrice: 49,
-    currency: "gbp",
+    monthlyPrice: 150,
+    currency: "usd",
     features: [
-      "5 RFP extractions per month",
-      "250 AI draft responses per month",
+      "2 RFPs per month",
+      "200 AI draft responses per month",
+      "150 page limit per upload",
       "AI-powered requirement detection",
-      "Export to PDF",
+      "Export to Word & PDF",
     ],
     limitations: [
-      "No Word export (PDF only)",
       "No response library",
     ],
     limits: {
-      monthlyExtractions: 5,
-      activeProjects: 5,
-      monthlyDrafts: 250,
+      monthlyExtractions: 2,
+      activeProjects: 2,
+      monthlyDrafts: 200,
+      maxPagesPerUpload: 150,
       storedResponses: 0, // No library access
-      canExportWord: false,
+      canExportWord: true,
       canUseLibrary: false,
     },
   },
   PRO: {
     name: "Pro",
     priceId: process.env.STRIPE_PRO_PRICE_ID || "",
-    monthlyPrice: 99,
-    currency: "gbp",
+    monthlyPrice: 250,
+    currency: "usd",
     features: [
-      "10 RFP extractions per month",
-      "500 AI draft responses per month",
+      "10 RFPs per month",
+      "600 AI draft responses per month",
+      "200 page limit per upload",
       "AI-powered requirement detection",
       "Response library",
       "Export to Word & PDF",
@@ -80,30 +81,8 @@ export const PLAN_CONFIG = {
     limits: {
       monthlyExtractions: 10,
       activeProjects: 10,
-      monthlyDrafts: 500,
-      storedResponses: 200,
-      canExportWord: true,
-      canUseLibrary: true,
-    },
-  },
-  TEAM: {
-    name: "Team",
-    priceId: process.env.STRIPE_TEAM_PRICE_ID || "",
-    monthlyPrice: 179,
-    currency: "gbp",
-    features: [
-      "25 RFP extractions per month",
-      "1,000 AI draft responses per month",
-      "AI-powered requirement detection",
-      "Response library",
-      "Export to Word & PDF",
-      "Priority support",
-    ],
-    limitations: [],
-    limits: {
-      monthlyExtractions: 25,
-      activeProjects: 25,
-      monthlyDrafts: 1000,
+      monthlyDrafts: 600,
+      maxPagesPerUpload: 200,
       storedResponses: 500,
       canExportWord: true,
       canUseLibrary: true,
@@ -112,11 +91,12 @@ export const PLAN_CONFIG = {
   BUSINESS: {
     name: "Business",
     priceId: process.env.STRIPE_BUSINESS_PRICE_ID || "",
-    monthlyPrice: 249,
-    currency: "gbp",
+    monthlyPrice: 500,
+    currency: "usd",
     features: [
-      "Unlimited RFP extractions",
-      "Unlimited AI draft responses",
+      "Unlimited RFPs",
+      "600 AI draft responses per month",
+      "No page limit",
       "AI-powered requirement detection",
       "Response library",
       "Export to Word & PDF",
@@ -126,7 +106,34 @@ export const PLAN_CONFIG = {
     limits: {
       monthlyExtractions: -1, // -1 = unlimited
       activeProjects: -1,
+      monthlyDrafts: 600,
+      maxPagesPerUpload: -1, // No limit
+      storedResponses: -1,
+      canExportWord: true,
+      canUseLibrary: true,
+    },
+  },
+  ENTERPRISE: {
+    name: "Enterprise",
+    priceId: "", // Custom pricing - no Stripe price ID
+    monthlyPrice: 0, // Custom pricing
+    currency: "usd",
+    features: [
+      "Unlimited RFPs",
+      "Unlimited AI draft responses",
+      "No page limit",
+      "AI-powered requirement detection",
+      "Response library",
+      "Export to Word & PDF",
+      "Priority support",
+      "Dedicated account manager",
+    ],
+    limitations: [],
+    limits: {
+      monthlyExtractions: -1,
+      activeProjects: -1,
       monthlyDrafts: -1,
+      maxPagesPerUpload: -1,
       storedResponses: -1,
       canExportWord: true,
       canUseLibrary: true,
@@ -139,13 +146,14 @@ export type PlanType = keyof typeof PLAN_CONFIG;
 // Single-use (one-time payment) product configuration
 export const SINGLE_USE_CONFIG = {
   priceId: process.env.STRIPE_SINGLE_USE_PRICE_ID || "",
-  price: 40,
-  currency: "gbp",
+  price: 100,
+  currency: "usd",
   name: "Single RFP",
   description: "One-time purchase for a single RFP project",
   features: [
     "1 RFP extraction",
-    "60 AI draft responses",
+    "100 AI draft responses",
+    "150 page limit per upload",
     "Export to Word & PDF",
     "30-day project access",
   ],
@@ -155,7 +163,8 @@ export const SINGLE_USE_CONFIG = {
   ],
   limits: {
     extractions: 1,
-    drafts: 60,
+    drafts: 100,
+    maxPagesPerUpload: 150,
     expirationDays: 30,
     canExportWord: true,
     canUseLibrary: false,
@@ -179,6 +188,7 @@ export function getPlanLimits(plan: string) {
       monthlyExtractions: 0,
       activeProjects: 0,
       monthlyDrafts: 0,
+      maxPagesPerUpload: 0,
       storedResponses: 0,
       canExportWord: false,
       canUseLibrary: false,

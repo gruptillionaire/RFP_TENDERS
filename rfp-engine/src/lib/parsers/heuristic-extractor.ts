@@ -121,14 +121,14 @@ const PATTERN_FAMILIES: PatternFamily[] = [
     id: 'numeric',
     name: 'Numeric (X.Y.Z)',
     detectionPatterns: [
-      /\b\d+\.\d+\.\d+\s+/g,  // 3.1.2
+      /\b\d+\.\d+\.\d+\.?\s+/g,  // 3.1.2 or 3.1.2.
       /(?:^|\n)\s*\d+\.\d+\s+[A-Z]/gm,  // 3.1 at line start followed by text
     ],
     minMatchesForDetection: 3,
     extractionPatterns: [
-      // 3-level: X.Y.Z - highest priority
+      // 3-level: X.Y.Z - highest priority (handles optional trailing dot like "3.2.1.")
       {
-        pattern: /(?:^|\s)(\d+)\.(\d+)\.(\d+)\s+/gm,
+        pattern: /(?:^|\s)(\d+)\.(\d+)\.(\d+)\.?\s+/gm,
         getMajorSection: (m) => m[1],
         getSectionNumber: (m) => `${m[1]}.${m[2]}.${m[3]}`,
         priority: 100,
@@ -602,6 +602,13 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
           const beforeText = text.substring(Math.max(0, actualIndex - 15), actualIndex).toLowerCase();
           const versionPattern = /(?:version|v\.|release)\s*$/;
           if (versionPattern.test(beforeText)) {
+            continue;
+          }
+
+          // Check for date false positives (e.g., 6.01.2023, 12.31.2024)
+          // Date patterns: M.DD.YYYY, MM.DD.YYYY, D.DD.YYYY where month 1-12, day 01-31, year 20XX
+          const datePattern = /^(1[0-2]|[1-9])\.(0[1-9]|[12]\d|3[01])\.(20\d{2})$/;
+          if (datePattern.test(sectionNumber)) {
             continue;
           }
 
@@ -1381,6 +1388,395 @@ export function extractAndClassifyHeuristically(
     timeMs: elapsed,
   });
   console.log(`[heuristic-extractor] Type distribution:`, typeCounters);
+
+  return {
+    requirements,
+    stats,
+    lowConfidenceIds,
+    needsReviewIds,
+  };
+}
+
+// =============================================================================
+// PROFILE-GUIDED EXTRACTION
+// =============================================================================
+
+/**
+ * Pattern family identifiers (must match those in openai.ts DocumentProfile)
+ */
+export type PatternFamilyId = 'numeric' | 'letter' | 'parenthetical' | 'bracket' | 'outline' | 'roman' | 'letter-number';
+
+/**
+ * Simplified profile interface to avoid circular imports with openai.ts
+ */
+export interface ExtractionProfile {
+  primaryPatternFamily: PatternFamilyId;
+  secondaryPatternFamilies?: PatternFamilyId[];
+  requirementSectionPrefixes?: string[];
+}
+
+/**
+ * Get a pattern family by its ID.
+ */
+function getPatternFamilyById(id: PatternFamilyId): PatternFamily | undefined {
+  return PATTERN_FAMILIES.find(f => f.id === id);
+}
+
+/**
+ * Extract candidates using a specific profile (pattern family + filters).
+ * This is the profile-guided version of findRequirementCandidates.
+ *
+ * @param text - Document text (already filtered by skip sections)
+ * @param profile - Extraction profile specifying pattern families
+ */
+export function findRequirementCandidatesWithProfile(
+  text: string,
+  profile: ExtractionProfile
+): RequirementCandidate[] {
+  console.log(`[heuristic-extractor] Using profile-guided extraction with ${profile.primaryPatternFamily} pattern`);
+
+  // Get the specified primary pattern family
+  const primaryFamily = getPatternFamilyById(profile.primaryPatternFamily);
+  if (!primaryFamily) {
+    console.warn(`[heuristic-extractor] Unknown pattern family "${profile.primaryPatternFamily}", falling back to auto-detection`);
+    return findRequirementCandidates(text);
+  }
+
+  // Build list of families to use (primary + secondaries)
+  const familiesToUse: PatternFamily[] = [primaryFamily];
+  if (profile.secondaryPatternFamilies) {
+    for (const secId of profile.secondaryPatternFamilies) {
+      const secFamily = getPatternFamilyById(secId);
+      if (secFamily && secFamily.id !== primaryFamily.id) {
+        familiesToUse.push(secFamily);
+      }
+    }
+  }
+
+  console.log(`[heuristic-extractor] Using pattern families: ${familiesToUse.map(f => f.name).join(', ')}`);
+
+  // Detect major sections for validation (same as regular extraction)
+  const detectedMajorSections = detectMajorSections(text);
+  const validMajorSectionNumbers = new Set(detectedMajorSections.keys());
+
+  // Find all section number positions using the specified pattern families
+  interface Match {
+    sectionNumber: string;
+    index: number;
+    majorSection: string;
+    textStart: number;
+    priority: number;
+    familyId: string;
+  }
+
+  const matches: Match[] = [];
+
+  // Extract matches from each specified family
+  for (const family of familiesToUse) {
+    for (const extPattern of family.extractionPatterns) {
+      // Reset pattern for fresh matching
+      extPattern.pattern.lastIndex = 0;
+      let match;
+
+      while ((match = extPattern.pattern.exec(text)) !== null) {
+        const sectionNumber = extPattern.getSectionNumber(match);
+        const majorSection = extPattern.getMajorSection(match);
+
+        // Apply section prefix filter if specified
+        if (profile.requirementSectionPrefixes && profile.requirementSectionPrefixes.length > 0) {
+          const matchesPrefix = profile.requirementSectionPrefixes.some(prefix => {
+            // Handle both "3." and "A." style prefixes
+            return sectionNumber.startsWith(prefix) || majorSection === prefix.replace(/\.$/, '');
+          });
+          if (!matchesPrefix) continue;
+        }
+
+        // Calculate actual match start (skip leading whitespace/newline)
+        const leadingChars = match[0].match(/^[\s\n]*/)?.[0].length || 0;
+        const actualIndex = match.index + leadingChars;
+
+        // Skip if we already have a higher-priority match at similar position
+        const isDuplicate = matches.some(m =>
+          Math.abs(m.index - actualIndex) < 10 &&
+          (m.sectionNumber === sectionNumber || m.priority >= extPattern.priority)
+        );
+        if (isDuplicate) continue;
+
+        // For numeric family with 2-level patterns, validate against major sections
+        // BUT: In profile-guided extraction, we trust the profile and skip this validation
+        // if requirementSectionPrefixes is set (the profile handles section filtering)
+        if (family.id === 'numeric' && extPattern.priority < 100) {
+          // Only validate against major sections if NO section prefixes are specified
+          // (meaning we're not using profile filtering)
+          const hasProfilePrefixes = profile.requirementSectionPrefixes && profile.requirementSectionPrefixes.length > 0;
+          if (!hasProfilePrefixes && validMajorSectionNumbers.size > 0 && !validMajorSectionNumbers.has(majorSection)) {
+            continue;
+          }
+
+          // Check for version number false positives
+          const beforeText = text.substring(Math.max(0, actualIndex - 15), actualIndex).toLowerCase();
+          const versionPattern = /(?:version|v\.|release)\s*$/;
+          if (versionPattern.test(beforeText)) {
+            continue;
+          }
+        }
+
+        // Check for date false positives (e.g., 6.01.2023, 12.31.2024)
+        // Date patterns: M.DD.YYYY, MM.DD.YYYY, D.DD.YYYY where month 1-12, day 01-31, year 20XX
+        const datePattern = /^(1[0-2]|[1-9])\.(0[1-9]|[12]\d|3[01])\.(20\d{2})$/;
+        if (datePattern.test(sectionNumber)) {
+          continue;
+        }
+
+        matches.push({
+          sectionNumber,
+          index: actualIndex,
+          majorSection,
+          textStart: match.index + match[0].length,
+          priority: extPattern.priority,
+          familyId: family.id,
+        });
+      }
+    }
+  }
+
+  // Sort matches by position in document
+  matches.sort((a, b) => a.index - b.index);
+
+  console.log(`[heuristic-extractor] Found ${matches.length} section number patterns using profile`);
+
+  // Build candidates (same text cleanup as regular extraction)
+  const candidates: RequirementCandidate[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const current = matches[i];
+    const next = matches[i + 1];
+
+    const startIndex = current.textStart;
+    const endIndex = next
+      ? next.index
+      : Math.min(startIndex + 3000, text.length);
+
+    let rawText = text.substring(startIndex, endIndex).trim();
+
+    // Apply the same text cleanup as findRequirementCandidates
+    // Strip trailing section contamination
+    let cleanedText = rawText
+      .replace(/\s+\d+\.\d+(?:\.\d+)?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/, '')
+      .replace(/\s+\[\d+\.\d+\][:\s]+[A-Z][A-Za-z\s,&\-:]+$/, '')
+      .replace(/\s+REQ[-_]?\d+[:\s]+[A-Z][A-Za-z\s,&\-:]+$/i, '')
+      .replace(/\s+[A-Z]\.\d+(?:\.[a-z\d]+)?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/, '')
+      .replace(/\s+(?:I{1,3}|IV|VI{0,3}|IX|X{1,3})\.?[A-Z]?[:\s]+[A-Z][A-Za-z\s,&\-:]+$/i, '')
+      .trim();
+
+    // Strip DOCX table markers
+    let prevLength;
+    do {
+      prevLength = cleanedText.length;
+      cleanedText = cleanedText
+        .replace(/\[TABLE START\]/gi, '')
+        .replace(/\[TABLE END\]/gi, '')
+        .replace(/\[HEADER\]/gi, '')
+        .replace(/\[Col \d+\]/gi, '')
+        .replace(/\[ROW \d+\]/gi, '')
+        .replace(/\bCol \d+\]/g, '')
+        .trim();
+    } while (cleanedText.length !== prevLength && prevLength > 0);
+
+    cleanedText = cleanedText
+      .replace(/[═─│╔╗╚╝╠╣╦╩╬╒╓╘╙╛╜╞╟╡╢╤╥╧╨╪╫]+/g, '')
+      .replace(/\|\s*(?:Pass|Fail|Yes|No|Compliant|Non-?compliant|N\/A|TBD|TBC)[\/|]?(?:Pass|Fail|Yes|No|Compliant|Non-?compliant|N\/A|TBD|TBC)?\s*/gi, '')
+      .replace(/\s*(?:Enter|Type|Insert|Provide)\s+(?:response|answer|reply)\s+here:?\s*/gi, '')
+      .replace(/\s*(?:Bidder|Vendor|Contractor|Respondent)\s+(?:response|answer|reply):?\s*/gi, '')
+      .replace(/\s*\|\s*/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Strip trailing title contamination
+    cleanedText = cleanedText
+      .replace(/\)\s*([A-Z][a-zA-Z]*(?:\s+[a-zA-Z-]+){0,4})\s*$/, ')')
+      .replace(/([.?!]["']?)\s+([A-Z][a-zA-Z]*(?:\s+[a-zA-Z-]+){0,4})\s*$/, (match, punct, title) => {
+        if (title.length > 50) return match;
+        if (/\b(?:the|and|or|is|are|was|were|a|an|to|for|in|of|on|with|by|from|as|at|this|that|these|those|it|its|can|will|would|should|must|may|might|have|has|had|been|being|do|does|did|so|than|also|just|only|about|after|before|into|through|during|without|within)\b/i.test(title)) return match;
+        return punct;
+      })
+      .trim();
+
+    // Clean page numbers and whitespace
+    cleanedText = cleanedText
+      .replace(/\s+\d+\s+of\s+\d+\s+Request\s+for\s+Proposal[^]*$/i, '')
+      .replace(/\s+Page\s+\d+\s+of\s+\d+[^]*$/i, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/  +/g, ' ')
+      .trim();
+
+    // Skip very short matches and garbage
+    if (cleanedText.length < 10) continue;
+
+    // Skip definitions
+    const quoteChars = '""\\u201C\\u201D\\u00AB\\u00BB';
+    if (/^[""\u201C\u201D\u00AB\u00BB][^""\u201C\u201D\u00AB\u00BB]+[""\u201C\u201D\u00AB\u00BB]?\s+means\b/i.test(cleanedText) ||
+        /^means\s+/i.test(cleanedText) ||
+        /^[""\u201C\u201D\u00AB\u00BB]?[A-Za-z\s\-]+[""\u201C\u201D\u00AB\u00BB]?\s+means\s+/i.test(cleanedText)) {
+      continue;
+    }
+
+    // Skip building lists
+    if (/[\d,]+\s*(?:sq\.?\s*ft|sqft|square\s*feet)\b/i.test(cleanedText) && cleanedText.length < 200) {
+      continue;
+    }
+
+    // Skip address-only entries
+    if (/^\d+\s+[A-Za-z\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Way|Circle|Cir)\b/i.test(cleanedText) &&
+        /\b[A-Z]{2}\s+\d{5}\b/.test(cleanedText) &&
+        cleanedText.length < 150) {
+      continue;
+    }
+
+    candidates.push({
+      sectionNumber: current.sectionNumber,
+      rawText: cleanedText,
+      startIndex: current.index,
+      endIndex,
+      majorSection: current.majorSection,
+    });
+  }
+
+  console.log(`[heuristic-extractor] Profile-guided extraction: ${candidates.length} valid candidates`);
+
+  return candidates;
+}
+
+/**
+ * Full extraction with profile guidance.
+ * Uses the profile to determine pattern families and apply filters.
+ *
+ * @param text - Document text (already filtered by skip sections)
+ * @param profile - Extraction profile
+ * @param confidenceThreshold - Below this, mark for LLM refinement
+ */
+export function extractAndClassifyWithProfile(
+  text: string,
+  profile: ExtractionProfile,
+  confidenceThreshold: number = 70
+): ClassifiedExtractionResult {
+  console.log(`[heuristic-extractor] Starting profile-guided extraction + classification`);
+  const startTime = Date.now();
+
+  // Step 1: Extract candidates using profile
+  const candidates = findRequirementCandidatesWithProfile(text, profile);
+
+  // Step 2: Find question-based candidates (supplementary)
+  const questionCandidates = findQuestionCandidates(text, candidates);
+
+  // Step 3: Detect major sections for sectionGroup
+  const majorSections = detectMajorSections(text);
+
+  // Combine candidates
+  const allCandidates = [...candidates, ...questionCandidates];
+  allCandidates.sort((a, b) => a.startIndex - b.startIndex);
+
+  // Step 4: Classify each candidate (same as regular extraction)
+  const requirements: ClassifiedRequirement[] = [];
+  const lowConfidenceIds: string[] = [];
+  const needsReviewIds: string[] = [];
+  const typeCounters: Record<RequirementType, number> = {
+    DECLARATIVE: 0,
+    DESCRIPTIVE: 0,
+    QUANTITATIVE: 0,
+    REFERENCE_BASED: 0,
+    EVIDENCE_BASED: 0,
+    STAFFING: 0,
+    PROCEDURAL: 0,
+    CONTEXTUAL: 0,
+  };
+  let mandatoryCount = 0;
+  let totalTypeConfidence = 0;
+  let totalMandatoryConfidence = 0;
+
+  for (let i = 0; i < allCandidates.length; i++) {
+    const candidate = allCandidates[i];
+
+    const id = `req_${candidate.sectionNumber.replace(/\./g, '_')}_${i}`;
+
+    const majorSection = majorSections.get(candidate.majorSection);
+    const sectionGroup = majorSection
+      ? `${majorSection.number}: ${majorSection.title}`
+      : `${candidate.majorSection}: Section ${candidate.majorSection}`;
+
+    const typeClassification = classifyTypeHeuristically(candidate.rawText, sectionGroup);
+    const mandatoryClassification = classifyMandatoryHeuristically(candidate.rawText, sectionGroup);
+    const reviewReasons = detectReviewReasons(candidate.rawText, candidate.sectionNumber);
+    const needsReview = reviewReasons.length > 0;
+
+    if (needsReview) {
+      needsReviewIds.push(id);
+    }
+
+    const isLowConfidence =
+      !needsReview && (
+        typeClassification.confidence < confidenceThreshold ||
+        mandatoryClassification.confidence < confidenceThreshold
+      );
+
+    if (isLowConfidence) {
+      lowConfidenceIds.push(id);
+    }
+
+    typeCounters[typeClassification.type]++;
+    if (mandatoryClassification.isMandatory) {
+      mandatoryCount++;
+    }
+    totalTypeConfidence += typeClassification.confidence;
+    totalMandatoryConfidence += mandatoryClassification.confidence;
+
+    const domainContext = detectDomainContext(candidate.rawText);
+    const attestationResult = classifyAttestation(candidate.rawText);
+
+    requirements.push({
+      id,
+      sectionNumber: candidate.sectionNumber,
+      sectionGroup,
+      text: candidate.rawText,
+      type: typeClassification.type,
+      typeConfidence: typeClassification.confidence,
+      typePattern: typeClassification.matchedPattern,
+      domainContext,
+      isAttestation: attestationResult.isAttestation,
+      isMandatory: mandatoryClassification.isMandatory,
+      mandatoryConfidence: mandatoryClassification.confidence,
+      mandatoryPattern: mandatoryClassification.matchedPattern,
+      position: i,
+      needsReview,
+      reviewReasons: needsReview ? reviewReasons : undefined,
+    });
+  }
+
+  const elapsed = Date.now() - startTime;
+
+  const stats = {
+    total: requirements.length,
+    byType: typeCounters,
+    mandatory: mandatoryCount,
+    optional: requirements.length - mandatoryCount,
+    lowConfidenceCount: lowConfidenceIds.length,
+    needsReviewCount: needsReviewIds.length,
+    avgTypeConfidence: requirements.length > 0
+      ? Math.round(totalTypeConfidence / requirements.length)
+      : 0,
+    avgMandatoryConfidence: requirements.length > 0
+      ? Math.round(totalMandatoryConfidence / requirements.length)
+      : 0,
+    extractionTimeMs: elapsed,
+  };
+
+  console.log(`[heuristic-extractor] Profile-guided classification complete:`, {
+    total: stats.total,
+    lowConfidence: stats.lowConfidenceCount,
+    needsReview: stats.needsReviewCount,
+    avgTypeConfidence: stats.avgTypeConfidence,
+    timeMs: elapsed,
+  });
 
   return {
     requirements,

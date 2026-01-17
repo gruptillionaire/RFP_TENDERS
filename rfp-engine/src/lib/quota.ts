@@ -41,10 +41,10 @@ export async function checkAndIncrementQuota(
 
     // Get limit based on plan
     const limit =
-      user.plan === "BUSINESS"
+      user.plan === "ENTERPRISE"
+        ? QUOTA_LIMITS.ENTERPRISE
+        : user.plan === "BUSINESS"
         ? QUOTA_LIMITS.BUSINESS
-        : user.plan === "TEAM"
-        ? QUOTA_LIMITS.TEAM
         : user.plan === "PRO"
         ? QUOTA_LIMITS.PRO
         : user.plan === "STARTER"
@@ -134,10 +134,10 @@ export async function checkAndIncrementDraftQuota(
 
     // Get limit based on plan
     const limit =
-      user.plan === "BUSINESS"
+      user.plan === "ENTERPRISE"
+        ? DRAFT_LIMITS.ENTERPRISE
+        : user.plan === "BUSINESS"
         ? DRAFT_LIMITS.BUSINESS
-        : user.plan === "TEAM"
-        ? DRAFT_LIMITS.TEAM
         : user.plan === "PRO"
         ? DRAFT_LIMITS.PRO
         : user.plan === "STARTER"

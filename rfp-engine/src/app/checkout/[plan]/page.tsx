@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-const VALID_PLANS = ["STARTER", "PRO", "TEAM", "BUSINESS", "SINGLE_USE"];
+const VALID_PLANS = ["STARTER", "PRO", "BUSINESS", "SINGLE_USE"];
 
 export default function CheckoutRedirectPage() {
   const router = useRouter();

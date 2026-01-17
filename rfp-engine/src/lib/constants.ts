@@ -16,18 +16,28 @@ export const TOKEN_LIMITS = {
 
 export const QUOTA_LIMITS = {
   FREE: 0,
-  STARTER: 5,
+  STARTER: 2,
   PRO: 10,
-  TEAM: 25,
   BUSINESS: -1, // -1 means unlimited
+  ENTERPRISE: -1,
 } as const;
 
 export const DRAFT_LIMITS = {
   FREE: 0,
-  STARTER: 250,
-  PRO: 500,
-  TEAM: 1000,
+  STARTER: 200,
+  PRO: 600,
+  BUSINESS: 600,
+  ENTERPRISE: -1, // -1 means unlimited
+} as const;
+
+// Page limits per upload (in pages)
+export const PAGE_LIMITS = {
+  FREE: 0,
+  STARTER: 150,
+  PRO: 200,
   BUSINESS: -1, // -1 means unlimited
+  ENTERPRISE: -1,
+  SINGLE_USE: 150,
 } as const;
 
 export type RequirementType = keyof typeof TOKEN_LIMITS;

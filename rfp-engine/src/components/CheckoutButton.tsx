@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface CheckoutButtonProps {
-  plan: string; // 'STARTER' | 'PRO' | 'TEAM' | 'BUSINESS' | 'SINGLE_USE'
+  plan: string; // 'STARTER' | 'PRO' | 'BUSINESS' | 'SINGLE_USE'
   isSignedIn: boolean;
   children: React.ReactNode;
   variant?: "default" | "outline" | "ghost";
