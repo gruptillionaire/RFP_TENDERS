@@ -15,7 +15,23 @@ External services and platforms that power RFP Matrix.
   - Serverless API routes
   - Cron jobs (deadline reminders, cleanup)
   - Domain: rfpmatrix.com
-- **Env vars:** `NEXTAUTH_URL`, `NEXT_PUBLIC_APP_URL`
+- **Env vars:** `NEXTAUTH_URL`, `NEXT_PUBLIC_APP_URL`, `EXTRACTION_WORKER_URL`, `EXTRACTION_WORKER_KEY`
+
+---
+
+### Railway
+- **Purpose:** External worker for LLM extraction (bypasses Vercel time limits)
+- **URL:** [railway.app](https://railway.app)
+- **Dashboard:** [railway.app/dashboard](https://railway.app/dashboard)
+- **Used for:**
+  - RFP requirement extraction for large documents (100K+ chars)
+  - Full LLM extraction without serverless timeout constraints
+  - Handles documents with 400+ requirements (can take 2-5 minutes)
+- **Cost:** ~$5/month (usage-based)
+- **Env vars (in Railway):**
+  - `OPENAI_API_KEY`
+  - `EXTRACTION_WORKER_KEY`
+  - `PORT` (auto-set by Railway)
 
 ---
 
@@ -154,6 +170,10 @@ FROM_EMAIL=noreply@rfpmatrix.com
 
 # AI
 OPENAI_API_KEY=
+
+# Extraction Worker (Railway)
+EXTRACTION_WORKER_URL=https://your-worker.up.railway.app
+EXTRACTION_WORKER_KEY=
 ```
 
 ---
@@ -163,8 +183,9 @@ OPENAI_API_KEY=
 | Service | Plan | Cost |
 |---------|------|------|
 | Vercel | Pro | ~$20/month |
+| Railway | Usage-based | ~$5/month |
 | Database | Vercel Postgres | Usage-based |
 | Stripe | Standard | 2.9% + 30¢ per transaction |
 | Resend | Free tier | Free (3,000 emails/month) |
 | Zoho Mail | Free | Free (5 users) |
-| OpenAI | Pay-as-you-go | ~$0.01-0.03 per extraction |
+| OpenAI | Pay-as-you-go | ~$0.03 per extraction (GPT-4o-mini) |
