@@ -1002,3 +1002,554 @@ ${preprocessedText}
     throw error;
   }
 }
+
+// =============================================================================
+// FULL-CONTEXT CHUNKED EXTRACTION (for large documents)
+// =============================================================================
+
+interface RequirementCandidate {
+  sectionNumber: string;
+  rawText: string;
+  startIndex: number;
+  endIndex: number;
+  majorSection: string;
+}
+
+interface MajorSection {
+  number: string;
+  title: string;
+  startIndex: number;
+}
+
+interface ExtractionChunk {
+  startSection: string;
+  endSection: string;
+  expectedCount: number;
+  sections: string[];
+}
+
+/**
+ * Compare section numbers for sorting (handles "3.1.2" vs "3.10.1" correctly)
+ */
+function compareSectionNumbers(a: string | null, b: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const partsA = a.split('.').map(p => {
+    const num = parseInt(p, 10);
+    return isNaN(num) ? p.charCodeAt(0) : num;
+  });
+  const partsB = b.split('.').map(p => {
+    const num = parseInt(p, 10);
+    return isNaN(num) ? p.charCodeAt(0) : num;
+  });
+
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const valA = partsA[i] ?? 0;
+    const valB = partsB[i] ?? 0;
+    if (valA < valB) return -1;
+    if (valA > valB) return 1;
+  }
+  return 0;
+}
+
+/**
+ * Get subsection key (e.g., "3.1" from "3.1.2")
+ */
+function getSubsectionKey(section: string): string {
+  const parts = section.split('.');
+  return parts.slice(0, 2).join('.');
+}
+
+/**
+ * Simplified heuristic extraction - finds section numbers and their positions
+ */
+function findCandidatesHeuristically(text: string): {
+  candidates: RequirementCandidate[];
+  majorSections: Map<string, MajorSection>;
+} {
+  const candidates: RequirementCandidate[] = [];
+  const majorSections = new Map<string, MajorSection>();
+
+  // Pattern for numbered sections: 3.1.1, 3.1.2, etc.
+  const sectionPattern = /(?:^|\n)\s*(\d+)\.(\d+)(?:\.(\d+))?\s+(.+?)(?=\n\s*\d+\.\d+|\n\s*$|$)/gs;
+
+  let match;
+  while ((match = sectionPattern.exec(text)) !== null) {
+    const major = match[1];
+    const minor = match[2];
+    const sub = match[3];
+    const rawText = match[4]?.trim() || '';
+
+    const sectionNumber = sub ? `${major}.${minor}.${sub}` : `${major}.${minor}`;
+
+    candidates.push({
+      sectionNumber,
+      rawText: rawText.substring(0, 500), // Truncate for memory
+      startIndex: match.index,
+      endIndex: match.index + match[0].length,
+      majorSection: major,
+    });
+
+    // Track major sections
+    if (!majorSections.has(major)) {
+      majorSections.set(major, {
+        number: major,
+        title: `Section ${major}`,
+        startIndex: match.index,
+      });
+    }
+  }
+
+  // Try to detect major section titles
+  const titlePattern = /(?:^|\n)\s*(\d+)(?:\.0?)?\s+([A-Z][A-Za-z\s,&]+?)(?:\n|$)/g;
+  while ((match = titlePattern.exec(text)) !== null) {
+    const num = match[1];
+    const title = match[2].trim();
+    if (majorSections.has(num)) {
+      majorSections.get(num)!.title = title;
+    } else {
+      majorSections.set(num, {
+        number: num,
+        title: title,
+        startIndex: match.index,
+      });
+    }
+  }
+
+  console.log(`[heuristic] Found ${candidates.length} candidates, ${majorSections.size} major sections`);
+  return { candidates, majorSections };
+}
+
+/**
+ * Plan extraction chunks (groups of ~targetSize requirements)
+ */
+function planExtractionChunks(
+  candidates: RequirementCandidate[],
+  targetSize: number = 50
+): ExtractionChunk[] {
+  if (candidates.length === 0) return [];
+
+  // Sort candidates by section number
+  const sorted = [...candidates].sort((a, b) =>
+    compareSectionNumbers(a.sectionNumber, b.sectionNumber)
+  );
+
+  // Group by subsection (3.1, 3.2, etc.)
+  const bySubsection = new Map<string, RequirementCandidate[]>();
+  for (const candidate of sorted) {
+    const key = getSubsectionKey(candidate.sectionNumber);
+    if (!bySubsection.has(key)) {
+      bySubsection.set(key, []);
+    }
+    bySubsection.get(key)!.push(candidate);
+  }
+
+  // Get sorted subsection keys
+  const subsectionKeys = Array.from(bySubsection.keys()).sort(compareSectionNumbers);
+
+  // Build chunks
+  const chunks: ExtractionChunk[] = [];
+  let currentChunk: { sections: string[]; count: number } = { sections: [], count: 0 };
+
+  for (const key of subsectionKeys) {
+    const subsectionCandidates = bySubsection.get(key)!;
+    const count = subsectionCandidates.length;
+
+    // If this single subsection is too large, it becomes its own chunk
+    if (count >= targetSize * 0.8) {
+      if (currentChunk.sections.length > 0) {
+        chunks.push({
+          startSection: currentChunk.sections[0],
+          endSection: currentChunk.sections[currentChunk.sections.length - 1],
+          expectedCount: currentChunk.count,
+          sections: currentChunk.sections,
+        });
+        currentChunk = { sections: [], count: 0 };
+      }
+      chunks.push({
+        startSection: key,
+        endSection: key,
+        expectedCount: count,
+        sections: [key],
+      });
+      continue;
+    }
+
+    // If adding this subsection would exceed target, start new chunk
+    if (currentChunk.count + count > targetSize && currentChunk.sections.length > 0) {
+      chunks.push({
+        startSection: currentChunk.sections[0],
+        endSection: currentChunk.sections[currentChunk.sections.length - 1],
+        expectedCount: currentChunk.count,
+        sections: currentChunk.sections,
+      });
+      currentChunk = { sections: [], count: 0 };
+    }
+
+    currentChunk.sections.push(key);
+    currentChunk.count += count;
+  }
+
+  // Don't forget the last chunk
+  if (currentChunk.sections.length > 0) {
+    chunks.push({
+      startSection: currentChunk.sections[0],
+      endSection: currentChunk.sections[currentChunk.sections.length - 1],
+      expectedCount: currentChunk.count,
+      sections: currentChunk.sections,
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Generate document summary for context
+ */
+async function generateDocumentSummary(
+  openai: OpenAI,
+  text: string,
+  majorSections: Map<string, MajorSection>,
+  model: string
+): Promise<string> {
+  console.log(`[fullContext] Generating document summary...`);
+
+  const sectionList = Array.from(majorSections.values())
+    .map(s => `${s.number}: ${s.title}`)
+    .join('\n');
+
+  const introText = text.substring(0, 2000);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: `You are analyzing an RFP document. Create a brief summary (under 300 words) that captures:
+1. What organization issued this RFP
+2. What product/service they are seeking
+3. Key context for each major section`,
+        },
+        {
+          role: 'user',
+          content: `DOCUMENT INTRODUCTION:\n${introText}\n\nMAJOR SECTIONS:\n${sectionList}\n\nProvide a concise summary.`,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
+    });
+
+    return response.choices[0]?.message?.content || `RFP SECTIONS:\n${sectionList}`;
+  } catch (error) {
+    console.error(`[fullContext] Summary generation failed:`, error);
+    return `RFP SECTIONS:\n${sectionList}`;
+  }
+}
+
+/**
+ * Extract section text for a specific chunk
+ */
+function extractSectionText(
+  fullText: string,
+  chunk: ExtractionChunk,
+  candidates: RequirementCandidate[]
+): string {
+  const chunkCandidates = candidates.filter(c => {
+    const section = c.sectionNumber;
+    return compareSectionNumbers(section, chunk.startSection) >= 0 &&
+           compareSectionNumbers(section, chunk.endSection + '.999') <= 0;
+  });
+
+  if (chunkCandidates.length === 0) {
+    return '';
+  }
+
+  const firstCandidate = chunkCandidates[0];
+  const lastCandidate = chunkCandidates[chunkCandidates.length - 1];
+
+  const startIdx = Math.max(0, firstCandidate.startIndex - 200);
+  const endIdx = Math.min(fullText.length, lastCandidate.endIndex + 500);
+
+  return fullText.substring(startIdx, endIdx);
+}
+
+/**
+ * Create scoped extraction prompt with context
+ */
+function createScopedPrompt(chunk: ExtractionChunk, documentSummary: string): string {
+  return `${EXTRACTION_PROMPT}
+
+═══════════════════════════════════════════════════════════════════════════════
+                         DOCUMENT CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+
+${documentSummary}
+
+═══════════════════════════════════════════════════════════════════════════════
+                         EXTRACTION SCOPE
+═══════════════════════════════════════════════════════════════════════════════
+
+Extract ALL requirements from sections ${chunk.startSection} through ${chunk.endSection}.
+The section text below contains ONLY these sections - extract every requirement you find.`;
+}
+
+/**
+ * Extract requirements from a specific section range
+ */
+async function extractSectionRange(
+  openai: OpenAI,
+  sectionText: string,
+  chunk: ExtractionChunk,
+  documentSummary: string,
+  majorSections: Map<string, MajorSection>,
+  model: string
+): Promise<ExtractedRequirement[]> {
+  console.log(`[fullContext] Extracting sections ${chunk.startSection}-${chunk.endSection} (expected: ${chunk.expectedCount}, ${sectionText.length} chars)`);
+
+  if (!sectionText || sectionText.length < 50) {
+    console.warn(`[fullContext] Section text too short for chunk ${chunk.startSection}-${chunk.endSection}`);
+    return [];
+  }
+
+  try {
+    const scopedPrompt = createScopedPrompt(chunk, documentSummary);
+
+    const response = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: scopedPrompt },
+        { role: 'user', content: `Extract all requirements from this section text:\n\n${sectionText}` },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+      max_tokens: 16000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return [];
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      console.error(`[fullContext] JSON parse error for chunk ${chunk.startSection}-${chunk.endSection}`);
+      return [];
+    }
+
+    if (!parsed.requirements || !Array.isArray(parsed.requirements)) {
+      return [];
+    }
+
+    const VALID_TYPES: RequirementType[] = [
+      'CONTEXTUAL', 'PROCEDURAL', 'DECLARATIVE', 'DESCRIPTIVE',
+      'EVIDENCE_BASED', 'QUANTITATIVE', 'REFERENCE_BASED', 'STAFFING',
+    ];
+
+    return parsed.requirements.map((req: ExtractedRequirement) => {
+      const majorNum = req.section?.split('.')[0] || '';
+      const majorSection = majorSections.get(majorNum);
+      const sectionGroup = majorSection
+        ? `${majorSection.number}: ${majorSection.title}`
+        : null;
+
+      let type = req.type || 'DESCRIPTIVE';
+      if (!VALID_TYPES.includes(type as RequirementType)) {
+        type = 'CONTEXTUAL';
+      }
+
+      return {
+        section: req.section || null,
+        sectionGroup,
+        text: typeof req.text === 'string' ? req.text : '',
+        type: type as RequirementType,
+        isMandatory: req.isMandatory !== false,
+        domainContext: req.domainContext || 'FEATURE',
+        wordLimit: typeof req.wordLimit === 'number' ? req.wordLimit : null,
+        characterLimit: typeof req.characterLimit === 'number' ? req.characterLimit : null,
+        isAttestation: req.isAttestation === true,
+      };
+    });
+  } catch (error) {
+    console.error(`[fullContext] Failed to extract chunk ${chunk.startSection}-${chunk.endSection}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Extract chunks with concurrency control
+ */
+async function extractChunksWithConcurrency(
+  openai: OpenAI,
+  fullText: string,
+  chunks: ExtractionChunk[],
+  documentSummary: string,
+  candidates: RequirementCandidate[],
+  majorSections: Map<string, MajorSection>,
+  model: string,
+  concurrency: number = 3
+): Promise<ExtractedRequirement[][]> {
+  const results: ExtractedRequirement[][] = new Array(chunks.length);
+  let nextIndex = 0;
+  let inFlight = 0;
+
+  return new Promise((resolve) => {
+    const startNext = () => {
+      while (inFlight < concurrency && nextIndex < chunks.length) {
+        const index = nextIndex++;
+        const chunk = chunks[index];
+        inFlight++;
+
+        const sectionText = extractSectionText(fullText, chunk, candidates);
+
+        extractSectionRange(openai, sectionText, chunk, documentSummary, majorSections, model)
+          .then(reqs => {
+            results[index] = reqs;
+            console.log(`[fullContext] Chunk ${index + 1}/${chunks.length} complete: ${reqs.length} requirements`);
+          })
+          .catch(err => {
+            console.error(`[fullContext] Chunk ${index} failed:`, err);
+            results[index] = [];
+          })
+          .finally(() => {
+            inFlight--;
+            if (nextIndex < chunks.length) {
+              startNext();
+            } else if (inFlight === 0) {
+              resolve(results);
+            }
+          });
+      }
+    };
+
+    startNext();
+
+    if (chunks.length === 0) {
+      resolve([]);
+    }
+  });
+}
+
+/**
+ * Deduplicate requirements by section number
+ */
+function deduplicateRequirements(allRequirements: ExtractedRequirement[]): ExtractedRequirement[] {
+  const seen = new Map<string, ExtractedRequirement>();
+
+  for (const req of allRequirements) {
+    const key = req.section || req.text.substring(0, 100);
+    if (!seen.has(key)) {
+      seen.set(key, req);
+    }
+  }
+
+  return Array.from(seen.values()).sort((a, b) =>
+    compareSectionNumbers(a.section, b.section)
+  );
+}
+
+/**
+ * Full-context extraction for large documents.
+ * Uses heuristics to find candidates, then extracts in parallel chunks.
+ */
+async function extractRequirementsFullContext(
+  documentText: string,
+  model: string
+): Promise<ExtractionResult> {
+  console.log(`[fullContext] Starting full-context extraction on ${documentText.length} chars`);
+  const startTime = Date.now();
+
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  // Step 1: Heuristic scan to find all section numbers
+  console.log(`[fullContext] Step 1: Heuristic scan...`);
+  const { candidates, majorSections } = findCandidatesHeuristically(documentText);
+
+  if (candidates.length === 0) {
+    console.warn(`[fullContext] No candidates found, falling back to single-pass`);
+    return extractRequirements(documentText, { model });
+  }
+
+  console.log(`[fullContext] Found ${candidates.length} candidates in ${majorSections.size} major sections`);
+
+  // Step 2: Generate document summary
+  console.log(`[fullContext] Step 2: Generating summary...`);
+  const documentSummary = await generateDocumentSummary(openai, documentText, majorSections, model);
+
+  // Step 3: Plan extraction chunks
+  console.log(`[fullContext] Step 3: Planning chunks...`);
+  const chunks = planExtractionChunks(candidates, 50);
+  console.log(`[fullContext] Planned ${chunks.length} chunks:`,
+    chunks.map(c => `${c.startSection}-${c.endSection} (${c.expectedCount})`).join(', '));
+
+  // Step 4: Extract each chunk with concurrency
+  console.log(`[fullContext] Step 4: Extracting ${chunks.length} chunks (3 concurrent)...`);
+  const chunkResults = await extractChunksWithConcurrency(
+    openai,
+    documentText,
+    chunks,
+    documentSummary,
+    candidates,
+    majorSections,
+    model,
+    3
+  );
+
+  // Step 5: Merge and deduplicate
+  console.log(`[fullContext] Step 5: Merging results...`);
+  const allRequirements = chunkResults.flat();
+  const deduplicated = deduplicateRequirements(allRequirements);
+
+  const elapsed = Date.now() - startTime;
+  console.log(`[fullContext] Complete in ${elapsed}ms: ${deduplicated.length} requirements (from ${allRequirements.length} raw)`);
+
+  // Extract deadline
+  const deadlineMatch = documentText.match(
+    /(?:deadline|submission date|due date|closing date)[:\s]+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+  );
+
+  return {
+    deadline: deadlineMatch ? deadlineMatch[1] : null,
+    deadlineText: deadlineMatch ? deadlineMatch[0] : null,
+    requirements: deduplicated,
+  };
+}
+
+// =============================================================================
+// SMART EXTRACTION ROUTER
+// =============================================================================
+
+/**
+ * Main entry point - routes to single-pass or full-context based on document size.
+ * Threshold: >100 detected candidates triggers full-context extraction.
+ */
+export async function extractRequirementsSmart(
+  documentText: string,
+  options: ExtractionOptions = {}
+): Promise<ExtractionResult> {
+  const model = options.model || 'gpt-4o-mini';
+
+  // Preprocess document
+  const preprocessedText = preprocessDocument(documentText);
+  console.log(`[smart] Document: ${preprocessedText.length} chars`);
+
+  // Quick heuristic scan to determine extraction strategy
+  const { candidates } = findCandidatesHeuristically(preprocessedText);
+  console.log(`[smart] Heuristic scan: ${candidates.length} candidates`);
+
+  // If many candidates, use full-context chunked extraction
+  if (candidates.length > 80) {
+    console.log(`[smart] Using FULL-CONTEXT extraction (${candidates.length} candidates > 80 threshold)`);
+    return extractRequirementsFullContext(preprocessedText, model);
+  }
+
+  // Otherwise, use single-pass extraction
+  console.log(`[smart] Using SINGLE-PASS extraction (${candidates.length} candidates <= 80 threshold)`);
+  return extractRequirements(documentText, options);
+}

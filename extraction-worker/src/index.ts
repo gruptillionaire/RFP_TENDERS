@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import crypto from 'crypto';
-import { extractRequirements } from './extract';
+import { extractRequirementsSmart } from './extract';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -147,7 +147,7 @@ app.post('/extract-async', validateWorkerKey, async (req, res) => {
   const startTime = Date.now();
 
   try {
-    const result = await extractRequirements(documentText, { model });
+    const result = await extractRequirementsSmart(documentText, { model });
     const elapsed = Date.now() - startTime;
 
     console.log(`[/extract-async] Job ${jobId}: Complete with ${result.requirements.length} requirements in ${elapsed}ms`);
@@ -187,7 +187,7 @@ app.post('/extract', validateWorkerKey, async (req, res) => {
   console.log(`[/extract] Starting extraction of ${documentText.length} chars with model ${model || 'default'}`);
 
   try {
-    const result = await extractRequirements(documentText, { model });
+    const result = await extractRequirementsSmart(documentText, { model });
     const elapsed = Date.now() - startTime;
 
     console.log(`[/extract] Complete: ${result.requirements.length} requirements in ${elapsed}ms`);
