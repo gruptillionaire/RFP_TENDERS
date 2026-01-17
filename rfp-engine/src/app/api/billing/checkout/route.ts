@@ -139,10 +139,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle subscription checkout
-    const validPlans: PlanType[] = ["STARTER", "PRO", "TEAM", "BUSINESS"];
+    const validPlans: PlanType[] = ["STARTER", "PRO", "BUSINESS"];
     if (!plan || !validPlans.includes(plan)) {
       return NextResponse.json(
-        { error: "Invalid plan. Must be STARTER, PRO, TEAM, or BUSINESS." },
+        { error: "Invalid plan. Must be STARTER, PRO, or BUSINESS." },
         { status: 400 }
       );
     }

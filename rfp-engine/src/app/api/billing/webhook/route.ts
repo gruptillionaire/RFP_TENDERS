@@ -21,7 +21,7 @@ import {
 } from "@/lib/stripe";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
 import type Stripe from "stripe";
-import { sendSubscriptionStartedEmail, sendSubscriptionCancelledEmail } from "@/lib/email";
+import { sendSubscriptionStartedEmail, sendSubscriptionCancelledEmail, sendPaymentFailedEmail } from "@/lib/email";
 
 // Disable body parsing to get raw body for signature verification
 export const dynamic = "force-dynamic";
@@ -346,8 +346,8 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     const planNames: Record<string, string> = {
       STARTER: "Starter",
       PRO: "Pro",
-      TEAM: "Team",
       BUSINESS: "Business",
+      ENTERPRISE: "Enterprise",
     };
     sendSubscriptionStartedEmail(user.email, planNames[plan] || plan).catch((err) =>
       console.error("Failed to send subscription started email:", err)
@@ -407,8 +407,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const planNames: Record<string, string> = {
       STARTER: "Starter",
       PRO: "Pro",
-      TEAM: "Team",
       BUSINESS: "Business",
+      ENTERPRISE: "Enterprise",
     };
     const endDate = user.currentPeriodEnd
       ? user.currentPeriodEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
@@ -513,5 +513,27 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 
   console.log(`Payment failed for user ${user.id} (attempt ${invoice.attempt_count})`);
 
-  // TODO: Send email notification about failed payment
+  // Send email notification about failed payment
+  if (user.email) {
+    const planNames: Record<string, string> = {
+      STARTER: "Starter",
+      PRO: "Pro",
+      BUSINESS: "Business",
+      ENTERPRISE: "Enterprise",
+    };
+    const planName = planNames[user.plan] || user.plan;
+
+    // Format amount (Stripe amounts are in cents)
+    const amount = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: invoice.currency.toUpperCase(),
+    }).format(invoice.amount_due / 100);
+
+    // Link to settings page where they can access billing portal
+    const updatePaymentUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://rfpmatrix.com"}/settings`;
+
+    sendPaymentFailedEmail(user.email, planName, amount, updatePaymentUrl).catch((err) =>
+      console.error("Failed to send payment failed email:", err)
+    );
+  }
 }
