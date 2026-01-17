@@ -299,9 +299,13 @@ const PATTERN_FAMILIES: PatternFamily[] = [
     id: 'parenthetical',
     name: 'Parenthetical ((1), (a))',
     detectionPatterns: [
-      /(?:^|\n)\s*\(\d+\)\s+[A-Z]/gm,      // (1) followed by text
-      /(?:^|\n)\s*\([a-z]\)\s+[A-Z]/gm,    // (a) followed by text
-      /(?:^|\n)\s*\d+\)\s+[A-Z]/gm,        // 1) followed by text
+      /(?:^|\n)\s*\(\d+\)\s+[A-Z]/gm,      // (1) followed by text at line start
+      /(?:^|\n)\s*\([a-z]\)\s+[A-Z]/gm,    // (a) followed by text at line start
+      /(?:^|\n)\s*\d+\)\s+[A-Z]/gm,        // 1) followed by text at line start
+      // Inline detection (after sentence endings) for documents where items aren't at line start
+      /[.?!]\s+\(\d+\)\s+[A-Z]/gm,         // (1) after sentence ending
+      /[.?!]\s+\d+\)\s+[A-Z]/gm,           // 1) after sentence ending
+      /[.?!]\s+[A-Z]\)\s+[A-Z]/gm,         // A) after sentence ending
     ],
     minMatchesForDetection: 3,
     extractionPatterns: [
@@ -344,6 +348,32 @@ const PATTERN_FAMILIES: PatternFamily[] = [
         getSectionNumber: (m) => `${m[1]})`,
         priority: 40,
         requiresLineStart: true,
+      },
+      // ---- INLINE PATTERNS (after sentence endings) ----
+      // For documents where numbered items appear mid-line after sentences
+      // (Number) inline: (1), (2) after sentence ending
+      {
+        pattern: /[.?!]\s+\((\d+)\)\s+/gm,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `(${m[1]})`,
+        priority: 75,  // Lower than line-start version (80)
+        requiresLineStart: false,
+      },
+      // Number) inline: 1), 2) after sentence ending
+      {
+        pattern: /[.?!]\s+(\d+)\)\s+/gm,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `${m[1]})`,
+        priority: 45,  // Lower than line-start version (50)
+        requiresLineStart: false,
+      },
+      // Letter) inline: A), B) after sentence ending (uppercase)
+      {
+        pattern: /[.?!]\s+([A-Z])\)\s+/gm,
+        getMajorSection: (m) => 'P',
+        getSectionNumber: (m) => `${m[1]})`,
+        priority: 35,  // New pattern for uppercase letters
+        requiresLineStart: false,
       },
     ],
     majorSectionPatterns: [
@@ -917,6 +947,16 @@ export function findQuestionCandidates(
     // Skip if it's just a list of proper nouns without verbs
     const hasVerb = /\b(is|are|does|do|can|will|would|should|must|shall|have|has|provide|describe|explain|support|require)\b/i.test(rawText);
     if (!hasVerb && rawText.length < 100) continue;
+
+    // === MAINTENANCE TICKET / WORK ORDER GARBAGE DETECTION ===
+    // Skip maintenance ticket patterns: "MLK, 1st floor - Can we please..."
+    if (/^\w+,\s+(?:\w+\s+)?\d+.*-/.test(rawText)) continue;  // "MLK, 1st floor -"
+    // Skip timestamps often found in work tickets: 4/17/24 11:22:58
+    if (/\d{1,2}\/\d{1,2}\/\d{2,4}\s+\d{1,2}:\d{2}/.test(rawText)) continue;
+    // Skip overly casual/informal questions (maintenance requests)
+    if (/\b(?:please can|can we please|can someone|can you)\b/i.test(rawText) && rawText.length < 80) continue;
+    // Skip building/room reference patterns at start: "FAC, RM 216", "MLK, Room 101"
+    if (/^[A-Z]{2,}\s*,\s*(?:RM|Room|Floor|Bldg)/i.test(rawText)) continue;
 
     // Try to find a section context by looking backwards
     const beforeText = text.substring(Math.max(0, match.index - 200), match.index);
