@@ -41,3 +41,29 @@ export const PAGE_LIMITS = {
 } as const;
 
 export type RequirementType = keyof typeof TOKEN_LIMITS;
+
+// =============================================================================
+// EXTRACTION CONFIGURATION
+// =============================================================================
+
+/**
+ * Feature flags for extraction architecture
+ *
+ * USE_HEURISTIC_EXTRACTION: false = Use external LLM worker for full extraction
+ *                           true  = Use local heuristic extraction (fast but limited)
+ *
+ * To re-enable heuristics, set USE_HEURISTIC_EXTRACTION = true
+ */
+export const EXTRACTION_CONFIG = {
+  /** Use external worker for LLM extraction instead of heuristics */
+  USE_HEURISTIC_EXTRACTION: false,
+
+  /** External worker URL for LLM extraction */
+  WORKER_URL: process.env.EXTRACTION_WORKER_URL || 'http://localhost:3001',
+
+  /** Timeout for worker requests (ms) - can be long for big documents */
+  WORKER_TIMEOUT: 5 * 60 * 1000, // 5 minutes
+
+  /** Model to use for extraction */
+  EXTRACTION_MODEL: 'gpt-4o-mini',
+} as const;
