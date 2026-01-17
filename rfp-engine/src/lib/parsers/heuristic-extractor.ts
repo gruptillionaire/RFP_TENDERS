@@ -562,17 +562,52 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       .trim();
 
     // Strip DOCX table markers that may have bled into requirement text
+    // IMPORTANT: Order matters! Full [Col X] must be cleaned BEFORE partial Col X]
+    // Process multiple passes as some markers are nested
+    let prevLength;
+    do {
+      prevLength = cleanedText.length;
+      cleanedText = cleanedText
+        // First: Full bracket markers (must come before partial pattern cleanup)
+        .replace(/\[TABLE START\]/gi, '')
+        .replace(/\[TABLE END\]/gi, '')
+        .replace(/\[HEADER\]/gi, '')
+        .replace(/\[Col \d+\]/gi, '')  // Full [Col X] - MUST be before partial Col X]
+        .replace(/\[ROW \d+\]/gi, '')
+        // Then: Partial markers (missing opening bracket) - AFTER full patterns
+        .replace(/\bCol \d+\]/g, '')
+        .trim();
+    } while (cleanedText.length !== prevLength && prevLength > 0);
+
     cleanedText = cleanedText
-      .replace(/\[TABLE START\]/g, '')
-      .replace(/\[TABLE END\]/g, '')
-      .replace(/\[ROW \d+\]/g, '')
-      .replace(/\[HEADER\]/g, '')
-      .replace(/\[Col \d+\]\s*/g, '')
       // Strip box-drawing characters (table borders from DOCX)
       .replace(/[═─│╔╗╚╝╠╣╦╩╬╒╓╘╙╛╜╞╟╡╢╤╥╧╨╪╫]+/g, '')
-      // Strip stray table cell separators
-      .replace(/\s*\|\s*$/g, '')
-      .replace(/^\s*\|\s*/g, '')
+      // Strip evaluation column patterns (common in RFP response tables)
+      .replace(/\|\s*(?:Pass|Fail|Yes|No|Compliant|Non-?compliant|N\/A|TBD|TBC)[\/|]?(?:Pass|Fail|Yes|No|Compliant|Non-?compliant|N\/A|TBD|TBC)?\s*/gi, '')
+      // Strip response prompts from form-based RFPs
+      .replace(/\s*(?:Enter|Type|Insert|Provide)\s+(?:response|answer|reply)\s+here:?\s*/gi, '')
+      .replace(/\s*(?:Bidder|Vendor|Contractor|Respondent)\s+(?:response|answer|reply):?\s*/gi, '')
+      // Strip stray table cell separators and pipes
+      .replace(/\s*\|\s*/g, ' ')  // Convert all pipes to spaces
+      // Clean multiple whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Strip trailing content that looks like next requirement title bleeding in
+    // These are typically 1-4 words at the end, after the actual requirement question ends
+    // Pattern examples: "Dedicated IP address", "Account structure", "Send volumes", "Demo accounts"
+    cleanedText = cleanedText
+      // After closing paren: "...(text)Dedicated IP address" → "...(text)"
+      // Matches: Capital word + optional lowercase/mixed words after, possibly dash-separated
+      .replace(/\)[\s]*((?:[A-Z][a-zA-Z]*(?:\s+[a-zA-Z]+|\s*-\s*[A-Za-z]+)*)+)$/, ')')
+      // After sentence-ending punctuation: "...answer? Account structure" → "...answer?"
+      .replace(/([.?!]["']?)\s+((?:[A-Z][a-zA-Z]*(?:\s+[a-zA-Z]+|\s*-\s*[A-Za-z]+)*)+)\s*$/, (match, punct, title) => {
+        // Only strip if the title is short (likely a next section heading)
+        if (title.length > 50) return match;
+        // Keep if it has common sentence words (probably not a title)
+        if (/\b(?:the|and|or|is|are|was|were|a|an|to|for|in|of|on|with|by|from|as|at|this|that|these|those|it|its|can|will|would|should|must|may|might|have|has|had|been|being|do|does|did|so|than|also|just|only|about|after|before|into|through|during|without|within)\b/i.test(title)) return match;
+        return punct; // Keep the punctuation, strip the title
+      })
       .trim();
 
     // Detect and format inline lists (items separated by double-space OR matching "N - Item" pattern)
@@ -821,7 +856,22 @@ export function findQuestionCandidates(
     // Skip if already covered by a numbered candidate
     if (isPositionCovered(match.index)) continue;
 
-    const rawText = match[0].trim();
+    let rawText = match[0].trim();
+
+    // Apply table marker cleanup (same as numbered candidates)
+    let prevLen;
+    do {
+      prevLen = rawText.length;
+      rawText = rawText
+        .replace(/\[TABLE START\]/gi, '')
+        .replace(/\[TABLE END\]/gi, '')
+        .replace(/\[HEADER\]/gi, '')
+        .replace(/\[Col \d+\]/gi, '')
+        .replace(/\[ROW \d+\]/gi, '')
+        .replace(/\bCol \d+\]/g, '')
+        .trim();
+    } while (rawText.length !== prevLen && prevLen > 0);
+    rawText = rawText.replace(/\s*\|\s*/g, ' ').replace(/\s+/g, ' ').trim();
 
     // Skip short questions (likely not requirements)
     if (rawText.length < 30) continue;
@@ -954,6 +1004,63 @@ export interface ClassifiedRequirement {
   mandatoryPattern?: string;
   /** Original position in document */
   position: number;
+  /** Whether this requirement needs manual review due to potential extraction issues */
+  needsReview: boolean;
+  /** Reasons why this requirement needs review (if any) */
+  reviewReasons?: string[];
+}
+
+/**
+ * Detect if a requirement looks "funky" and needs manual review.
+ * Returns an array of reasons if issues found, empty array if clean.
+ */
+function detectReviewReasons(text: string, sectionNumber: string): string[] {
+  const reasons: string[] = [];
+
+  // Check for leftover table markers
+  if (/\[Col\s*\d*\]?|\[ROW\s*\d*\]?|\[TABLE|\[HEADER\]/i.test(text)) {
+    reasons.push('Contains table markers');
+  }
+
+  // Check for stray pipe characters (likely table artifacts)
+  if (/\s\|\s/.test(text) || /^\s*\||\|\s*$/.test(text)) {
+    reasons.push('Contains pipe characters (possible table artifact)');
+  }
+
+  // Check for box-drawing characters
+  if (/[═─│╔╗╚╝╠╣╦╩╬╒╓╘╙╛╜╞╟╡╢╤╥╧╨╪╫]/.test(text)) {
+    reasons.push('Contains box-drawing characters');
+  }
+
+  // Check for very short text (after cleanup)
+  if (text.trim().length < 25) {
+    reasons.push('Very short text (< 25 chars)');
+  }
+
+  // Check for multiple section numbers embedded in text (extraction error)
+  const sectionPatterns = text.match(/\b\d+\.\d+(?:\.\d+)?\b/g) || [];
+  if (sectionPatterns.length > 2) {
+    reasons.push('Multiple section numbers in text (possible extraction error)');
+  }
+
+  // Check for high ratio of special characters (excluding common punctuation)
+  const specialChars = text.match(/[^\w\s.,;:?!'"\-()]/g) || [];
+  const specialRatio = specialChars.length / text.length;
+  if (specialRatio > 0.1 && text.length > 50) {
+    reasons.push('High ratio of special characters');
+  }
+
+  // Check for repeated characters suggesting OCR/parsing errors (6+ in a row)
+  if (/(.)\1{5,}/.test(text)) {
+    reasons.push('Repeated characters (possible OCR error)');
+  }
+
+  // Check for section number mismatch (Q is placeholder for question-based)
+  if (sectionNumber === 'Q') {
+    reasons.push('No section number detected (question-based extraction)');
+  }
+
+  return reasons;
 }
 
 export interface ClassifiedExtractionResult {
@@ -964,12 +1071,15 @@ export interface ClassifiedExtractionResult {
     mandatory: number;
     optional: number;
     lowConfidenceCount: number;
+    needsReviewCount: number;
     avgTypeConfidence: number;
     avgMandatoryConfidence: number;
     extractionTimeMs: number;
   };
   /** Requirement IDs that may benefit from LLM refinement */
   lowConfidenceIds: string[];
+  /** Requirement IDs that need manual review due to extraction issues (skip LLM) */
+  needsReviewIds: string[];
 }
 
 // =============================================================================
@@ -998,6 +1108,7 @@ export function extractAndClassifyHeuristically(
   // Step 2: Classify each candidate
   const requirements: ClassifiedRequirement[] = [];
   const lowConfidenceIds: string[] = [];
+  const needsReviewIds: string[] = [];
   const typeCounters: Record<RequirementType, number> = {
     DECLARATIVE: 0,
     DESCRIPTIVE: 0,
@@ -1035,10 +1146,20 @@ export function extractAndClassifyHeuristically(
       sectionGroup
     );
 
-    // Track if low confidence
+    // Check if requirement needs manual review (funky extraction)
+    const reviewReasons = detectReviewReasons(candidate.rawText, candidate.sectionNumber);
+    const needsReview = reviewReasons.length > 0;
+
+    if (needsReview) {
+      needsReviewIds.push(id);
+    }
+
+    // Track if low confidence (only for non-review items - no point sending funky ones to LLM)
     const isLowConfidence =
-      typeClassification.confidence < confidenceThreshold ||
-      mandatoryClassification.confidence < confidenceThreshold;
+      !needsReview && (
+        typeClassification.confidence < confidenceThreshold ||
+        mandatoryClassification.confidence < confidenceThreshold
+      );
 
     if (isLowConfidence) {
       lowConfidenceIds.push(id);
@@ -1073,6 +1194,8 @@ export function extractAndClassifyHeuristically(
       mandatoryConfidence: mandatoryClassification.confidence,
       mandatoryPattern: mandatoryClassification.matchedPattern,
       position: i,
+      needsReview,
+      reviewReasons: needsReview ? reviewReasons : undefined,
     });
   }
 
@@ -1085,6 +1208,7 @@ export function extractAndClassifyHeuristically(
     mandatory: mandatoryCount,
     optional: requirements.length - mandatoryCount,
     lowConfidenceCount: lowConfidenceIds.length,
+    needsReviewCount: needsReviewIds.length,
     avgTypeConfidence: requirements.length > 0
       ? Math.round(totalTypeConfidence / requirements.length)
       : 0,
@@ -1097,6 +1221,7 @@ export function extractAndClassifyHeuristically(
   console.log(`[heuristic-extractor] Classification complete:`, {
     total: stats.total,
     lowConfidence: stats.lowConfidenceCount,
+    needsReview: stats.needsReviewCount,
     avgTypeConfidence: stats.avgTypeConfidence,
     avgMandatoryConfidence: stats.avgMandatoryConfidence,
     timeMs: elapsed,
@@ -1107,5 +1232,6 @@ export function extractAndClassifyHeuristically(
     requirements,
     stats,
     lowConfidenceIds,
+    needsReviewIds,
   };
 }
