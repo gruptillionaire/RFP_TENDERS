@@ -684,6 +684,454 @@ Extract to the ABSOLUTE END of the provided text. Count your extracted items and
 ==============================================================================`;
 
 // =============================================================================
+// DOCUMENT STRUCTURE DETECTION
+// =============================================================================
+
+/**
+ * Detect section structure in document to help guide complete extraction.
+ * Returns a summary of all sections found (e.g., "3.1 through 3.17, 4.1 through 4.6")
+ */
+function detectDocumentSections(text: string): string {
+  // Find all section patterns like 3.1, 3.1.1, 4.2.3, etc.
+  const sectionPattern = /\b(\d+)\.(\d+)(?:\.(\d+))?\b/g;
+  const sections = new Map<string, Set<number>>();
+
+  let match;
+  while ((match = sectionPattern.exec(text)) !== null) {
+    const major = match[1];
+    const minor = parseInt(match[2], 10);
+
+    if (!sections.has(major)) {
+      sections.set(major, new Set());
+    }
+    sections.get(major)!.add(minor);
+  }
+
+  if (sections.size === 0) {
+    return '';
+  }
+
+  // Build summary
+  const summaryParts: string[] = [];
+  const sortedMajors = Array.from(sections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
+
+  for (const major of sortedMajors) {
+    const minors = Array.from(sections.get(major)!).sort((a, b) => a - b);
+    if (minors.length > 0) {
+      const min = minors[0];
+      const max = minors[minors.length - 1];
+      if (min === max) {
+        summaryParts.push(`Section ${major}.${min}`);
+      } else {
+        summaryParts.push(`Section ${major}: subsections ${major}.${min} through ${major}.${max}`);
+      }
+    }
+  }
+
+  return summaryParts.join('; ');
+}
+
+// =============================================================================
+// HELPER FUNCTIONS (from main app)
+// =============================================================================
+
+/**
+ * Detect if a requirement text contains multiple concatenated requirements
+ * Returns the count of detected requirement numbers
+ */
+function detectConcatenatedRequirements(text: string): string[] {
+  // Pattern for requirement numbers: 3.1.1, 3.1.2, A.1.1, etc.
+  const reqNumberPattern = /\b(\d+\.\d+\.\d+|[A-Z]\.\d+\.\d+)\b/g;
+  const matches = text.match(reqNumberPattern);
+  return matches || [];
+}
+
+/**
+ * Split a concatenated requirement text into individual requirements
+ * Returns array of {section, text} objects
+ */
+function splitConcatenatedRequirement(text: string): Array<{ section: string; text: string }> {
+  const results: Array<{ section: string; text: string }> = [];
+
+  // Pattern to split on requirement numbers
+  const splitPattern = /(\d+\.\d+\.\d+|\d+\.\d+\s*[a-z]\)|[A-Z]\.\d+\.\d+)\s+/g;
+
+  // Find all requirement number positions
+  const parts: Array<{ index: number; section: string }> = [];
+  let match;
+
+  while ((match = splitPattern.exec(text)) !== null) {
+    parts.push({
+      index: match.index,
+      section: match[1].trim(),
+    });
+  }
+
+  // If no splits found, return original as single item
+  if (parts.length === 0) {
+    return [{ section: '', text: text.trim() }];
+  }
+
+  // Extract text for each requirement
+  for (let i = 0; i < parts.length; i++) {
+    const start = parts[i].index + parts[i].section.length;
+    const end = i < parts.length - 1 ? parts[i + 1].index : text.length;
+    const reqText = text.substring(start, end).trim();
+
+    if (reqText.length > 0) {
+      results.push({
+        section: parts[i].section,
+        text: reqText,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Check if text looks like a section header rather than a requirement
+ * Section headers are typically short titles without question marks
+ */
+function isSectionHeader(text: string): boolean {
+  const trimmed = text.trim();
+
+  // Headers are typically short (under 100 chars)
+  if (trimmed.length > 100) return false;
+
+  // Headers don't contain question marks
+  if (trimmed.includes('?')) return false;
+
+  // Headers are usually title case or ALL CAPS
+  const words = trimmed.split(/\s+/);
+  const titleCaseWords = words.filter(w => /^[A-Z]/.test(w)).length;
+  const isTitleCase = titleCaseWords / words.length > 0.5;
+
+  // Headers often end with a colon or are just a title
+  const endsWithColon = trimmed.endsWith(':');
+
+  // Headers don't start with common requirement verbs
+  const startsWithReqVerb = /^(Does|Do|Can|Will|Should|Must|Is|Are|Has|Have|Describe|Explain|Provide)/i.test(trimmed);
+
+  return (isTitleCase || endsWithColon) && !startsWithReqVerb;
+}
+
+/**
+ * Format a list within requirement text
+ * Ensures proper line breaks and indentation for lists
+ */
+function formatListInRequirement(text: string): string {
+  let result = text;
+
+  // Ensure bullet points start on new lines
+  result = result.replace(/([.?!])\s*(•)/g, '$1\n$2');
+
+  // Ensure numbered items start on new lines
+  result = result.replace(/([.?!])\s*(\d+\.|\([a-z]\)|[a-z]\))/g, '$1\n$2');
+
+  // Add indentation to list items for clarity
+  result = result.replace(/\n(•|\d+\.|\([a-z]\)|[a-z]\))/g, '\n  $1');
+
+  return result;
+}
+
+/**
+ * Extract major category from section reference
+ * Examples:
+ *   "A.1.2" → "A" (single letter)
+ *   "3.4.1" → "3" (number + non-letter)
+ *   "III.2" → "III" (Roman numeral)
+ *   "MANDATORY REQUIREMENTS" → "MANDATORY REQUIREMENTS" (letter + letter = full title)
+ */
+function extractMajorCategory(section: string): string {
+  const trimmed = section.trim();
+  if (!trimmed) return trimmed;
+
+  const firstChar = trimmed[0];
+  const secondChar = trimmed[1] || '';
+
+  // 1. Starts with digit → extract leading number
+  if (/\d/.test(firstChar)) {
+    const numMatch = trimmed.match(/^(\d+)/);
+    return numMatch ? numMatch[1] : trimmed;
+  }
+
+  // 2. Starts with letter
+  if (/[A-Z]/i.test(firstChar)) {
+    // If second char is NOT a letter, it's a single-letter section
+    // Matches: "A:", "A.", "A-", "A1", "A ", or just "A"
+    if (!/[A-Z]/i.test(secondChar)) {
+      return firstChar.toUpperCase();
+    }
+
+    // Second char IS a letter - check for Roman numerals (I, II, III, IV, V, etc.)
+    const romanMatch = trimmed.match(/^([IVX]+)(?:[^A-Z]|$)/i);
+    if (romanMatch) {
+      return romanMatch[1].toUpperCase();
+    }
+
+    // Not a single letter, not a Roman numeral
+    // It's a full title like "MANDATORY REQUIREMENTS" - return as-is
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
+// =============================================================================
+// POST-PROCESSING FUNCTIONS (from main app)
+// =============================================================================
+
+/**
+ * Validate requirement type, defaulting to DESCRIPTIVE if invalid
+ */
+function validateRequirementType(type: string): RequirementType {
+  const validTypes: RequirementType[] = [
+    "CONTEXTUAL",
+    "PROCEDURAL",
+    "DECLARATIVE",
+    "DESCRIPTIVE",
+    "EVIDENCE_BASED",
+    "QUANTITATIVE",
+    "REFERENCE_BASED",
+    "STAFFING",
+  ];
+  if (validTypes.includes(type as RequirementType)) {
+    return type as RequirementType;
+  }
+  return "DESCRIPTIVE"; // Default fallback
+}
+
+/**
+ * Heuristic correction: DESCRIPTIVE → QUANTITATIVE for actual financial/numeric requirements
+ */
+function correctQuantitativeType(text: string, llmType: RequirementType): RequirementType {
+  // Only correct DESCRIPTIVE classifications
+  if (llmType !== "DESCRIPTIVE") return llmType;
+
+  const lowerText = text.toLowerCase();
+
+  // STEP 1: Require STRICT financial indicators (not generic words)
+  const strictFinancialIndicators = [
+    /[£$€¥]/,                           // Currency symbols
+    /\b\d+(\.\d+)?\s*%/,                // Percentage with number (e.g., "5%", "10.5%")
+    /\bpric(e|es|ing)\b/,               // Price (word boundary required)
+    /\bcost(s|ing)?\b/,                 // Cost
+    /\bfee(s)?\b/,                      // Fee
+    /\bbudget\b/,                       // Budget
+    /\bquot(e|ation)\b/,                // Quote/quotation
+    /\btariff\b/,                       // Tariff
+    /\b(hourly|daily|annual)\s+rate\b/, // Specific rate types
+  ];
+
+  const hasFinancialIndicator = strictFinancialIndicators.some(p => p.test(lowerText));
+
+  // If no financial context at all, keep DESCRIPTIVE
+  if (!hasFinancialIndicator) {
+    return llmType;
+  }
+
+  // STEP 2: Exclude process/approach questions (these are DESCRIPTIVE even with financial terms)
+  const processPatterns = [
+    /\bapproach\s+to\s+(pricing|cost|fee)/i,
+    /\bdescribe\s+(your\s+)?approach\b/i,
+    /\bexplain\s+(your\s+)?approach\b/i,
+    /\bexplain\s+how\s+you\b/i,
+    /\bmethodology\s+(for|of)\b/i,
+    /\bstrategy\s+for\b/i,
+    /\bhow\s+do\s+you\s+(handle|manage|approach)\b/i,
+    /\bdescribe\s+your\s+.{0,30}(process|method|approach|strategy)/i,
+  ];
+
+  if (processPatterns.some(p => p.test(lowerText))) {
+    return llmType; // Asking about process, not specific numbers
+  }
+
+  // STEP 3: Require explicit "asking for numbers" pattern
+  const askingForNumbersPatterns = [
+    /\bprovide\s+(your\s+)?(pricing|costs?|fees?|rates?)\b/i,
+    /\bwhat\s+(is|are)\s+(your|the)\s+(price|cost|fee|rate)\b/i,
+    /\blist\s+(your\s+)?(pricing|rates?|fees?|costs?)\b/i,
+    /\btotal\s+(cost|price|amount|fee)\b/i,
+    /\bquote\s+(for|your)\b/i,
+    /\bprovide\s+a\s+(breakdown|schedule)\s+of\b/i,
+    /\bstate\s+(your|the)\s+(price|cost|fee|rate)\b/i,
+  ];
+
+  if (askingForNumbersPatterns.some(p => p.test(lowerText))) {
+    return "QUANTITATIVE";
+  }
+
+  // Currency symbol followed by digit = definitely QUANTITATIVE
+  if (/[£$€¥]\s*\d/.test(text)) {
+    return "QUANTITATIVE";
+  }
+
+  // Has financial terms but not clearly asking for numbers - keep DESCRIPTIVE
+  return llmType;
+}
+
+/**
+ * Post-process extracted requirements to split any that were incorrectly concatenated.
+ * The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one.
+ * This function detects and splits them.
+ */
+function splitConcatenatedRequirementsPostProcess(
+  requirements: ExtractedRequirement[]
+): ExtractedRequirement[] {
+  const result: ExtractedRequirement[] = [];
+  let splitCount = 0;
+
+  for (const req of requirements) {
+    // Check for multiple requirement numbers in the text
+    const detectedNumbers = detectConcatenatedRequirements(req.text);
+
+    // If 2+ requirement numbers found, this needs splitting
+    if (detectedNumbers.length >= 2) {
+      console.log(`[splitConcatenatedRequirements] Detected ${detectedNumbers.length} concatenated requirements in section ${req.section}:`, detectedNumbers);
+
+      const splitParts = splitConcatenatedRequirement(req.text);
+
+      for (const part of splitParts) {
+        // Skip empty parts
+        if (!part.text.trim()) continue;
+
+        // Check if this part is actually a section header (not a requirement)
+        if (isSectionHeader(part.text)) {
+          result.push({
+            ...req,
+            text: part.text,
+            section: part.section || req.section,
+            type: "CONTEXTUAL", // Section headers are contextual
+          });
+        } else {
+          result.push({
+            ...req,
+            text: formatListInRequirement(part.text), // Preserve list formatting
+            section: part.section || req.section,
+            // Re-detect type based on the actual requirement text
+            type: validateRequirementType(req.type),
+          });
+        }
+        splitCount++;
+      }
+    } else {
+      // No concatenation detected, but still format lists
+      result.push({
+        ...req,
+        text: formatListInRequirement(req.text),
+      });
+    }
+  }
+
+  if (splitCount > 0) {
+    console.log(`[splitConcatenatedRequirements] Split ${splitCount} concatenated requirements. Total requirements: ${result.length}`);
+  }
+
+  return result;
+}
+
+/**
+ * Detect and classify section headers that the LLM might have missed marking as CONTEXTUAL.
+ * Subsection titles (e.g., "3.1 Design, Form, and Templates") should be CONTEXTUAL, not DESCRIPTIVE.
+ */
+function reclassifySectionHeaders(requirements: ExtractedRequirement[]): void {
+  for (const req of requirements) {
+    // Skip if already CONTEXTUAL
+    if (req.type === "CONTEXTUAL") continue;
+
+    // Check if this looks like a section header
+    if (isSectionHeader(req.text)) {
+      console.log(`[reclassifySectionHeaders] Reclassifying "${req.text.substring(0, 50)}..." from ${req.type} to CONTEXTUAL`);
+      req.type = "CONTEXTUAL";
+    }
+  }
+}
+
+/**
+ * Post-process to enrich sectionGroup with titles from document structure.
+ * If LLM didn't provide a sectionGroup or it lacks a title, derive it from the document.
+ */
+function enrichSectionData(requirements: ExtractedRequirement[], documentText: string): void {
+  // Build a map of major section numbers to their titles from document headings
+  const sectionTitleMap = new Map<string, string>();
+
+  console.log("[enrichSectionData] Starting section enrichment...");
+
+  // Multi-pattern heading extraction for different document formats
+  const headingPatterns = [
+    // Pattern 1: Markdown headings (from DOCX parser)
+    /#+\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*\s*[:\-.\s]\s*([A-Z][A-Za-z\s,&\-]+)/gi,
+
+    // Pattern 2: Plain text section headers with colon separator
+    /(?:^|\n)\s*([A-Z]|[IVXLC]+|\d+)[.:\)]*\s*:\s*([A-Z][A-Za-z\s,&\-]{3,})/gi,
+
+    // Pattern 3: Plain text section headers with period separator
+    /(?:^|\n)\s*([A-Z]|[IVXLC]+|\d+)\.\s+([A-Z][A-Za-z\s,&\-]{3,})/gi,
+
+    // Pattern 4: "SECTION X:" format
+    /(?:^|\n)\s*SECTION\s+([A-Z]|\d+)[.:\)]*\s*[:\-.\s]\s*([A-Z][A-Za-z\s,&\-]+)/gi,
+
+    // Pattern 5: Parenthetical section markers
+    /(?:^|\n)\s*\(([A-Z]|\d+)\)\s+([A-Z][A-Za-z\s,&\-]{3,})/gi,
+
+    // Pattern 6: All-caps title following section number
+    /(?:^|\n)\s*([A-Z])\s{2,}([A-Z][A-Z\s,&\-]{5,})/g,
+  ];
+
+  // Try each pattern and collect all matches
+  for (const pattern of headingPatterns) {
+    for (const match of documentText.matchAll(pattern)) {
+      const num = match[1].toUpperCase();
+      const title = match[2].trim();
+      // Only add if we found a valid title and haven't already found one for this section
+      if (title.length > 2 && !sectionTitleMap.has(num)) {
+        sectionTitleMap.set(num, title);
+        console.log(`[enrichSectionData] Found section title: ${num} -> "${title}"`);
+      }
+    }
+  }
+
+  console.log(`[enrichSectionData] Found ${sectionTitleMap.size} section titles in document`);
+
+  // Enrich each requirement's sectionGroup
+  for (const req of requirements) {
+    // Skip if no section reference at all
+    if (!req.section && !req.sectionGroup) continue;
+
+    // Extract major category from section (A.1.2 → A)
+    const majorCategory = req.section
+      ? extractMajorCategory(req.section)
+      : (req.sectionGroup ? extractMajorCategory(req.sectionGroup) : null);
+
+    if (!majorCategory) continue;
+
+    // Check if sectionGroup needs enrichment
+    const sectionGroupTrimmed = (req.sectionGroup || '').trim();
+    const needsEnrichment =
+      !req.sectionGroup ||
+      /^([A-Z]|\d+|[IVXLC]+)[.:\)\s]*$/i.test(sectionGroupTrimmed) || // Just a number/letter
+      /^[A-Z]\d+$/i.test(sectionGroupTrimmed) || // Letter+number like "A15"
+      /^[A-Z][.\-]\d/i.test(sectionGroupTrimmed) || // Subsection like "A.1"
+      /^\d+\.\d/i.test(sectionGroupTrimmed) || // Numeric subsection like "3.4"
+      (req.section && req.sectionGroup === req.section) || // sectionGroup equals section
+      (!sectionGroupTrimmed.includes(':') && sectionGroupTrimmed.length < 20); // Missing ": TITLE"
+
+    if (needsEnrichment) {
+      const title = sectionTitleMap.get(majorCategory.toUpperCase());
+      if (title) {
+        const oldValue = req.sectionGroup;
+        req.sectionGroup = `${majorCategory}: ${title}`;
+        console.log(`[enrichSectionData] Enriched: "${oldValue}" -> "${req.sectionGroup}"`);
+      } else if (!req.sectionGroup || !req.sectionGroup.includes(':')) {
+        // No title found, at least set the major category
+        req.sectionGroup = majorCategory;
+      }
+    }
+  }
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -707,11 +1155,14 @@ export async function extractRequirements(
   console.log(`[extract] Document length: ${documentText.length} chars`);
 
   try {
+    // Build user message with instruction prefix
+    const userMessage = `Please extract all requirements and questions from this RFP document:\n\n${documentText}`;
+
     const response = await openai.chat.completions.create({
       model,
       messages: [
         { role: 'system', content: EXTRACTION_PROMPT },
-        { role: 'user', content: documentText },
+        { role: 'user', content: userMessage },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1, // Low temperature for consistent extraction
@@ -722,27 +1173,52 @@ export async function extractRequirements(
       throw new Error('Empty response from OpenAI');
     }
 
-    const result = JSON.parse(content) as ExtractionResult;
+    const rawResult = JSON.parse(content) as ExtractionResult;
     const elapsed = Date.now() - startTime;
 
-    console.log(`[extract] Complete: ${result.requirements?.length || 0} requirements in ${elapsed}ms`);
+    console.log(`[extract] Raw extraction: ${rawResult.requirements?.length || 0} requirements in ${elapsed}ms`);
     console.log(`[extract] Tokens used: ${response.usage?.total_tokens || 'unknown'}`);
 
-    // Normalize the response
+    // Normalize the response first
+    let requirements: ExtractedRequirement[] = (rawResult.requirements || []).map(req => ({
+      section: req.section || null,
+      sectionGroup: req.sectionGroup || null,
+      text: req.text || '',
+      type: req.type || 'DESCRIPTIVE',
+      isMandatory: req.isMandatory !== false, // Default to true
+      domainContext: req.domainContext || 'FEATURE',
+      wordLimit: req.wordLimit || null,
+      characterLimit: req.characterLimit || null,
+      isAttestation: req.isAttestation || false,
+    }));
+
+    // ==========================================================================
+    // POST-PROCESSING PIPELINE (from main app)
+    // ==========================================================================
+
+    console.log('[extract] Applying post-processing pipeline...');
+
+    // Step 1: Validate types and apply heuristic corrections
+    requirements = requirements.map(req => ({
+      ...req,
+      type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
+    }));
+
+    // Step 2: Split concatenated requirements
+    requirements = splitConcatenatedRequirementsPostProcess(requirements);
+
+    // Step 3: Reclassify section headers
+    reclassifySectionHeaders(requirements);
+
+    // Step 4: Enrich section data
+    enrichSectionData(requirements, documentText);
+
+    console.log(`[extract] Post-processing complete: ${requirements.length} requirements`);
+
     return {
-      deadline: result.deadline || null,
-      deadlineText: result.deadlineText || null,
-      requirements: (result.requirements || []).map(req => ({
-        section: req.section || null,
-        sectionGroup: req.sectionGroup || null,
-        text: req.text || '',
-        type: req.type || 'DESCRIPTIVE',
-        isMandatory: req.isMandatory !== false, // Default to true
-        domainContext: req.domainContext || 'FEATURE',
-        wordLimit: req.wordLimit || null,
-        characterLimit: req.characterLimit || null,
-        isAttestation: req.isAttestation || false,
-      })),
+      deadline: rawResult.deadline || null,
+      deadlineText: rawResult.deadlineText || null,
+      requirements,
     };
   } catch (error: unknown) {
     const elapsed = Date.now() - startTime;
