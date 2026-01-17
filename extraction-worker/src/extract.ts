@@ -714,13 +714,83 @@ You MUST extract requirements from the ENTIRE document, including:
 - The FINAL requirements in the document (do not stop at 90% - finish the full 100%)
 - Small sections that appear between larger ones (e.g., 3.2 between large 3.1 and 3.3)
 
+*** SECTION HIERARCHY - UNDERSTAND THIS ***
+Documents use multi-level numbering like:
+  3.0  (major section - contains 3.1, 3.2, 3.3, ..., 3.N)
+    3.1  (subsection - contains 3.1.1, 3.1.2, ..., 3.1.N)
+      3.1.1, 3.1.2, 3.1.3... (individual requirements)
+    3.2  (ANOTHER subsection - you MUST continue here!)
+      3.2.1, 3.2.2, 3.2.3...
+    3.3, 3.4, 3.5... (continue through ALL subsections)
+  4.0  (ANOTHER major section - you MUST continue here!)
+    4.1, 4.2, 4.3...
+
+*** DO NOT STOP AT SECTION BOUNDARIES ***
+When you finish extracting 3.1.N (the last item in subsection 3.1), you are NOT done!
+Look for 3.2, 3.3, 3.4, etc. - these are ADDITIONAL subsections with MORE requirements.
+When you finish section 3.N, look for section 4.0, 5.0, etc.
+
 COMMON FAILURE MODES TO AVOID:
+- Stopping after 3.1.20 when 3.2, 3.3, ... 3.17 exist (MAJOR ERROR)
 - Stopping at 3.15 when there's a 3.16, 3.17, etc.
 - Missing small subsections (3.2 only has 2 items but must still be extracted)
 - Skipping the last 2-3 requirements of a subsection
+- Not extracting section 4.0 after finishing section 3.0
+
+VERIFICATION: Before finishing, confirm you have extracted from ALL sections numbered in the document.
+If you see "3.17" in the document, you should have requirements from 3.1 through 3.17.
+If you see "4.6" in the document, you should have requirements from 4.1 through 4.6.
 
 Extract to the ABSOLUTE END of the provided text. Count your extracted items and verify coverage.
 ==============================================================================`;
+
+// =============================================================================
+// DOCUMENT STRUCTURE DETECTION
+// =============================================================================
+
+/**
+ * Detect section structure in document to help guide complete extraction.
+ * Returns a summary of all sections found (e.g., "3.1 through 3.17, 4.1 through 4.6")
+ */
+function detectDocumentSections(text: string): string {
+  // Find all section patterns like 3.1, 3.1.1, 4.2.3, etc.
+  const sectionPattern = /\b(\d+)\.(\d+)(?:\.(\d+))?\b/g;
+  const sections = new Map<string, Set<number>>();
+
+  let match;
+  while ((match = sectionPattern.exec(text)) !== null) {
+    const major = match[1];
+    const minor = parseInt(match[2], 10);
+
+    if (!sections.has(major)) {
+      sections.set(major, new Set());
+    }
+    sections.get(major)!.add(minor);
+  }
+
+  if (sections.size === 0) {
+    return '';
+  }
+
+  // Build summary
+  const summaryParts: string[] = [];
+  const sortedMajors = Array.from(sections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
+
+  for (const major of sortedMajors) {
+    const minors = Array.from(sections.get(major)!).sort((a, b) => a - b);
+    if (minors.length > 0) {
+      const min = minors[0];
+      const max = minors[minors.length - 1];
+      if (min === max) {
+        summaryParts.push(`Section ${major}.${min}`);
+      } else {
+        summaryParts.push(`Section ${major}: subsections ${major}.${min} through ${major}.${max}`);
+      }
+    }
+  }
+
+  return summaryParts.join('; ');
+}
 
 // =============================================================================
 // EXTRACTION FUNCTION
@@ -745,20 +815,46 @@ export async function extractRequirements(
   console.log(`[extract] Starting extraction with model ${model}`);
   console.log(`[extract] Document length: ${documentText.length} chars`);
 
+  // Detect document structure to help guide extraction
+  const sectionSummary = detectDocumentSections(documentText);
+  console.log(`[extract] Detected sections: ${sectionSummary || 'none detected'}`);
+
+  // Build user message with structure guidance if detected
+  let userMessage = documentText;
+  if (sectionSummary) {
+    userMessage = `DOCUMENT STRUCTURE DETECTED:
+${sectionSummary}
+
+You MUST extract requirements from ALL of these sections - do not stop early!
+
+---BEGIN DOCUMENT---
+${documentText}
+---END DOCUMENT---`;
+  }
+
   try {
     const response = await openai.chat.completions.create({
       model,
       messages: [
         { role: 'system', content: EXTRACTION_PROMPT },
-        { role: 'user', content: documentText },
+        { role: 'user', content: userMessage },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1, // Low temperature for consistent extraction
     });
 
     const content = response.choices[0]?.message?.content;
+    const finishReason = response.choices[0]?.finish_reason;
+
+    console.log(`[extract] Finish reason: ${finishReason}`);
+
     if (!content) {
       throw new Error('Empty response from OpenAI');
+    }
+
+    // Warn if output was truncated
+    if (finishReason === 'length') {
+      console.warn(`[extract] WARNING: Output was truncated due to token limit!`);
     }
 
     const result = JSON.parse(content) as ExtractionResult;
