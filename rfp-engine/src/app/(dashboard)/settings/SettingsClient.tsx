@@ -161,8 +161,8 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
       FREE: "No Active Subscription",
       STARTER: "Starter",
       PRO: "Pro",
-      TEAM: "Team",
       BUSINESS: "Business",
+      ENTERPRISE: "Enterprise",
     };
     return names[plan] || plan;
   };

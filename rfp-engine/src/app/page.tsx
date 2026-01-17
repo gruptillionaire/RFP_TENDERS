@@ -77,7 +77,7 @@ export default async function Home() {
               </Button>
             </Link>
           </div>
-          <p className="text-sm text-gray-500 mt-4">Plans from £49/month.</p>
+          <p className="text-sm text-gray-500 mt-4">Plans from $150/month.</p>
         </div>
 
         {/* Features */}
@@ -138,7 +138,7 @@ export default async function Home() {
               <h3 className="text-lg font-semibold text-gray-900">Starter</h3>
               <p className="text-sm text-gray-500 mt-1">For freelancers</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-gray-900">£49</span>
+                <span className="text-3xl font-bold text-gray-900">$150</span>
                 <span className="text-gray-500">/month</span>
               </div>
               <ul className="mt-6 space-y-2 text-sm">
@@ -146,30 +146,30 @@ export default async function Home() {
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>5 RFP extractions/month</span>
+                  <span>2 RFPs/month</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>250 AI drafts</span>
+                  <span>200 AI drafts</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Export to PDF</span>
+                  <span>150 page limit/upload</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-400">No Word export</span>
+                  <span>Export to Word & PDF</span>
                 </li>
               </ul>
               <div className="mt-auto pt-6">
                 <CheckoutButton plan="STARTER" isSignedIn={isSignedIn} variant="outline" className="w-full">
-                  Buy Now - £49/mo
+                  Buy Now - $150/mo
                 </CheckoutButton>
               </div>
             </div>
@@ -184,7 +184,7 @@ export default async function Home() {
               <h3 className="text-lg font-semibold text-gray-900">Pro</h3>
               <p className="text-sm text-gray-500 mt-1">For SMEs</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-gray-900">£99</span>
+                <span className="text-3xl font-bold text-gray-900">$250</span>
                 <span className="text-gray-500">/month</span>
               </div>
               <ul className="mt-6 space-y-2 text-sm">
@@ -192,71 +192,30 @@ export default async function Home() {
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>10 RFP extractions/month</span>
+                  <span>10 RFPs/month</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>500 AI drafts</span>
+                  <span>600 AI drafts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>200 page limit/upload</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Response library</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Export to Word & PDF</span>
                 </li>
               </ul>
               <div className="mt-auto pt-6">
                 <CheckoutButton plan="PRO" isSignedIn={isSignedIn} className="w-full bg-blue-600 hover:bg-blue-700">
-                  Buy Now - £99/mo
-                </CheckoutButton>
-              </div>
-            </div>
-
-            {/* Team */}
-            <div className="p-6 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
-              <h3 className="text-lg font-semibold text-gray-900">Team</h3>
-              <p className="text-sm text-gray-500 mt-1">For growing teams</p>
-              <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-gray-900">£179</span>
-                <span className="text-gray-500">/month</span>
-              </div>
-              <ul className="mt-6 space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>25 RFP extractions/month</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>1,000 AI drafts</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Response library</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Priority support</span>
-                </li>
-              </ul>
-              <div className="mt-auto pt-6">
-                <CheckoutButton plan="TEAM" isSignedIn={isSignedIn} variant="outline" className="w-full">
-                  Buy Now - £179/mo
+                  Buy Now - $250/mo
                 </CheckoutButton>
               </div>
             </div>
@@ -266,7 +225,7 @@ export default async function Home() {
               <h3 className="text-lg font-semibold text-gray-900">Business</h3>
               <p className="text-sm text-gray-500 mt-1">For agencies</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-gray-900">£249</span>
+                <span className="text-3xl font-bold text-gray-900">$500</span>
                 <span className="text-gray-500">/month</span>
               </div>
               <ul className="mt-6 space-y-2 text-sm">
@@ -274,7 +233,47 @@ export default async function Home() {
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="font-medium">Unlimited extractions</span>
+                  <span className="font-medium">Unlimited RFPs</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>600 AI drafts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">No page limit</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Priority support</span>
+                </li>
+              </ul>
+              <div className="mt-auto pt-6">
+                <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full">
+                  Buy Now - $500/mo
+                </CheckoutButton>
+              </div>
+            </div>
+
+            {/* Enterprise */}
+            <div className="p-6 rounded-2xl border-2 border-gray-200 bg-white flex flex-col">
+              <h3 className="text-lg font-semibold text-gray-900">Enterprise</h3>
+              <p className="text-sm text-gray-500 mt-1">For large organizations</p>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-gray-900">Contact Sales</span>
+              </div>
+              <ul className="mt-6 space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="font-medium">Unlimited RFPs</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -286,19 +285,21 @@ export default async function Home() {
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Response library</span>
+                  <span className="font-medium">No page limit</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Priority support</span>
+                  <span>Dedicated account manager</span>
                 </li>
               </ul>
               <div className="mt-auto pt-6">
-                <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full">
-                  Buy Now - £249/mo
-                </CheckoutButton>
+                <a href="mailto:sales@rfpmatrix.com?subject=Enterprise%20Plan%20Inquiry">
+                  <Button variant="outline" className="w-full bg-gray-900 hover:bg-gray-800 text-white">
+                    Contact Sales
+                  </Button>
+                </a>
               </div>
             </div>
           </div>
@@ -331,7 +332,7 @@ export default async function Home() {
               <h3 className="text-lg font-semibold text-gray-900 text-center">Single RFP</h3>
               <p className="text-sm text-gray-500 mt-1 text-center">Perfect for a single project</p>
               <div className="mt-4 flex items-baseline gap-1 justify-center">
-                <span className="text-3xl font-bold text-gray-900">£40</span>
+                <span className="text-3xl font-bold text-gray-900">$100</span>
                 <span className="text-gray-500">one-time</span>
               </div>
               <ul className="mt-6 space-y-2 text-sm">
@@ -345,7 +346,13 @@ export default async function Home() {
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>60 AI draft responses</span>
+                  <span>100 AI draft responses</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>150 page limit per upload</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -359,16 +366,10 @@ export default async function Home() {
                   </svg>
                   <span>30-day project access</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span className="text-gray-400">No response library</span>
-                </li>
               </ul>
               <div className="mt-6">
                 <CheckoutButton plan="SINGLE_USE" isSignedIn={isSignedIn} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
-                  Buy Now - £40
+                  Buy Now - $100
                 </CheckoutButton>
               </div>
             </div>

@@ -109,10 +109,10 @@ model User {
 
 enum Plan {
   FREE
-  STARTER   // Entry tier (was SOLO)
-  PRO
-  TEAM      // Mid-high tier
-  BUSINESS  // Top tier (unlimited)
+  STARTER   // Entry tier - $150/mo, 2 RFPs, 200 drafts
+  PRO       // Mid tier - $250/mo, 10 RFPs, 600 drafts, library
+  BUSINESS  // High tier - $500/mo, unlimited RFPs, 600 drafts
+  ENTERPRISE // Custom - unlimited everything
 }
 
 enum SubscriptionStatus {

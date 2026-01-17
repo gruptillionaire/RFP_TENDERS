@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Plan } from "@prisma/client";
 import {
   constructWebhookEvent,
   getPlanFromPriceId,
@@ -317,7 +318,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      plan,
+      plan: plan as Plan,
       stripeSubscriptionId: subscriptionId,
       stripeCustomerId: customerId,
       subscriptionStatus: mapSubscriptionStatus(subscription.status),
