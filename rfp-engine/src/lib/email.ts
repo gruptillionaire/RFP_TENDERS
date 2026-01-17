@@ -355,6 +355,81 @@ ${APP_NAME}
   });
 }
 
+export async function sendPaymentFailedEmail(email: string, planName: string, amount: string, updatePaymentUrl: string) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Failed</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: #f9fafb; border-radius: 8px; padding: 32px;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; background: #fee2e2; border-radius: 50%; padding: 12px;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+          </div>
+
+          <h1 style="color: #111; margin-bottom: 16px; font-size: 24px; text-align: center;">Payment Failed</h1>
+
+          <p style="color: #666; margin-bottom: 24px; text-align: center;">
+            We were unable to process your payment of <strong>${amount}</strong> for your <strong>${planName}</strong> subscription.
+          </p>
+
+          <div style="background: #fef3c7; border-radius: 6px; padding: 16px; margin-bottom: 24px;">
+            <p style="color: #92400e; font-size: 14px; margin: 0; text-align: center;">
+              Please update your payment method to avoid any interruption to your service.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin-bottom: 24px;">
+            <a href="${updatePaymentUrl}"
+               style="display: inline-block; background: #dc2626; color: white; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: 500;">
+              Update Payment Method
+            </a>
+          </div>
+
+          <p style="color: #888; font-size: 14px; text-align: center;">
+            If you believe this is an error, please check with your bank or try a different payment method.
+          </p>
+        </div>
+
+        <p style="text-align: center; color: #888; font-size: 12px; margin-top: 24px;">
+          &copy; ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.<br>
+          This is a transactional email from RFP Matrix.
+        </p>
+      </body>
+    </html>
+  `;
+
+  const text = `
+Payment Failed
+
+We were unable to process your payment of ${amount} for your ${planName} subscription.
+
+Please update your payment method to avoid any interruption to your service.
+
+Update your payment method: ${updatePaymentUrl}
+
+If you believe this is an error, please check with your bank or try a different payment method.
+
+${APP_NAME}
+  `.trim();
+
+  return sendEmail({
+    to: email,
+    subject: `${APP_NAME}: Payment failed - action required`,
+    html,
+    text,
+  });
+}
+
 export async function sendSubscriptionCancelledEmail(email: string, planName: string, endDate: string) {
   const pricingUrl = `${APP_URL}/pricing`;
 
