@@ -10,19 +10,32 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import {
   checkAndIncrementQuota,
   checkAndConsumeSingleUseExtraction,
 } from "@/lib/quota";
 
+// Timing-safe string comparison to prevent timing attacks
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still compare to avoid timing leak on length
+    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(a));
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 export async function POST(request: NextRequest) {
   console.log("[Webhook] === Extraction webhook received ===");
 
   try {
-    // Validate worker key
+    // Validate worker key with timing-safe comparison
     const workerKey = request.headers.get("x-worker-key");
-    if (workerKey !== process.env.EXTRACTION_WORKER_KEY) {
+    const expectedKey = process.env.EXTRACTION_WORKER_KEY || "";
+
+    if (!workerKey || !expectedKey || !timingSafeCompare(workerKey, expectedKey)) {
       console.error("[Webhook] Invalid worker key");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

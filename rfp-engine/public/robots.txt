@@ -6,4 +6,4 @@ Disallow: /library/
 Disallow: /settings/
 Disallow: /api/
 
-Sitemap: https://rfpengine.com/sitemap.xml
+Sitemap: https://rfpmatrix.com/sitemap.xml

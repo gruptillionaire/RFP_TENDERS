@@ -266,7 +266,7 @@ export default function CookiePolicyPage() {
         </p>
         <ul>
           <li>
-            <strong>Email:</strong> privacy@rfpengine.com
+            <strong>Email:</strong> privacy@rfpmatrix.com
           </li>
         </ul>
       </section>

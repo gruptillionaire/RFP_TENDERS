@@ -420,6 +420,7 @@ model ExtractionJob {
   @@index([projectId])
   @@index([status])
   @@index([createdAt])
+  @@index([projectId, status])  // Composite for existing job lookup
 }
 
 enum ExtractionJobStatus {

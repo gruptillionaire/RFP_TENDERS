@@ -2,11 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import crypto from 'crypto';
 import { extractRequirements } from './extract';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const WORKER_KEY = process.env.EXTRACTION_WORKER_KEY || '';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// Allowed webhook URL patterns (SSRF prevention)
+const ALLOWED_WEBHOOK_HOSTS = (process.env.ALLOWED_WEBHOOK_HOSTS || 'localhost,rfp-tenders.vercel.app').split(',');
 
 // Middleware
 app.use(helmet());
@@ -16,15 +21,42 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' })); // Large documents
 
+// Timing-safe string comparison to prevent timing attacks
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still compare to avoid timing leak on length
+    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(a));
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+// Validate webhook URL to prevent SSRF attacks
+function isAllowedWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    return ALLOWED_WEBHOOK_HOSTS.some(allowed =>
+      host === allowed || host.endsWith(`.${allowed}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Auth middleware
 function validateWorkerKey(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (!WORKER_KEY) {
-    // No key configured = allow all (dev mode)
+    if (IS_PRODUCTION) {
+      console.error('[Auth] CRITICAL: No worker key configured in production!');
+      return res.status(500).json({ error: 'Server misconfiguration' });
+    }
+    // Dev mode only - allow without key
     return next();
   }
 
   const providedKey = req.headers['x-worker-key'];
-  if (providedKey !== WORKER_KEY) {
+  if (typeof providedKey !== 'string' || !timingSafeCompare(providedKey, WORKER_KEY)) {
     return res.status(401).json({ error: 'Invalid worker key' });
   }
 
@@ -40,6 +72,53 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Helper: Retry webhook with exponential backoff
+async function callWebhookWithRetry(
+  webhookUrl: string,
+  payload: object,
+  jobId: string,
+  maxRetries = 3
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Initial delay to ensure DB has committed the job record
+      if (attempt === 1) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Worker-Key': WORKER_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        console.log(`[Webhook] Job ${jobId}: Success on attempt ${attempt}`);
+        return true;
+      }
+
+      // 404 might mean job not yet committed - retry
+      if (response.status === 404 && attempt < maxRetries) {
+        console.warn(`[Webhook] Job ${jobId}: Got 404, retrying in ${attempt * 1000}ms...`);
+        await new Promise(r => setTimeout(r, attempt * 1000));
+        continue;
+      }
+
+      console.error(`[Webhook] Job ${jobId}: Failed with status ${response.status}`);
+      return false;
+    } catch (error) {
+      console.error(`[Webhook] Job ${jobId}: Attempt ${attempt} failed:`, error);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, attempt * 1000));
+      }
+    }
+  }
+  return false;
+}
+
 // Async extraction endpoint (returns immediately, calls webhook when done)
 app.post('/extract-async', validateWorkerKey, async (req, res) => {
   const { documentText, jobId, webhookUrl, model } = req.body;
@@ -50,6 +129,12 @@ app.post('/extract-async', validateWorkerKey, async (req, res) => {
 
   if (!jobId || !webhookUrl) {
     return res.status(400).json({ error: 'jobId and webhookUrl are required' });
+  }
+
+  // SSRF prevention: validate webhook URL
+  if (!isAllowedWebhookUrl(webhookUrl)) {
+    console.error(`[/extract-async] Job ${jobId}: Rejected invalid webhook URL: ${webhookUrl}`);
+    return res.status(400).json({ error: 'Invalid webhook URL' });
   }
 
   console.log(`[/extract-async] Job ${jobId}: Starting async extraction of ${documentText.length} chars`);
@@ -65,52 +150,27 @@ app.post('/extract-async', validateWorkerKey, async (req, res) => {
     const elapsed = Date.now() - startTime;
 
     console.log(`[/extract-async] Job ${jobId}: Complete with ${result.requirements.length} requirements in ${elapsed}ms`);
-    console.log(`[/extract-async] Job ${jobId}: Calling webhook at ${webhookUrl}`);
 
-    // Call webhook with success
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Worker-Key': WORKER_KEY,
-      },
-      body: JSON.stringify({
-        jobId,
-        status: 'complete',
-        result,
-        elapsed,
-      }),
-    });
-
-    if (!webhookResponse.ok) {
-      console.error(`[/extract-async] Job ${jobId}: Webhook failed with status ${webhookResponse.status}`);
-    } else {
-      console.log(`[/extract-async] Job ${jobId}: Webhook callback successful`);
-    }
+    // Call webhook with retry
+    await callWebhookWithRetry(webhookUrl, {
+      jobId,
+      status: 'complete',
+      result,
+      elapsed,
+    }, jobId);
   } catch (error: unknown) {
     const elapsed = Date.now() - startTime;
     const message = error instanceof Error ? error.message : 'Unknown error';
 
     console.error(`[/extract-async] Job ${jobId}: Failed after ${elapsed}ms:`, message);
 
-    // Call webhook with error
-    try {
-      await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Worker-Key': WORKER_KEY,
-        },
-        body: JSON.stringify({
-          jobId,
-          status: 'failed',
-          error: message,
-          elapsed,
-        }),
-      });
-    } catch (webhookError) {
-      console.error(`[/extract-async] Job ${jobId}: Webhook callback also failed:`, webhookError);
-    }
+    // Call webhook with error (with retry)
+    await callWebhookWithRetry(webhookUrl, {
+      jobId,
+      status: 'failed',
+      error: message,
+      elapsed,
+    }, jobId);
   }
 });
 

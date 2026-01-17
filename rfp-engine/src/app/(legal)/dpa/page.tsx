@@ -20,7 +20,7 @@ export default function DPAPage() {
         <p className="text-blue-800">
           <strong>For Enterprise Customers:</strong> This Data Processing Agreement (DPA)
           governs the processing of personal data when you use RFP Matrix as a business customer.
-          To execute this DPA, please contact us at <strong>enterprise@rfpengine.com</strong>.
+          To execute this DPA, please contact us at <strong>enterprise@rfpmatrix.com</strong>.
         </p>
       </div>
 
@@ -301,10 +301,10 @@ export default function DPAPage() {
         <p>For DPA-related inquiries:</p>
         <ul>
           <li>
-            <strong>Email:</strong> enterprise@rfpengine.com
+            <strong>Email:</strong> enterprise@rfpmatrix.com
           </li>
           <li>
-            <strong>Data Protection Officer:</strong> dpo@rfpengine.com
+            <strong>Data Protection Officer:</strong> dpo@rfpmatrix.com
           </li>
         </ul>
       </section>
@@ -313,7 +313,7 @@ export default function DPAPage() {
         <h2 className="mt-0">Request a Signed DPA</h2>
         <p>
           Enterprise customers can request a countersigned copy of this DPA.
-          Please contact <strong>enterprise@rfpengine.com</strong> with:
+          Please contact <strong>enterprise@rfpmatrix.com</strong> with:
         </p>
         <ul>
           <li>Your company name and address</li>

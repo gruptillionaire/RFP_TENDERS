@@ -316,7 +316,7 @@ export default function TermsOfServicePage() {
         </p>
         <ul>
           <li>
-            <strong>Email:</strong> legal@rfpengine.com
+            <strong>Email:</strong> legal@rfpmatrix.com
           </li>
         </ul>
       </section>

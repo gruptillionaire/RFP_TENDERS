@@ -265,10 +265,10 @@ export default function PrivacyPolicyPage() {
         </p>
         <ul>
           <li>
-            <strong>Email:</strong> privacy@rfpengine.com
+            <strong>Email:</strong> privacy@rfpmatrix.com
           </li>
           <li>
-            <strong>Data Protection Officer:</strong> dpo@rfpengine.com
+            <strong>Data Protection Officer:</strong> dpo@rfpmatrix.com
           </li>
         </ul>
         <p>

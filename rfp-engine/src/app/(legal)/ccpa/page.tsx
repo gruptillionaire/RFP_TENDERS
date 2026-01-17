@@ -162,7 +162,7 @@ export default function CCPAPage() {
 
         <h3>8.2 By Email</h3>
         <p>
-          Send your request to: <strong>privacy@rfpengine.com</strong>
+          Send your request to: <strong>privacy@rfpmatrix.com</strong>
         </p>
         <p>Please include:</p>
         <ul>
@@ -211,7 +211,7 @@ export default function CCPAPage() {
         <p>For questions about your California privacy rights:</p>
         <ul>
           <li>
-            <strong>Email:</strong> privacy@rfpengine.com
+            <strong>Email:</strong> privacy@rfpmatrix.com
           </li>
         </ul>
       </section>

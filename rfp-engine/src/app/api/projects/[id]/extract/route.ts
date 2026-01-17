@@ -53,11 +53,37 @@ export async function POST(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Check if there's already an active extraction job
+    // Clean up stale jobs (stuck in PROCESSING for over 1 hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const staleJobs = await prisma.extractionJob.findMany({
+      where: {
+        projectId: id,
+        status: "PROCESSING",
+        createdAt: { lt: oneHourAgo },
+      },
+      select: { id: true },
+    });
+
+    if (staleJobs.length > 0) {
+      console.log(`[Extract] Cleaning up ${staleJobs.length} stale job(s)`);
+      await prisma.extractionJob.updateMany({
+        where: {
+          id: { in: staleJobs.map(j => j.id) },
+        },
+        data: {
+          status: "FAILED",
+          error: "Job timed out after 1 hour",
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    // Check if there's already an active extraction job (not stale)
     const existingJob = await prisma.extractionJob.findFirst({
       where: {
         projectId: id,
         status: "PROCESSING",
+        createdAt: { gte: oneHourAgo },  // Only consider non-stale jobs
       },
     });
 

@@ -15,8 +15,8 @@ export const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
   "name": "RFP Matrix",
-  "url": "https://rfpengine.com",
-  "logo": "https://rfpengine.com/logo.png",
+  "url": "https://rfpmatrix.com",
+  "logo": "https://rfpmatrix.com/logo.png",
   "description": "AI-powered RFP and tender response management software",
   "sameAs": [],
 };
@@ -29,17 +29,18 @@ export const softwareApplicationSchema = {
   "operatingSystem": "Web",
   "offers": {
     "@type": "AggregateOffer",
-    "lowPrice": "39",
-    "highPrice": "249",
-    "priceCurrency": "GBP",
-    "offerCount": "3",
+    "lowPrice": "150",
+    "highPrice": "500",
+    "priceCurrency": "USD",
+    "offerCount": "4",
   },
   "description": "AI-powered RFP management software that helps teams respond to RFPs and tenders 10x faster with automated requirement extraction and draft generation.",
   "featureList": [
     "AI-powered requirement extraction",
     "Draft response generation",
     "Response library management",
-    "Export to Word",
+    "Export to Word and PDF",
+    "Compliance matrix export",
   ],
 };
 
@@ -47,12 +48,7 @@ export const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   "name": "RFP Matrix",
-  "url": "https://rfpengine.com",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "https://rfpengine.com/search?q={search_term_string}",
-    "query-input": "required name=search_term_string",
-  },
+  "url": "https://rfpmatrix.com",
 };
 
 export function faqSchema(faqs: { question: string; answer: string }[]) {
