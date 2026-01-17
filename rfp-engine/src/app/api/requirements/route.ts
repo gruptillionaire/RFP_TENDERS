@@ -281,11 +281,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Generate draft with requirement type and domain context
+    // Generate draft with requirement type, domain context, and attestation flag
     const { draft, requiresReview } = await generateDraft(
       requirement.text,
       requirement.type as RequirementType,
-      (requirement.domainContext as DomainContext) || "FEATURE"
+      (requirement.domainContext as DomainContext) || "FEATURE",
+      undefined, // context
+      requirement.isAttestation
     );
 
     // Replace [COMPANY NAME] with actual company name if set

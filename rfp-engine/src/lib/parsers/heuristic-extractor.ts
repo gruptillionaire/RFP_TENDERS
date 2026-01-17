@@ -199,8 +199,12 @@ const PATTERN_FAMILIES: PatternFamily[] = [
     id: 'letter',
     name: 'Letter-based (A.1.a)',
     detectionPatterns: [
-      /(?:^|\n)\s*[A-Z]\.\d+\.[a-z]\s+/gm,  // A.1.a
-      /(?:^|\n)\s*[A-Z]\.\d+\s+[A-Z]/gm,    // A.1 followed by text
+      /(?:^|\n)\s*[A-Z]\.\d+\.[a-z]\s+/gm,  // A.1.a at line start
+      /(?:^|\n)\s*[A-Z]\.\d+\.\d+\.?\s+/gm, // E.6.7 at line start
+      /(?:^|\n)\s*[A-Z]\.\d+\.?\s+[A-Z]/gm, // A.1 at line start followed by text
+      // Inline patterns (after sentence endings in PDFs without line breaks)
+      /[.?!]\s+[A-Z]\.\d+\.\d+\.?\s+[A-Z]/gm, // E.6.7 after sentence ending
+      /[.?!]\s+[A-Z]\.\d+\.?\s+[A-Z]/gm,      // A.1 after sentence ending
     ],
     minMatchesForDetection: 3,
     extractionPatterns: [
@@ -212,21 +216,37 @@ const PATTERN_FAMILIES: PatternFamily[] = [
         priority: 100,
         requiresLineStart: true,
       },
-      // Letter.Number.Number: A.1.2
+      // Letter.Number.Number: A.1.2 or E.6.7. (with optional trailing period) at line start
       {
-        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)\.(\d+)\s+/gm,
+        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)\.(\d+)\.?\s+/gm,
         getMajorSection: (m) => m[1],
         getSectionNumber: (m) => `${m[1]}.${m[2]}.${m[3]}`,
         priority: 90,
         requiresLineStart: true,
       },
-      // Letter.Number: A.1
+      // Letter.Number.Number: E.6.7. inline after sentence ending (PDF without line breaks)
       {
-        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)(?!\.?\w)\s+/gm,
+        pattern: /[.?!]\s+([A-Z])\.(\d+)\.(\d+)\.?\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}.${m[3]}`,
+        priority: 85,
+        requiresLineStart: false,
+      },
+      // Letter.Number: A.1 or E.6. (with optional trailing period) at line start
+      {
+        pattern: /(?:^|\n)\s*([A-Z])\.(\d+)\.?(?!\.?\w)\s+/gm,
         getMajorSection: (m) => m[1],
         getSectionNumber: (m) => `${m[1]}.${m[2]}`,
         priority: 50,
         requiresLineStart: true,
+      },
+      // Letter.Number: A.1 inline after sentence ending
+      {
+        pattern: /[.?!]\s+([A-Z])\.(\d+)\.?(?![.\d])\s+/gm,
+        getMajorSection: (m) => m[1],
+        getSectionNumber: (m) => `${m[1]}.${m[2]}`,
+        priority: 45,
+        requiresLineStart: false,
       },
     ],
     majorSectionPatterns: [
@@ -596,12 +616,14 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
     // Strip trailing content that looks like next requirement title bleeding in
     // These are typically 1-4 words at the end, after the actual requirement question ends
     // Pattern examples: "Dedicated IP address", "Account structure", "Send volumes", "Demo accounts"
+    // NOTE: Use possessive-like matching to avoid catastrophic backtracking
     cleanedText = cleanedText
       // After closing paren: "...(text)Dedicated IP address" → "...(text)"
-      // Matches: Capital word + optional lowercase/mixed words after, possibly dash-separated
-      .replace(/\)[\s]*((?:[A-Z][a-zA-Z]*(?:\s+[a-zA-Z]+|\s*-\s*[A-Za-z]+)*)+)$/, ')')
+      // Simpler pattern: just 1-5 capitalized words at the end
+      .replace(/\)\s*([A-Z][a-zA-Z]*(?:\s+[a-zA-Z-]+){0,4})\s*$/, ')')
       // After sentence-ending punctuation: "...answer? Account structure" → "...answer?"
-      .replace(/([.?!]["']?)\s+((?:[A-Z][a-zA-Z]*(?:\s+[a-zA-Z]+|\s*-\s*[A-Za-z]+)*)+)\s*$/, (match, punct, title) => {
+      // Simpler pattern: 1-5 words after punctuation
+      .replace(/([.?!]["']?)\s+([A-Z][a-zA-Z]*(?:\s+[a-zA-Z-]+){0,4})\s*$/, (match, punct, title) => {
         // Only strip if the title is short (likely a next section heading)
         if (title.length > 50) return match;
         // Keep if it has common sentence words (probably not a title)
@@ -1051,14 +1073,13 @@ function detectReviewReasons(text: string, sectionNumber: string): string[] {
   }
 
   // Check for repeated characters suggesting OCR/parsing errors (6+ in a row)
-  if (/(.)\1{5,}/.test(text)) {
+  // Exclude underscores (common in form fill-in blanks) and dashes
+  if (/([^_\-])\1{5,}/.test(text)) {
     reasons.push('Repeated characters (possible OCR error)');
   }
 
-  // Check for section number mismatch (Q is placeholder for question-based)
-  if (sectionNumber === 'Q') {
-    reasons.push('No section number detected (question-based extraction)');
-  }
+  // Note: Question-based extraction (sectionNumber === 'Q') is valid and shouldn't
+  // automatically flag for review - only flag if there are other issues
 
   return reasons;
 }

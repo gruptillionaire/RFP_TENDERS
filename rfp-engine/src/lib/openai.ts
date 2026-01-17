@@ -1873,6 +1873,23 @@ BAD EXAMPLE (too long, email-style): Dear Sir/Madam, We are pleased to confirm t
   DECLARATIVE: `${DRAFT_PROMPT_BASE}
 
 FOR THIS DECLARATIVE REQUIREMENT:
+
+CRITICAL - FACTUAL YES/NO QUESTIONS:
+If the question asks about company-specific facts that you cannot know (outsourcing practices, specific policies, litigation history, ownership structure, etc.), DO NOT ASSUME THE ANSWER.
+Instead, use choice placeholders:
+- "[DOES / DOES NOT]" for positive/negative statements
+- "[YES / NO]" for direct questions
+- "[HAS / HAS NOT]" for past actions
+
+EXAMPLE of factual question: "Do you outsource or subcontract any parts of your business?"
+GOOD RESPONSE: [COMPANY NAME] confirms that it [DOES / DOES NOT] outsource or subcontract any parts of its business operations.
+BAD RESPONSE: [COMPANY NAME] confirms that it does not outsource... (assumes the answer)
+
+EXAMPLE of factual question: "Has your company been involved in any litigation in the past 5 years?"
+GOOD RESPONSE: [COMPANY NAME] [HAS / HAS NOT] been involved in litigation in the past 5 years. [IF YES: Provide details]
+BAD RESPONSE: [COMPANY NAME] has not been involved in any litigation... (assumes the answer)
+
+FOR NON-FACTUAL REQUIREMENTS (compliance commitments, acknowledgments):
 - State compliance position clearly in 2-3 sentences
 - Include brief supporting statement if needed
 - Use clear compliance language: "[COMPANY NAME] complies with...", "[COMPANY NAME] confirms that...", "The Respondent maintains..."
@@ -1880,7 +1897,7 @@ FOR THIS DECLARATIVE REQUIREMENT:
 
 CRITICAL: NEVER wrap your response in quotation marks (""). Output the response text directly.
 
-GOOD EXAMPLE: [COMPANY NAME] confirms that all information requested in this RFP has been supplied. Each section of the response directly addresses the corresponding requirements and questions outlined in the RFP document.
+GOOD EXAMPLE (compliance commitment): [COMPANY NAME] confirms that all information requested in this RFP has been supplied. Each section of the response directly addresses the corresponding requirements and questions outlined in the RFP document.
 
 BAD EXAMPLE: Starting with greetings or including unnecessary preamble about being "pleased to confirm"`,
 
@@ -3392,8 +3409,17 @@ export async function generateDraft(
   requirement: string,
   requirementType: RequirementType = "DECLARATIVE",
   domainContext: DomainContext = "FEATURE",
-  context?: string
+  context?: string,
+  isAttestation: boolean = false
 ): Promise<GenerateDraftResult> {
+  // For attestations, return a simple checkbox format - no AI needed
+  if (isAttestation) {
+    return {
+      draft: "☐ Compliant\n☐ Non-Compliant\n\n[DRAFT]",
+      requiresReview: false,
+    };
+  }
+
   // Check for template match first (saves AI costs)
   const template = matchTemplate(requirement);
   if (template) {
