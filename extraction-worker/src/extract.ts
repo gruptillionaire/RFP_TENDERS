@@ -665,7 +665,84 @@ NOT flattened to: "Please describe your approach to: • Security measures • A
   Use these markers to understand document structure, but do not include them in extracted text.
 - Do not summarize or paraphrase - extract the actual text from the document
 - Classify EVERY requirement with the most appropriate type
-- When uncertain between types, default to DESCRIPTIVE`;
+- When uncertain between types, default to DESCRIPTIVE
+
+==============================================================================
+SECTIONS TO SKIP (DO NOT EXTRACT)
+==============================================================================
+The following sections are BOILERPLATE and should NOT be extracted as requirements:
+
+1. FEDERAL CONTRACT CLAUSES / COMPLIANCE BOILERPLATE:
+   - Title VI Civil Rights provisions
+   - Nondiscrimination Acts and Authorities lists
+   - Federal Fair Labor Standards Act references
+   - Occupational Safety and Health Act references
+   - Domestic Preference clauses
+   - Standard FAR/CFR clause references
+   - Environmental justice executive orders
+   - ADA compliance boilerplate
+
+   HOW TO IDENTIFY: These sections typically:
+   - Reference specific laws by citation (42 USC §, 49 CFR part, PL 100-259)
+   - List multiple acts/statutes in sequence
+   - Contain standard legal language about discrimination, compliance
+   - Are labeled "Federal Contract Clauses" or similar
+
+   SKIP THESE ENTIRELY - they are standard legal text, not project-specific requirements.
+
+2. FILL-IN FORMS WITH BLANK LINES:
+   - Fee Submittal forms with underscores (______) for pricing
+   - Signature pages with blank lines
+   - Forms that are purely blank fields to complete
+
+   HOW TO IDENTIFY: Multiple consecutive lines with underscores or blank fields.
+
+   SKIP THESE - or if pricing info is needed, extract individual line items separately
+   (e.g., "Cost per hour for PM Services" as one requirement, not the entire form as one blob).
+
+3. STANDARD TERMS AND CONDITIONS:
+   - Rights to proposal materials
+   - General indemnification clauses
+   - Standard liability limitations
+   - Boilerplate contract termination language
+
+==============================================================================
+CRITICAL: EXTRACT THE COMPLETE DOCUMENT - DO NOT STOP EARLY
+==============================================================================
+You MUST extract requirements from the ENTIRE document, including:
+- The LAST subsection of each section (e.g., if section 3 has 3.1 through 3.17, extract ALL of them including 3.17)
+- The FINAL requirements in the document (do not stop at 90% - finish the full 100%)
+- Small sections that appear between larger ones (e.g., 3.2 between large 3.1 and 3.3)
+
+*** SECTION HIERARCHY - UNDERSTAND THIS ***
+Documents use multi-level numbering like:
+  3.0  (major section - contains 3.1, 3.2, 3.3, ..., 3.N)
+    3.1  (subsection - contains 3.1.1, 3.1.2, ..., 3.1.N)
+      3.1.1, 3.1.2, 3.1.3... (individual requirements)
+    3.2  (ANOTHER subsection - you MUST continue here!)
+      3.2.1, 3.2.2, 3.2.3...
+    3.3, 3.4, 3.5... (continue through ALL subsections)
+  4.0  (ANOTHER major section - you MUST continue here!)
+    4.1, 4.2, 4.3...
+
+*** DO NOT STOP AT SECTION BOUNDARIES ***
+When you finish extracting 3.1.N (the last item in subsection 3.1), you are NOT done!
+Look for 3.2, 3.3, 3.4, etc. - these are ADDITIONAL subsections with MORE requirements.
+When you finish section 3.N, look for section 4.0, 5.0, etc.
+
+COMMON FAILURE MODES TO AVOID:
+- Stopping after 3.1.20 when 3.2, 3.3, ... 3.17 exist (MAJOR ERROR)
+- Stopping at 3.15 when there's a 3.16, 3.17, etc.
+- Missing small subsections (3.2 only has 2 items but must still be extracted)
+- Skipping the last 2-3 requirements of a subsection
+- Not extracting section 4.0 after finishing section 3.0
+
+VERIFICATION: Before finishing, confirm you have extracted from ALL sections numbered in the document.
+If you see "3.17" in the document, you should have requirements from 3.1 through 3.17.
+If you see "4.6" in the document, you should have requirements from 4.1 through 4.6.
+
+Extract to the ABSOLUTE END of the provided text. Count your extracted items and verify coverage.
+==============================================================================`;
 
 // =============================================================================
 // PREPROCESSING FUNCTIONS
@@ -760,6 +837,54 @@ function preprocessDocument(text: string): string {
 }
 
 // =============================================================================
+// DOCUMENT STRUCTURE DETECTION
+// =============================================================================
+
+/**
+ * Detect section structure in document to help guide complete extraction.
+ * Returns a summary of all sections found (e.g., "3.1 through 3.17, 4.1 through 4.6")
+ */
+function detectDocumentSections(text: string): string {
+  // Find all section patterns like 3.1, 3.1.1, 4.2.3, etc.
+  const sectionPattern = /\b(\d+)\.(\d+)(?:\.(\d+))?\b/g;
+  const sections = new Map<string, Set<number>>();
+
+  let match;
+  while ((match = sectionPattern.exec(text)) !== null) {
+    const major = match[1];
+    const minor = parseInt(match[2], 10);
+
+    if (!sections.has(major)) {
+      sections.set(major, new Set());
+    }
+    sections.get(major)!.add(minor);
+  }
+
+  if (sections.size === 0) {
+    return '';
+  }
+
+  // Build summary
+  const summaryParts: string[] = [];
+  const sortedMajors = Array.from(sections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
+
+  for (const major of sortedMajors) {
+    const minors = Array.from(sections.get(major)!).sort((a, b) => a - b);
+    if (minors.length > 0) {
+      const min = minors[0];
+      const max = minors[minors.length - 1];
+      if (min === max) {
+        summaryParts.push(`Section ${major}.${min}`);
+      } else {
+        summaryParts.push(`Section ${major}: subsections ${major}.${min} through ${major}.${max}`);
+      }
+    }
+  }
+
+  return summaryParts.join('; ');
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -786,12 +911,29 @@ export async function extractRequirements(
   const preprocessedText = preprocessDocument(documentText);
   console.log(`[extract] Preprocessed length: ${preprocessedText.length} chars`);
 
+  // Detect document structure to help guide extraction
+  const sectionSummary = detectDocumentSections(preprocessedText);
+  console.log(`[extract] Detected sections: ${sectionSummary || 'none detected'}`);
+
+  // Build user message with structure guidance if detected
+  let userMessage = preprocessedText;
+  if (sectionSummary) {
+    userMessage = `DOCUMENT STRUCTURE DETECTED:
+${sectionSummary}
+
+You MUST extract requirements from ALL of these sections - do not stop early!
+
+---BEGIN DOCUMENT---
+${preprocessedText}
+---END DOCUMENT---`;
+  }
+
   try {
     const response = await openai.chat.completions.create({
       model,
       messages: [
         { role: 'system', content: EXTRACTION_PROMPT },
-        { role: 'user', content: preprocessedText },
+        { role: 'user', content: userMessage },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1, // Low temperature for consistent extraction
