@@ -767,21 +767,42 @@ export async function extractRequirements(
     console.log(`[extract] Complete: ${result.requirements?.length || 0} requirements in ${elapsed}ms`);
     console.log(`[extract] Tokens used: ${response.usage?.total_tokens || 'unknown'}`);
 
+    // Valid requirement types (must match Prisma schema)
+    const VALID_TYPES: RequirementType[] = [
+      'CONTEXTUAL',
+      'PROCEDURAL',
+      'DECLARATIVE',
+      'DESCRIPTIVE',
+      'EVIDENCE_BASED',
+      'QUANTITATIVE',
+      'REFERENCE_BASED',
+      'STAFFING',
+    ];
+
     // Normalize the response
     return {
       deadline: result.deadline || null,
       deadlineText: result.deadlineText || null,
-      requirements: (result.requirements || []).map(req => ({
-        section: req.section || null,
-        sectionGroup: req.sectionGroup || null,
-        text: req.text || '',
-        type: req.type || 'DESCRIPTIVE',
-        isMandatory: req.isMandatory !== false, // Default to true
-        domainContext: req.domainContext || 'FEATURE',
-        wordLimit: req.wordLimit || null,
-        characterLimit: req.characterLimit || null,
-        isAttestation: req.isAttestation || false,
-      })),
+      requirements: (result.requirements || []).map(req => {
+        // Validate and fix type - LLM sometimes returns invalid types like "LEGAL"
+        let type = req.type || 'DESCRIPTIVE';
+        if (!VALID_TYPES.includes(type as RequirementType)) {
+          console.warn(`[extract] Invalid type "${type}" for requirement, defaulting to CONTEXTUAL`);
+          type = 'CONTEXTUAL';
+        }
+
+        return {
+          section: req.section || null,
+          sectionGroup: req.sectionGroup || null,
+          text: req.text || '',
+          type: type as RequirementType,
+          isMandatory: req.isMandatory !== false, // Default to true
+          domainContext: req.domainContext || 'FEATURE',
+          wordLimit: req.wordLimit || null,
+          characterLimit: req.characterLimit || null,
+          isAttestation: req.isAttestation || false,
+        };
+      }),
     };
   } catch (error: unknown) {
     const elapsed = Date.now() - startTime;
