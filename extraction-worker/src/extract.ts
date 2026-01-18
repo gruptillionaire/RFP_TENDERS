@@ -1,6 +1,65 @@
 import OpenAI from 'openai';
 
 // =============================================================================
+// CONFIGURATION CONSTANTS
+// =============================================================================
+
+/** Minimum text length to consider for deduplication (avoids matching short phrases) */
+const MIN_DEDUPE_TEXT_LENGTH = 100;
+
+/** Minimum length for a text to be considered substantial in subset detection */
+const MIN_SUBSTANTIAL_TEXT_LENGTH = 50;
+
+/** Ratio threshold for subset duplicate detection */
+const SUBSET_LENGTH_RATIO = 0.3;
+
+/** Minimum requirement text length (shorter is likely noise) */
+const MIN_REQUIREMENT_LENGTH = 10;
+
+/** Maximum length for text to be considered a potential attestation */
+const MAX_ATTESTATION_LENGTH = 200;
+
+/** Extended attestation length for strong patterns */
+const MAX_EXTENDED_ATTESTATION_LENGTH = 400;
+
+/** Threshold for contaminated requirement detection */
+const MIN_CONTAMINATION_LENGTH = 300;
+
+/** LLM API call timeout in milliseconds (2 minutes) */
+const LLM_TIMEOUT_MS = 120000;
+
+/** Minimum document length for meaningful extraction */
+const MIN_DOCUMENT_LENGTH = 100;
+
+/** Minimum content length before a contamination boundary to keep it */
+const MIN_BOUNDARY_CONTENT_LENGTH = 30;
+
+/** Maximum lines to scan forward when finding section end */
+const MAX_LINE_SCAN_RANGE = 10;
+
+/** Context extraction: characters before match point */
+const CONTEXT_CHARS_BEFORE = 200;
+
+/** Context extraction: characters after match point */
+const CONTEXT_CHARS_AFTER = 500;
+
+/** Maximum characters to include in log output (to avoid exposing sensitive data) */
+const MAX_LOG_TEXT_LENGTH = 80;
+
+/**
+ * Sanitize text for logging - truncate and remove potentially sensitive patterns
+ */
+function sanitizeForLog(text: string, maxLength: number = MAX_LOG_TEXT_LENGTH): string {
+  if (!text) return '[empty]';
+  // Truncate and add ellipsis
+  const truncated = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  // Remove potential email addresses and phone numbers
+  return truncated
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]')
+    .replace(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g, '[phone]');
+}
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -10,7 +69,7 @@ export interface ExtractedRequirement {
   text: string;
   type: RequirementType;
   isMandatory: boolean;
-  domainContext: 'FEATURE' | 'PROCESS' | 'LEGAL' | null;
+  domainContext: 'FEATURE' | 'PROCESS' | 'LEGAL';
   wordLimit: number | null;
   characterLimit: number | null;
   isAttestation: boolean;
@@ -246,9 +305,9 @@ function detectMajorSections(text: string): Map<string, MajorSection> {
       }
     }
 
-    // Pattern 5: Roman numerals "IV. Title"
-    match = line.match(/^(I{1,3}|IV|VI{0,3}|IX|X{1,3})[.\s:]+(.+)$/);
-    if (match) {
+    // Pattern 5: Roman numerals "IV. Title" (comprehensive pattern for I-MMMCMXCIX)
+    match = line.match(/^(M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))[.\s:]+(.+)$/i);
+    if (match && match[1].length > 0) {
       const num = match[1].toUpperCase();
       const title = cleanTitle(match[2]);
       if (title && !sections.has(num)) {
@@ -290,7 +349,7 @@ function detectMajorSections(text: string): Map<string, MajorSection> {
 
   // Log what we found for debugging
   if (sections.size === 0) {
-    console.log(`[detectMajorSections] WARNING: No section headers found. First 500 chars of doc:\n${text.substring(0, 500)}`);
+    console.log(`[detectMajorSections] WARNING: No section headers found. Doc preview: ${sanitizeForLog(text, 200)}`);
   } else {
     console.log(`[detectMajorSections] Total sections found: ${sections.size}`);
     for (const [num, section] of sections) {
@@ -384,6 +443,7 @@ function splitConcatenatedRequirement(text: string): Array<{ section: string; te
   const parts: Array<{ index: number; section: string; endOfSection: number; isHeader: boolean }> = [];
 
   for (const pattern of splitPatterns) {
+    pattern.lastIndex = 0; // Reset regex state for safety
     let match;
     while ((match = pattern.exec(text)) !== null) {
       // Check if we already have a part at this position (avoid duplicates)
@@ -402,11 +462,12 @@ function splitConcatenatedRequirement(text: string): Array<{ section: string; te
   // Also detect X.Y SECTION HEADERS (not questions) - these are boundaries to STOP at
   // Pattern: X.Y followed by title-case words (not question words like Is, Does, Can, etc.)
   const headerPattern = /(?:^|\n)\s*(\d+\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){2,})/gm;
+  headerPattern.lastIndex = 0; // Reset regex state for safety
   let headerMatch;
   while ((headerMatch = headerPattern.exec(text)) !== null) {
     const followingText = headerMatch[2];
     // Skip if it starts with a question word (then it's a question, not a header)
-    if (/^(Is|Are|Does|Do|Can|Will|Has|Have|Should|Would|Could|What|How|Why|When|Where|Describe|Explain|Provide|List|Detail)\b/i.test(followingText)) {
+    if (/^(Is|Are|Does|Do|Can|Will|Has|Have|Should|Would|Could|What|How|Why|When|Where|Describe|Explain|Provide|List|Detail|Please|Indicate|Specify|State|Clarify|Confirm|Outline|Summarize)\b/i.test(followingText)) {
       continue;
     }
     // Check if we already have this position
@@ -729,8 +790,8 @@ const CONTAMINATION_BOUNDARY_PATTERNS: RegExp[] = [
 
   // X.Y subsection headers with title text (multiple title-case words)
   // e.g., "3.3 Authoring, Editing, Personalization, Delivery, and Publication"
-  // More flexible pattern: X.Y followed by capitalized words (with commas, and, &)
-  /\n\s*\d+\.\d+\s+[A-Z][a-z]+[\s,&]+([A-Za-z,&\s]+){2,}/,
+  // Non-greedy pattern: X.Y followed by 1-6 capitalized words, stopping at newline
+  /\n\s*\d+\.\d+\s+[A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){1,6}\s*(?:\n|$)/,
 
   // X.Y subsection headers (shorter titles) - e.g., "3.3 System Security"
   /\n\s*\d+\.\d+\s+[A-Z][a-z]+\s+[A-Z][a-z]+\s*(?:\n|$)/,
@@ -759,7 +820,7 @@ function trimContaminatedRequirements(requirements: ExtractedRequirement[]): voi
 
   for (const req of requirements) {
     // Only process long requirements (likely contaminated)
-    if (req.text.length < 300) continue;
+    if (req.text.length < MIN_CONTAMINATION_LENGTH) continue;
 
     let trimmedText = req.text;
     let wasTrimmed = false;
@@ -772,7 +833,7 @@ function trimContaminatedRequirements(requirements: ExtractedRequirement[]): voi
         const beforeBoundary = trimmedText.substring(0, match.index).trim();
 
         // Only trim if we still have meaningful content
-        if (beforeBoundary.length >= 30) {
+        if (beforeBoundary.length >= MIN_BOUNDARY_CONTENT_LENGTH) {
           trimmedText = beforeBoundary;
           wasTrimmed = true;
           break; // Use first (earliest) match
@@ -781,9 +842,7 @@ function trimContaminatedRequirements(requirements: ExtractedRequirement[]): voi
     }
 
     if (wasTrimmed) {
-      console.log(`[trimContaminatedRequirements] Trimmed requirement from ${req.text.length} to ${trimmedText.length} chars`);
-      console.log(`  Before: "${req.text.substring(0, 100)}..."`);
-      console.log(`  After:  "${trimmedText.substring(0, 100)}..."`);
+      console.log(`[trimContaminatedRequirements] Trimmed requirement ${req.section} from ${req.text.length} to ${trimmedText.length} chars`);
       req.text = trimmedText;
       trimCount++;
     }
@@ -859,15 +918,15 @@ function deduplicateRequirements(requirements: ExtractedRequirement[]): Extracte
       }
 
       // Only check longer texts to avoid false positives
-      if (normalizedText.length > 100 && seenText.length > 100) {
+      if (normalizedText.length > MIN_DEDUPE_TEXT_LENGTH && seenText.length > MIN_DEDUPE_TEXT_LENGTH) {
         const shorter = normalizedText.length < seenText.length ? normalizedText : seenText;
         const longer = normalizedText.length < seenText.length ? seenText : normalizedText;
 
-        // ONLY dedupe if one is a complete substring of the other (95%+ contained)
-        // This is much stricter than before to avoid removing valid requirements
+        // ONLY dedupe if one is a complete substring of the other
+        // The shorter text must be substantial and represent a significant portion of the longer
         if (longer.includes(shorter)) {
           // Verify the shorter text is substantial (not just a common phrase)
-          if (shorter.length > longer.length * 0.7) {
+          if (shorter.length >= MIN_SUBSTANTIAL_TEXT_LENGTH && shorter.length > longer.length * SUBSET_LENGTH_RATIO) {
             console.log(`[deduplicateRequirements] Removing subset duplicate: ${req.section} is contained in ${seenReq.section}`);
             dupeCount++;
             isDupe = true;
@@ -891,35 +950,23 @@ function deduplicateRequirements(requirements: ExtractedRequirement[]): Extracte
 }
 
 /**
- * Calculate text overlap ratio between two strings.
- */
-function calculateOverlap(shorter: string, longer: string): number {
-  // Simple approach: check how much of the shorter string appears in the longer
-  const words = shorter.split(' ');
-  let matchedWords = 0;
-
-  for (const word of words) {
-    if (word.length > 3 && longer.includes(word)) {
-      matchedWords++;
-    }
-  }
-
-  return words.length > 0 ? matchedWords / words.length : 0;
-}
-
-/**
  * Detect and classify section headers that the LLM might have missed marking as CONTEXTUAL.
  * Subsection titles (e.g., "3.1 Design, Form, and Templates") should be CONTEXTUAL, not DESCRIPTIVE.
  */
 function reclassifySectionHeaders(requirements: ExtractedRequirement[]): void {
   for (const req of requirements) {
-    // Skip if already CONTEXTUAL
-    if (req.type === "CONTEXTUAL") continue;
+    try {
+      // Skip if already CONTEXTUAL
+      if (req.type === "CONTEXTUAL") continue;
 
-    // Check if this looks like a section header
-    if (isSectionHeader(req.text)) {
-      console.log(`[reclassifySectionHeaders] Reclassifying "${req.text.substring(0, 50)}..." from ${req.type} to CONTEXTUAL`);
-      req.type = "CONTEXTUAL";
+      // Check if this looks like a section header
+      if (isSectionHeader(req.text)) {
+        console.log(`[reclassifySectionHeaders] Reclassifying ${req.section} from ${req.type} to CONTEXTUAL`);
+        req.type = "CONTEXTUAL";
+      }
+    } catch (err) {
+      // Log but don't fail - continue processing other requirements
+      console.warn(`[reclassifySectionHeaders] Error processing requirement ${req.section}:`, err);
     }
   }
 }
@@ -1056,6 +1103,36 @@ function extractTextFromLines(lines: string[], startLine: number, endLine: numbe
   // Return RAW text - do NOT strip section prefixes here
   // Stripping happens after splitting so we can detect concatenated requirements
   return lines.slice(start, end + 1).join('\n').trim();
+}
+
+/**
+ * Detect section number from the beginning of text.
+ * Returns the section number if found, null otherwise.
+ * Examples:
+ *   "3.14.12 Does the solution..." → "3.14.12"
+ *   "A.1.2 Describe your approach..." → "A.1.2"
+ *   "Some text without section" → null
+ */
+function detectSectionFromText(text: string): string | null {
+  if (!text) return null;
+
+  // Pattern 1: X.Y.Z format (e.g., "3.14.12")
+  const xyzMatch = text.match(/^(\d+\.\d+\.\d+)\b/);
+  if (xyzMatch) return xyzMatch[1];
+
+  // Pattern 2: X.Y format (e.g., "3.14")
+  const xyMatch = text.match(/^(\d+\.\d+)\b/);
+  if (xyMatch) return xyMatch[1];
+
+  // Pattern 3: A.X.Y format (e.g., "A.1.2")
+  const alphaMatch = text.match(/^([A-Z]\.\d+\.\d+)\b/i);
+  if (alphaMatch) return alphaMatch[1].toUpperCase();
+
+  // Pattern 4: A.X format (e.g., "A.1")
+  const alphaXYMatch = text.match(/^([A-Z]\.\d+)\b/i);
+  if (alphaXYMatch) return alphaXYMatch[1].toUpperCase();
+
+  return null;
 }
 
 /**
@@ -1522,7 +1599,7 @@ function classifyAttestation(text: string): boolean {
   }
 
   // Short text that starts with capability/compliance patterns is likely attestation
-  if (trimmed.length < 200) {
+  if (trimmed.length < MAX_ATTESTATION_LENGTH) {
     if (ATTESTATION_SIGNALS.some(p => p.test(text))) {
       return true;
     }
@@ -1530,7 +1607,7 @@ function classifyAttestation(text: string): boolean {
 
   // Longer text can still be attestation if it has strong attestation signals
   // (e.g., multi-line questions that are still yes/no in nature)
-  if (trimmed.length < 400) {
+  if (trimmed.length < MAX_EXTENDED_ATTESTATION_LENGTH) {
     // Strong attestation patterns (confirmation/certification)
     if (/\b(confirm that|certify that|acknowledge that|agree to|accept the)\b/i.test(text)) {
       return true;
@@ -1622,12 +1699,9 @@ function detectMissingItems(documentText: string, extractedSections: Set<string>
     allSections.add(match[1]);
   }
 
-  // Find missing items
+  // Find missing items (no longer skip any sections by number - let extraction decide)
   const missing: string[] = [];
   for (const section of allSections) {
-    // Skip section 6.x (submission instructions, not requirements)
-    if (section.startsWith('6.')) continue;
-
     if (!extractedSections.has(section)) {
       missing.push(section);
     }
@@ -1663,7 +1737,7 @@ function findSectionLineRange(
       const parts = sectionNumber.split('.');
       const nextPattern = new RegExp(`^\\s*\\d+\\.\\d+(\\.\\d+)?[\\s.]`);
 
-      for (let j = i + 1; j < lines.length && j < i + 10; j++) {
+      for (let j = i + 1; j < lines.length && j < i + MAX_LINE_SCAN_RANGE; j++) {
         if (nextPattern.test(lines[j]) && !lines[j].includes(sectionNumber)) {
           break;
         }
@@ -1684,6 +1758,97 @@ function findSectionLineRange(
  * More robust than line-based detection - searches anywhere in text.
  * Returns context lines and whether the exact section was found.
  */
+/**
+ * Deterministically extract a requirement's text from document text.
+ * Uses pattern matching to find the section and extract text until the next section.
+ * This is the final fallback when LLM-based extraction fails.
+ */
+function extractRequirementDeterministic(
+  documentText: string,
+  sectionNumber: string,
+  majorSections: Map<string, { number: string; title: string }>
+): ExtractedRequirement | null {
+  const escaped = sectionNumber.replace(/\./g, '\\.');
+
+  // Build pattern to find this exact section number at start of a line or phrase
+  const patterns = [
+    new RegExp(`^\\s*${escaped}\\s+(.+?)(?=\\n\\s*\\d+\\.\\d+|$)`, 'm'),  // Line start
+    new RegExp(`(?:^|\\n)\\s*${escaped}\\s+(.+?)(?=\\n\\s*\\d+\\.\\d+|$)`, 's'),  // After newline
+    new RegExp(`${escaped}\\s+(.+?)(?=\\s+\\d+\\.\\d+\\.\\d+|$)`, 's'),  // Anywhere (last resort)
+  ];
+
+  let extractedText: string | null = null;
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(documentText);
+    if (match) {
+      // Found the section - extract text
+      // Get text from after section number to before next section
+      const startIdx = match.index + sectionNumber.length;
+      const textAfterSection = documentText.substring(startIdx);
+
+      // Find where the next section starts (X.Y.Z pattern)
+      const nextSectionMatch = textAfterSection.match(/(?:^|\n)\s*\d+\.\d+(?:\.\d+)?\s/);
+
+      if (nextSectionMatch) {
+        extractedText = textAfterSection.substring(0, nextSectionMatch.index).trim();
+      } else {
+        // No next section found - take first 500 chars max
+        extractedText = textAfterSection.substring(0, 500).trim();
+      }
+
+      // Clean up: remove the section number if it's at the start
+      if (extractedText.startsWith(sectionNumber)) {
+        extractedText = extractedText.substring(sectionNumber.length).trim();
+      }
+
+      // Stop at double newline (paragraph break) if found
+      const paraBreak = extractedText.indexOf('\n\n');
+      if (paraBreak > 0 && paraBreak < extractedText.length - 50) {
+        extractedText = extractedText.substring(0, paraBreak).trim();
+      }
+
+      break;
+    }
+  }
+
+  if (!extractedText || extractedText.length < MIN_REQUIREMENT_LENGTH) {
+    console.log(`[deterministic] Could not extract meaningful text for ${sectionNumber}`);
+    return null;
+  }
+
+  // Clean up newlines within the text
+  extractedText = extractedText.replace(/\s+/g, ' ').trim();
+
+  console.log(`[deterministic] Extracted ${sectionNumber}: "${sanitizeForLog(extractedText)}"`);
+
+  // Apply heuristic classification
+  const classification = classifyRequirement(extractedText);
+
+  // Derive sectionGroup from major sections map
+  let sectionGroup: string | null = null;
+  const majorMatch = sectionNumber.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
+  if (majorMatch) {
+    const majorNum = majorMatch[1].toUpperCase();
+    const majorSection = majorSections.get(majorNum);
+    if (majorSection) {
+      sectionGroup = `${majorSection.number}: ${majorSection.title}`;
+    }
+  }
+
+  return {
+    section: sectionNumber,
+    sectionGroup,
+    text: extractedText,
+    type: classification.type,
+    isMandatory: classification.isMandatory,
+    domainContext: classification.domainContext,
+    wordLimit: classification.wordLimit,
+    characterLimit: classification.characterLimit,
+    isAttestation: classification.isAttestation,
+  };
+}
+
 function findSectionContext(
   documentText: string,
   lines: string[],
@@ -1706,9 +1871,12 @@ function findSectionContext(
 
   // Strategy 3: Fuzzy match (handles OCR errors like "3.l.5" instead of "3.1.5")
   if (!match) {
-    // Replace digits with digit character class for fuzzy matching
-    const fuzzyEscaped = escaped.replace(/\\\.(\d)/g, '\\.[$1l|]');  // l and | look like 1
-    const fuzzyPattern = new RegExp(`${fuzzyEscaped}[\\s.:]`);
+    // Build fuzzy pattern that handles common OCR errors
+    const fuzzyEscaped = sectionNumber
+      .replace(/1/g, '[1lI|]')   // 1 looks like l, I, |
+      .replace(/0/g, '[0O]')     // 0 looks like O
+      .replace(/\./g, '[.·]');   // dot could be middle dot
+    const fuzzyPattern = new RegExp(`\\b${fuzzyEscaped}[\\s.:]`);
     match = fuzzyPattern.exec(documentText);
     if (match) {
       console.log(`[findSectionContext] Found ${sectionNumber} via fuzzy match at position ${match.index}`);
@@ -1716,21 +1884,15 @@ function findSectionContext(
   }
 
   if (match) {
-    // Extract context: 200 chars before, 500 chars after
-    const start = Math.max(0, match.index - 200);
-    const end = Math.min(documentText.length, match.index + 500);
+    // Extract context around the match position
+    const start = Math.max(0, match.index - CONTEXT_CHARS_BEFORE);
+    const end = Math.min(documentText.length, match.index + CONTEXT_CHARS_AFTER);
     const contextText = documentText.substring(start, end);
 
-    // Find the approximate line index for this position
-    let charCount = 0;
-    let lineIndex: number | null = null;
-    for (let i = 0; i < lines.length; i++) {
-      charCount += lines[i].length + 1; // +1 for newline
-      if (charCount >= match.index) {
-        lineIndex = i;
-        break;
-      }
-    }
+    // Find line index by counting newlines in documentText up to match position
+    // (lines array may have different structure than documentText due to filtering)
+    const textBeforeMatch = documentText.substring(0, match.index);
+    const lineIndex = (textBeforeMatch.match(/\n/g) || []).length;
 
     return { contextLines: contextText, found: true, lineIndex };
   }
@@ -1763,8 +1925,8 @@ async function extractMissingItemsTargeted(
   documentText: string,
   missingItems: string[],
   majorSections: Map<string, { number: string; title: string }>
-): Promise<ExtractedRequirement[]> {
-  if (missingItems.length === 0) return [];
+): Promise<{ requirements: ExtractedRequirement[]; stillMissing: string[] }> {
+  if (missingItems.length === 0) return { requirements: [], stillMissing: [] };
 
   console.log(`[gap-fill] Attempting to extract ${missingItems.length} missing items`);
 
@@ -1786,8 +1948,9 @@ async function extractMissingItemsTargeted(
     const lastItem = items[items.length - 1];
 
     // Find line ranges - try line-based first, fall back to text-based context
-    let firstRange = findSectionLineRange(lines, firstItem);
-    let lastRange = findSectionLineRange(lines, lastItem);
+    const firstRange = findSectionLineRange(lines, firstItem);
+    // Only compute lastRange if firstRange succeeded (avoid wasted work)
+    const lastRange = firstRange ? findSectionLineRange(lines, lastItem) : null;
     let contextLines: string;
     let usingTextContext = false;
 
@@ -1839,19 +2002,22 @@ async function extractMissingItemsTargeted(
     }
 
     try {
-      const response = await openai.chat.completions.create({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You extract specific requirements by line number. Return ONLY the JSON with line references for the requested items.',
-          },
-          { role: 'user', content: targetedPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.1,
-        max_tokens: 2000,
-      });
+      const response = await openai.chat.completions.create(
+        {
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You extract specific requirements by line number. Return ONLY the JSON with line references for the requested items.',
+            },
+            { role: 'user', content: targetedPrompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+          max_tokens: 2000,
+        },
+        { timeout: LLM_TIMEOUT_MS }
+      );
 
       const content = response.choices[0]?.message?.content;
       if (!content) continue;
@@ -1865,9 +2031,16 @@ async function extractMissingItemsTargeted(
       if (parsed.r && Array.isArray(parsed.r)) {
         console.log(`[gap-fill] Found ${parsed.r.length} items for ${subsection} (line-based)`);
 
-        for (const [startLine, endLine, section] of parsed.r) {
+        for (const [startLine, endLine, llmSection] of parsed.r) {
           const text = extractTextFromLines(lines, startLine, endLine);
           if (!text) continue;
+
+          // Detect actual section from text to correct LLM mistakes
+          const detectedSection = detectSectionFromText(text);
+          const section = detectedSection || llmSection;
+          if (detectedSection && detectedSection !== llmSection) {
+            console.log(`[gap-fill] Corrected section ${llmSection} -> ${detectedSection}`);
+          }
 
           const classification = classifyRequirement(text);
           let sectionGroup: string | null = null;
@@ -1944,7 +2117,7 @@ async function extractMissingItemsTargeted(
   }
 
   console.log(`[gap-fill] Total recovered: ${results.length} requirements`);
-  return results;
+  return { requirements: results, stillMissing };
 }
 
 // =============================================================================
@@ -1970,6 +2143,17 @@ export async function extractRequirements(
   console.log(`[extract] Starting extraction with model ${model}`);
   console.log(`[extract] Document length: ${documentText.length} chars`);
 
+  // Early return for empty or very short documents
+  if (!documentText || documentText.trim().length < MIN_DOCUMENT_LENGTH) {
+    console.warn('[extract] Document too short for meaningful extraction');
+    return {
+      deadline: null,
+      deadlineText: null,
+      requirements: [],
+      warnings: ['Document too short for meaningful extraction'],
+    };
+  }
+
   // Add line numbers to document for reference-based extraction
   const { numberedText, lines } = addLineNumbers(documentText);
   console.log(`[extract] Document has ${lines.length} lines`);
@@ -1993,16 +2177,19 @@ export async function extractRequirements(
 
     userMessage += `\n\n${numberedText}`;
 
-    const response = await openai.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: EXTRACTION_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.1, // Low temperature for consistent extraction
-      max_tokens: 16384, // Max for gpt-4o-mini
-    });
+    const response = await openai.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: 'system', content: EXTRACTION_PROMPT },
+          { role: 'user', content: userMessage },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1, // Low temperature for consistent extraction
+        max_tokens: 16384, // Max for gpt-4o-mini
+      },
+      { timeout: LLM_TIMEOUT_MS }
+    );
 
     const content = response.choices[0]?.message?.content;
     const finishReason = response.choices[0]?.finish_reason;
@@ -2027,12 +2214,20 @@ export async function extractRequirements(
     // Format: [startLine, endLine, section] - sectionGroup derived from majorSections
     // Classification is done via heuristics in post-processing
     let requirements: ExtractedRequirement[] = (rawResult.r || []).map((arr, idx) => {
-      const [startLine, endLine, section] = arr;
+      const [startLine, endLine, llmSection] = arr;
 
       const text = extractTextFromLines(lines, startLine, endLine);
 
       if (!text && startLine && endLine) {
         console.warn(`[extract] Empty text for requirement ${idx}: lines ${startLine}-${endLine}`);
+      }
+
+      // CRITICAL: Detect actual section from text to correct LLM mistakes
+      // The LLM sometimes returns wrong section numbers for multi-line requirements
+      const detectedSection = detectSectionFromText(text);
+      const section = detectedSection || llmSection;
+      if (detectedSection && detectedSection !== llmSection) {
+        console.log(`[extract] Corrected section ${llmSection} -> ${detectedSection} based on text content`);
       }
 
       // Apply heuristic classification based on extracted text
@@ -2071,8 +2266,13 @@ export async function extractRequirements(
     // Filter out any empty requirements (bad line references)
     const beforeFilter = requirements.length;
     requirements = requirements.filter(req => req.text.length > 0);
-    if (beforeFilter !== requirements.length) {
-      console.log(`[extract] Filtered ${beforeFilter - requirements.length} empty requirements from bad line refs`);
+    const emptyCount = beforeFilter - requirements.length;
+    if (emptyCount > 0) {
+      console.log(`[extract] Filtered ${emptyCount} empty requirements from bad line refs`);
+      // Warn if high empty rate indicates systematic line mapping issues
+      if (emptyCount > requirements.length * 0.1) {
+        console.warn(`[extract] WARNING: High empty rate (${emptyCount}/${beforeFilter}) - possible line mapping issue`);
+      }
     }
 
     // ==========================================================================
@@ -2119,11 +2319,14 @@ export async function extractRequirements(
     // Detect missing items
     const missingItems = detectMissingItems(documentText, extractedSectionNumbers);
 
+    // Validate section coverage
+    const warnings: string[] = [];
+
     if (missingItems.length > 0) {
       console.log(`[extract] Detected ${missingItems.length} potentially missing items: ${missingItems.slice(0, 10).join(', ')}${missingItems.length > 10 ? '...' : ''}`);
 
       // Attempt targeted extraction for missing items
-      const recoveredRequirements = await extractMissingItemsTargeted(
+      const { requirements: recoveredRequirements, stillMissing } = await extractMissingItemsTargeted(
         openai,
         model,
         lines,
@@ -2149,10 +2352,43 @@ export async function extractRequirements(
         // Re-run deduplication after adding recovered items
         requirements = deduplicateRequirements(requirements);
       }
-    }
 
-    // Validate section coverage
-    const warnings: string[] = [];
+      // FINAL FALLBACK: Deterministic extraction for items that LLM couldn't recover
+      // This ensures zero missing requirements by using pattern matching directly
+      if (stillMissing.length > 0) {
+        console.log(`[deterministic] Final fallback for ${stillMissing.length} items still missing after LLM gap-fill`);
+
+        const finallyMissing: string[] = [];
+
+        for (const sectionNumber of stillMissing) {
+          const extracted = extractRequirementDeterministic(documentText, sectionNumber, majorSections);
+          if (extracted) {
+            // Check if we already have this section (avoid duplicates)
+            const isDuplicate = requirements.some(
+              r => r.section === extracted.section
+            );
+            if (!isDuplicate) {
+              requirements.push(extracted);
+              console.log(`[deterministic] Recovered ${sectionNumber} via deterministic extraction`);
+            } else {
+              console.log(`[deterministic] Skipped ${sectionNumber} - already exists`);
+            }
+          } else {
+            finallyMissing.push(sectionNumber);
+          }
+        }
+
+        // Only warn about items we truly couldn't extract
+        if (finallyMissing.length > 0) {
+          warnings.push(`Could not extract ${finallyMissing.length} items: ${finallyMissing.slice(0, 5).join(', ')}${finallyMissing.length > 5 ? '...' : ''}`);
+        } else {
+          console.log(`[deterministic] All missing items recovered - zero missing requirements!`);
+        }
+
+        // Re-run deduplication after deterministic extraction
+        requirements = deduplicateRequirements(requirements);
+      }
+    }
     const extractedSections = new Map<string, number>();
     for (const req of requirements) {
       if (req.section) {
