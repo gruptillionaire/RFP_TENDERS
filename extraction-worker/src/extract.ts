@@ -555,33 +555,46 @@ NOT ATTESTATION (isAttestation: false):
 
 When uncertain, default to NOT attestation (isAttestation: false) - this is the safer assumption.
 
-Return your response as a JSON object with this structure:
+Return your response as a JSON object with this COMPACT structure:
 {
-  "deadline": "ISO 8601 date string (YYYY-MM-DDTHH:mm:ss) or null if no deadline found",
-  "deadlineText": "Original deadline text from document (e.g., '5pm Friday 14 February 2025') or null",
-  "requirements": [
-    {
-      "startLine": 123,
-      "endLine": 127,
-      "isMandatory": true/false,
-      "section": "Specific subsection reference (e.g., 'A.1.2', '3.4.1', 'B.2') - just the number, NOT the title",
-      "sectionGroup": "Parent section with title (e.g., 'A: REQUIRED BANKING SERVICES', '3: Technical Requirements')",
-      "type": "CONTEXTUAL" | "PROCEDURAL" | "DECLARATIVE" | "DESCRIPTIVE" | "EVIDENCE_BASED" | "QUANTITATIVE" | "REFERENCE_BASED" | "STAFFING",
-      "domainContext": "FEATURE" | "PROCESS" | "LEGAL",
-      "wordLimit": number or null,
-      "characterLimit": number or null,
-      "isAttestation": true/false (binary attestation eligible)
-    }
+  "d": "ISO 8601 deadline or null",
+  "dt": "Original deadline text or null",
+  "r": [
+    [startLine, endLine, "section", "sectionGroup", "TYPE", mandatory, "DOMAIN", wordLimit, charLimit, attestation],
+    [startLine, endLine, "section", "sectionGroup", "TYPE", mandatory, "DOMAIN", wordLimit, charLimit, attestation]
   ]
 }
 
+ARRAY FORMAT - each requirement is an array with these positions:
+[0] startLine - integer, line where requirement starts
+[1] endLine - integer, line where requirement ends
+[2] section - string like "3.1.2" or "A.1" or null
+[3] sectionGroup - string like "3: Technical Requirements" or null
+[4] type - one of: "CTX","PRO","DEC","DES","EVI","QUA","REF","STA"
+[5] mandatory - boolean (true/false)
+[6] domain - one of: "F","P","L" (Feature/Process/Legal)
+[7] wordLimit - integer or null
+[8] charLimit - integer or null
+[9] attestation - boolean (true/false)
+
+TYPE CODES:
+- CTX = CONTEXTUAL
+- PRO = PROCEDURAL
+- DEC = DECLARATIVE
+- DES = DESCRIPTIVE
+- EVI = EVIDENCE_BASED
+- QUA = QUANTITATIVE
+- REF = REFERENCE_BASED
+- STA = STAFFING
+
+EXAMPLE:
+{"d":null,"dt":null,"r":[[45,48,"3.1.2","3: Requirements","DES",true,"F",2500,null,false],[52,52,"3.1.3",null,"DEC",true,"L",null,null,true]]}
+
 LINE REFERENCE RULES:
-- startLine: The line number where the requirement BEGINS (inclusive)
-- endLine: The line number where the requirement ENDS (inclusive)
+- startLine/endLine are integers from the "L123:" prefixes in the document
 - For single-line requirements, startLine equals endLine
-- For multi-line requirements (e.g., a question with bullet points), include ALL lines
-- Line numbers are the integers after "L" at the start of each line (e.g., "L245:" means line 245)
-- DO NOT output the requirement text - we will extract it using your line numbers
+- For multi-line requirements, include ALL lines in the range
+- DO NOT output requirement text - we extract it using line numbers
 
 CRITICAL INSTRUCTIONS:
 - DEADLINE: Search the ENTIRE document for submission deadline. Look for: "submit by", "due date", "deadline", "responses due", "closing date", "must be received by". Extract the most specific deadline found.
@@ -1176,25 +1189,46 @@ function extractTextFromLines(lines: string[], startLine: number, endLine: numbe
   return lines.slice(start, end + 1).join('\n').trim();
 }
 
-// Line reference result from LLM
-interface LineReferenceRequirement {
-  startLine: number;
-  endLine: number;
-  section: string | null;
-  sectionGroup: string | null;
-  type: string;
-  isMandatory: boolean;
-  domainContext: string | null;
-  wordLimit: number | null;
-  characterLimit: number | null;
-  isAttestation: boolean;
+// Compact array format from LLM
+// Each requirement is: [startLine, endLine, section, sectionGroup, type, mandatory, domain, wordLimit, charLimit, attestation]
+type CompactRequirement = [number, number, string | null, string | null, string, boolean, string, number | null, number | null, boolean];
+
+interface CompactResult {
+  d: string | null;   // deadline
+  dt: string | null;  // deadlineText
+  r: CompactRequirement[];  // requirements
 }
 
-interface LineReferenceResult {
-  deadline: string | null;
-  deadlineText: string | null;
-  requirements: LineReferenceRequirement[];
-}
+// Type code mapping
+const TYPE_CODE_MAP: Record<string, RequirementType> = {
+  'CTX': 'CONTEXTUAL',
+  'PRO': 'PROCEDURAL',
+  'DEC': 'DECLARATIVE',
+  'DES': 'DESCRIPTIVE',
+  'EVI': 'EVIDENCE_BASED',
+  'QUA': 'QUANTITATIVE',
+  'REF': 'REFERENCE_BASED',
+  'STA': 'STAFFING',
+  // Also accept full names in case LLM doesn't use codes
+  'CONTEXTUAL': 'CONTEXTUAL',
+  'PROCEDURAL': 'PROCEDURAL',
+  'DECLARATIVE': 'DECLARATIVE',
+  'DESCRIPTIVE': 'DESCRIPTIVE',
+  'EVIDENCE_BASED': 'EVIDENCE_BASED',
+  'QUANTITATIVE': 'QUANTITATIVE',
+  'REFERENCE_BASED': 'REFERENCE_BASED',
+  'STAFFING': 'STAFFING',
+};
+
+// Domain code mapping
+const DOMAIN_CODE_MAP: Record<string, 'FEATURE' | 'PROCESS' | 'LEGAL'> = {
+  'F': 'FEATURE',
+  'P': 'PROCESS',
+  'L': 'LEGAL',
+  'FEATURE': 'FEATURE',
+  'PROCESS': 'PROCESS',
+  'LEGAL': 'LEGAL',
+};
 
 // =============================================================================
 // EXTRACTION FUNCTION
@@ -1250,26 +1284,36 @@ export async function extractRequirements(
       console.warn('[extract] WARNING: Response may have been truncated');
     }
 
-    const rawResult = JSON.parse(content) as LineReferenceResult;
+    const rawResult = JSON.parse(content) as CompactResult;
     const elapsed = Date.now() - startTime;
 
-    console.log(`[extract] Raw extraction: ${rawResult.requirements?.length || 0} requirements in ${elapsed}ms`);
+    console.log(`[extract] Raw extraction: ${rawResult.r?.length || 0} requirements in ${elapsed}ms`);
     console.log(`[extract] Tokens used: ${response.usage?.total_tokens || 'unknown'}`);
     console.log(`[extract] Output tokens: ${response.usage?.completion_tokens || 'unknown'}`);
 
-    // Convert line references to actual text
-    let requirements: ExtractedRequirement[] = (rawResult.requirements || []).map(req => {
-      const text = extractTextFromLines(lines, req.startLine, req.endLine);
+    // Convert compact array format to full requirements
+    // Format: [startLine, endLine, section, sectionGroup, type, mandatory, domain, wordLimit, charLimit, attestation]
+    let requirements: ExtractedRequirement[] = (rawResult.r || []).map((arr, idx) => {
+      const [startLine, endLine, section, sectionGroup, typeCode, mandatory, domainCode, wordLimit, charLimit, attestation] = arr;
+
+      const text = extractTextFromLines(lines, startLine, endLine);
+      const type = TYPE_CODE_MAP[typeCode] || 'DESCRIPTIVE';
+      const domainContext = DOMAIN_CODE_MAP[domainCode] || 'FEATURE';
+
+      if (!text && startLine && endLine) {
+        console.warn(`[extract] Empty text for requirement ${idx}: lines ${startLine}-${endLine}`);
+      }
+
       return {
-        section: req.section || null,
-        sectionGroup: req.sectionGroup || null,
+        section: section || null,
+        sectionGroup: sectionGroup || null,
         text,
-        type: (req.type as RequirementType) || 'DESCRIPTIVE',
-        isMandatory: req.isMandatory !== false, // Default to true
-        domainContext: (req.domainContext as 'FEATURE' | 'PROCESS' | 'LEGAL') || 'FEATURE',
-        wordLimit: req.wordLimit || null,
-        characterLimit: req.characterLimit || null,
-        isAttestation: req.isAttestation || false,
+        type,
+        isMandatory: mandatory !== false,
+        domainContext,
+        wordLimit: wordLimit || null,
+        characterLimit: charLimit || null,
+        isAttestation: attestation || false,
       };
     });
 
@@ -1304,8 +1348,8 @@ export async function extractRequirements(
     console.log(`[extract] Post-processing complete: ${requirements.length} requirements`);
 
     return {
-      deadline: rawResult.deadline || null,
-      deadlineText: rawResult.deadlineText || null,
+      deadline: rawResult.d || null,
+      deadlineText: rawResult.dt || null,
       requirements,
     };
   } catch (error: unknown) {
