@@ -1135,8 +1135,8 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 // DOCUMENT CHUNKING FOR LARGE DOCUMENTS
 // =============================================================================
 
-const CHUNK_SIZE_CHARS = 40000; // ~10k tokens input per chunk
-const LARGE_DOC_THRESHOLD = 50000; // Documents larger than this get chunked
+const CHUNK_SIZE_CHARS = 20000; // ~5k tokens input per chunk (smaller to avoid output truncation)
+const LARGE_DOC_THRESHOLD = 25000; // Documents larger than this get chunked
 
 /**
  * Split document into chunks at section boundaries.
