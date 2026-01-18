@@ -555,6 +555,29 @@ NOT ATTESTATION (isAttestation: false):
 
 When uncertain, default to NOT attestation (isAttestation: false) - this is the safer assumption.
 
+==============================================================================
+IMPORTANT: CLASSIFY EACH REQUIREMENT INDIVIDUALLY
+==============================================================================
+Do NOT copy-paste the same classification for every requirement. Each requirement
+must be analyzed independently:
+
+- TYPE: Read the requirement text. Is it asking for description (DES), evidence (EVI),
+  pricing/numbers (QUA), process/procedure (PRO), references (REF), staffing (STA),
+  a simple declaration (DEC), or is it just context (CTX)?
+
+- MANDATORY: Does this specific requirement contain "optional", "if desired",
+  "where applicable"? If yes → false. Otherwise → true.
+
+- DOMAIN: Is this about legal/compliance/regulatory (L)? About process/methodology (P)?
+  Or about features/capabilities/technical (F)?
+
+- ATTESTATION: Can this be answered with a simple "Yes, we comply" or "No"?
+  If yes → true. If it needs explanation/description → false.
+
+RFPs typically have a MIX of types. If you find yourself outputting the same
+classification for every requirement, STOP and re-read the requirements.
+==============================================================================
+
 Return your response as a JSON object with this COMPACT structure:
 {
   "d": "ISO 8601 deadline or null",
@@ -587,8 +610,24 @@ TYPE CODES:
 - REF = REFERENCE_BASED
 - STA = STAFFING
 
-EXAMPLE:
-{"d":null,"dt":null,"r":[[45,48,"3.1.2","3: Requirements","DES",true,"F",2500,null,false],[52,52,"3.1.3",null,"DEC",true,"L",null,null,true]]}
+EXAMPLE showing VARIETY in classifications:
+{"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February 2025","r":[
+[12,12,"1.0","1: Introduction","CTX",true,"F",null,null,false],
+[45,48,"3.1.2","3: Technical Requirements","DES",true,"F",2500,null,false],
+[52,52,"3.1.3","3: Technical Requirements","DEC",true,"L",null,null,true],
+[60,65,"3.2.1","3: Technical Requirements","EVI",true,"P",null,null,false],
+[70,72,"4.1","4: Pricing","QUA",true,"F",null,null,false],
+[80,82,"5.1","5: Optional Services","DES",false,"F",1000,null,false],
+[90,93,"6.1","6: Staffing","STA",true,"P",null,null,false],
+[100,100,"7.1","7: References","REF",true,"L",null,null,true],
+[110,115,"8.1","8: Compliance","PRO",true,"L",null,null,false]
+]}
+
+CLASSIFICATION VARIETY IS CRITICAL:
+- NOT all requirements are the same type - use the FULL range: CTX, PRO, DEC, DES, EVI, QUA, REF, STA
+- NOT all requirements are mandatory - look for "optional", "if applicable", "desired but not required"
+- NOT all requirements are FEATURE domain - legal/compliance items are "L", process/methodology are "P"
+- NOT all requirements are non-attestation - simple yes/no compliance questions ARE attestation (true)
 
 LINE REFERENCE RULES:
 - startLine/endLine are integers from the "L123:" prefixes in the document
@@ -1186,7 +1225,45 @@ function extractTextFromLines(lines: string[], startLine: number, endLine: numbe
     return '';
   }
 
-  return lines.slice(start, end + 1).join('\n').trim();
+  const rawText = lines.slice(start, end + 1).join('\n').trim();
+  return stripSectionPrefix(rawText);
+}
+
+/**
+ * Strip section number prefixes from requirement text.
+ * Examples:
+ *   "4.4.5 Is any software required..." → "Is any software required..."
+ *   "A.1.2 Describe your approach..." → "Describe your approach..."
+ *   "3.\n  3.1 Some text" → "Some text"
+ */
+function stripSectionPrefix(text: string): string {
+  // Pattern matches section numbers at start of text:
+  // - "4.4.5 " or "4.4.5. " (numbered sections)
+  // - "A.1.2 " or "A.1.2. " (letter sections)
+  // - "4." or "A." on its own line followed by more content
+  // - "(a)" or "(1)" style prefixes
+
+  let result = text;
+
+  // Remove leading section numbers like "4.4.5 " or "A.1.2 " or "4.4.5. "
+  result = result.replace(/^(\d+\.)+\d*\s*\.?\s*/m, '');
+  result = result.replace(/^[A-Z](\.\d+)+\s*\.?\s*/im, '');
+
+  // Remove standalone section markers like "4.\n" at the start
+  result = result.replace(/^\d+\.\s*\n\s*/m, '');
+  result = result.replace(/^[A-Z]\.\s*\n\s*/im, '');
+
+  // Remove subsection numbers after newlines: "\n  4.5 " → "\n"
+  result = result.replace(/\n\s*(\d+\.)+\d*\s*\.?\s*/g, '\n');
+  result = result.replace(/\n\s*[A-Z](\.\d+)+\s*\.?\s*/gi, '\n');
+
+  // Remove parenthetical prefixes like "(a) " or "(1) "
+  result = result.replace(/^\([a-z0-9]+\)\s*/im, '');
+
+  // Clean up any resulting leading/trailing whitespace or empty lines
+  result = result.replace(/^\s*\n+/, '').trim();
+
+  return result;
 }
 
 // Compact array format from LLM
