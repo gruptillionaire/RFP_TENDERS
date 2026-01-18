@@ -1132,6 +1132,164 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 }
 
 // =============================================================================
+// DOCUMENT CHUNKING FOR LARGE DOCUMENTS
+// =============================================================================
+
+const CHUNK_SIZE_CHARS = 40000; // ~10k tokens input per chunk
+const LARGE_DOC_THRESHOLD = 50000; // Documents larger than this get chunked
+
+/**
+ * Split document into chunks at section boundaries.
+ * Tries to split at major section headers to keep context together.
+ */
+function splitDocumentIntoChunks(text: string): string[] {
+  if (text.length <= CHUNK_SIZE_CHARS) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= CHUNK_SIZE_CHARS) {
+      chunks.push(remaining);
+      break;
+    }
+
+    // Try to find a good split point (section header) within the chunk size
+    const searchRegion = remaining.substring(0, CHUNK_SIZE_CHARS + 5000);
+
+    // Look for section headers to split at (prefer splitting at major sections)
+    const sectionPatterns = [
+      /\n(?=#{1,2}\s+\d+[.:]\s)/g,           // Markdown headers: # 3. or ## 4.
+      /\n(?=\d+\.\s+[A-Z][A-Z\s]{5,})/g,     // Numbered sections: 3. SECTION NAME
+      /\n(?=[A-Z][.:]\s+[A-Z])/g,            // Letter sections: A. SECTION or A: SECTION
+      /\n(?=SECTION\s+\d+)/gi,               // SECTION 3
+      /\n(?=\d+\.\d+\s+[A-Z])/g,             // Subsections: 3.1 Subsection
+    ];
+
+    let bestSplitIndex = -1;
+
+    // Find the last section header before CHUNK_SIZE_CHARS
+    for (const pattern of sectionPatterns) {
+      let match;
+      while ((match = pattern.exec(searchRegion)) !== null) {
+        if (match.index > CHUNK_SIZE_CHARS * 0.5 && match.index <= CHUNK_SIZE_CHARS) {
+          bestSplitIndex = Math.max(bestSplitIndex, match.index);
+        }
+      }
+    }
+
+    // If no good section boundary found, split at paragraph or sentence
+    if (bestSplitIndex === -1) {
+      // Try paragraph break
+      const paraBreak = remaining.lastIndexOf('\n\n', CHUNK_SIZE_CHARS);
+      if (paraBreak > CHUNK_SIZE_CHARS * 0.5) {
+        bestSplitIndex = paraBreak;
+      } else {
+        // Try sentence break
+        const sentenceBreak = remaining.lastIndexOf('. ', CHUNK_SIZE_CHARS);
+        if (sentenceBreak > CHUNK_SIZE_CHARS * 0.5) {
+          bestSplitIndex = sentenceBreak + 1;
+        } else {
+          // Last resort: hard split
+          bestSplitIndex = CHUNK_SIZE_CHARS;
+        }
+      }
+    }
+
+    chunks.push(remaining.substring(0, bestSplitIndex).trim());
+    remaining = remaining.substring(bestSplitIndex).trim();
+  }
+
+  return chunks;
+}
+
+/**
+ * Deduplicate requirements based on text similarity.
+ */
+function deduplicateRequirements(requirements: ExtractedRequirement[]): ExtractedRequirement[] {
+  const seen = new Map<string, ExtractedRequirement>();
+
+  for (const req of requirements) {
+    // Create a normalized key from the first 100 chars of text
+    const key = req.text.substring(0, 100).toLowerCase().replace(/\s+/g, ' ').trim();
+
+    if (!seen.has(key)) {
+      seen.set(key, req);
+    }
+  }
+
+  return Array.from(seen.values());
+}
+
+/**
+ * Extract requirements from a single chunk.
+ */
+async function extractFromChunk(
+  openai: OpenAI,
+  chunkText: string,
+  chunkIndex: number,
+  totalChunks: number,
+  model: string
+): Promise<{ requirements: ExtractedRequirement[]; deadline: string | null; deadlineText: string | null }> {
+  const chunkPrompt = totalChunks > 1
+    ? `Please extract all requirements and questions from this section of an RFP document (part ${chunkIndex + 1} of ${totalChunks}):\n\n${chunkText}`
+    : `Please extract all requirements and questions from this RFP document:\n\n${chunkText}`;
+
+  const response = await openai.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: EXTRACTION_PROMPT },
+      { role: 'user', content: chunkPrompt },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+    max_tokens: 16384,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  const finishReason = response.choices[0]?.finish_reason;
+
+  if (!content) {
+    throw new Error(`Empty response from OpenAI for chunk ${chunkIndex + 1}`);
+  }
+
+  if (finishReason === 'length') {
+    console.warn(`[extract] WARNING: Chunk ${chunkIndex + 1} response was truncated`);
+  }
+
+  let rawResult: ExtractionResult;
+  try {
+    rawResult = JSON.parse(content) as ExtractionResult;
+  } catch (parseError) {
+    console.error(`[extract] JSON parse failed for chunk ${chunkIndex + 1}. Response length: ${content.length}`);
+    console.error('[extract] Finish reason:', finishReason);
+    throw new Error(`Failed to parse chunk ${chunkIndex + 1} response as JSON (finish_reason: ${finishReason})`);
+  }
+
+  console.log(`[extract] Chunk ${chunkIndex + 1}/${totalChunks}: ${rawResult.requirements?.length || 0} requirements`);
+
+  const requirements = (rawResult.requirements || []).map(req => ({
+    section: req.section || null,
+    sectionGroup: req.sectionGroup || null,
+    text: req.text || '',
+    type: req.type || 'DESCRIPTIVE',
+    isMandatory: req.isMandatory !== false,
+    domainContext: req.domainContext || 'FEATURE',
+    wordLimit: req.wordLimit || null,
+    characterLimit: req.characterLimit || null,
+    isAttestation: req.isAttestation || false,
+  })) as ExtractedRequirement[];
+
+  return {
+    requirements,
+    deadline: rawResult.deadline || null,
+    deadlineText: rawResult.deadlineText || null,
+  };
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -1155,58 +1313,45 @@ export async function extractRequirements(
   console.log(`[extract] Document length: ${documentText.length} chars`);
 
   try {
-    // Build user message with instruction prefix
-    const userMessage = `Please extract all requirements and questions from this RFP document:\n\n${documentText}`;
+    let allRequirements: ExtractedRequirement[] = [];
+    let deadline: string | null = null;
+    let deadlineText: string | null = null;
 
-    const response = await openai.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: EXTRACTION_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.1, // Low temperature for consistent extraction
-      max_tokens: 16384, // Ensure we get complete response for large documents
-    });
+    // Check if document needs chunking
+    if (documentText.length > LARGE_DOC_THRESHOLD) {
+      const chunks = splitDocumentIntoChunks(documentText);
+      console.log(`[extract] Large document detected. Split into ${chunks.length} chunks`);
 
-    const content = response.choices[0]?.message?.content;
-    const finishReason = response.choices[0]?.finish_reason;
+      // Process chunks sequentially to avoid rate limits
+      for (let i = 0; i < chunks.length; i++) {
+        console.log(`[extract] Processing chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
 
-    if (!content) {
-      throw new Error('Empty response from OpenAI');
+        const chunkResult = await extractFromChunk(openai, chunks[i], i, chunks.length, model);
+        allRequirements.push(...chunkResult.requirements);
+
+        // Take deadline from first chunk that has one
+        if (!deadline && chunkResult.deadline) {
+          deadline = chunkResult.deadline;
+          deadlineText = chunkResult.deadlineText;
+        }
+      }
+
+      // Deduplicate requirements from overlapping chunks
+      const beforeDedup = allRequirements.length;
+      allRequirements = deduplicateRequirements(allRequirements);
+      if (beforeDedup !== allRequirements.length) {
+        console.log(`[extract] Deduplicated: ${beforeDedup} -> ${allRequirements.length} requirements`);
+      }
+    } else {
+      // Small document: single extraction
+      const result = await extractFromChunk(openai, documentText, 0, 1, model);
+      allRequirements = result.requirements;
+      deadline = result.deadline;
+      deadlineText = result.deadlineText;
     }
 
-    // Check if response was truncated
-    if (finishReason === 'length') {
-      console.warn('[extract] WARNING: Response was truncated due to token limit');
-    }
-
-    let rawResult: ExtractionResult;
-    try {
-      rawResult = JSON.parse(content) as ExtractionResult;
-    } catch (parseError) {
-      console.error('[extract] JSON parse failed. Response length:', content.length);
-      console.error('[extract] Finish reason:', finishReason);
-      console.error('[extract] Last 200 chars:', content.slice(-200));
-      throw new Error(`Failed to parse LLM response as JSON (finish_reason: ${finishReason})`);
-    }
     const elapsed = Date.now() - startTime;
-
-    console.log(`[extract] Raw extraction: ${rawResult.requirements?.length || 0} requirements in ${elapsed}ms`);
-    console.log(`[extract] Tokens used: ${response.usage?.total_tokens || 'unknown'}`);
-
-    // Normalize the response first
-    let requirements: ExtractedRequirement[] = (rawResult.requirements || []).map(req => ({
-      section: req.section || null,
-      sectionGroup: req.sectionGroup || null,
-      text: req.text || '',
-      type: req.type || 'DESCRIPTIVE',
-      isMandatory: req.isMandatory !== false, // Default to true
-      domainContext: req.domainContext || 'FEATURE',
-      wordLimit: req.wordLimit || null,
-      characterLimit: req.characterLimit || null,
-      isAttestation: req.isAttestation || false,
-    }));
+    console.log(`[extract] Raw extraction complete: ${allRequirements.length} requirements in ${elapsed}ms`);
 
     // ==========================================================================
     // POST-PROCESSING PIPELINE (from main app)
@@ -1215,7 +1360,7 @@ export async function extractRequirements(
     console.log('[extract] Applying post-processing pipeline...');
 
     // Step 1: Validate types and apply heuristic corrections
-    requirements = requirements.map(req => ({
+    let requirements = allRequirements.map(req => ({
       ...req,
       type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
     }));
@@ -1232,8 +1377,8 @@ export async function extractRequirements(
     console.log(`[extract] Post-processing complete: ${requirements.length} requirements`);
 
     return {
-      deadline: rawResult.deadline || null,
-      deadlineText: rawResult.deadlineText || null,
+      deadline,
+      deadlineText,
       requirements,
     };
   } catch (error: unknown) {
