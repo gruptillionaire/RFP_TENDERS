@@ -42,666 +42,43 @@ interface ExtractionOptions {
 // Optimized to reduce output size by using line references instead of full text
 // =============================================================================
 
-const EXTRACTION_PROMPT = `You are an expert at analyzing RFP (Request for Proposal) and tender documents. Your task is to extract ALL questions, requirements, and mandatory items from the document.
-
-IMPORTANT: The document has LINE NUMBERS at the start of each line (format: "L123: text").
-Instead of outputting the full requirement text, output the START and END line numbers.
-This dramatically reduces response size and prevents truncation.
-
-For each item extracted, identify:
-1. The LINE RANGE (startLine and endLine) where the requirement appears
-2. Whether it is MANDATORY or OPTIONAL - use these rules IN ORDER:
-
-   ==============================================================================
-   MANDATORY/OPTIONAL CLASSIFICATION (CHECK IN THIS ORDER - FIRST MATCH WINS)
-   ==============================================================================
-
-   === STEP 1: CHECK FOR EXPLICIT OPTIONAL SIGNALS ===
-   Set isMandatory: false ONLY IF the text contains EXPLICIT optional language:
-   - "optional", "if desired", "if applicable", "where applicable"
-   - "at your discretion", "you may choose to", "not required"
-   - "bonus points", "nice to have", "desirable but not essential"
-   - "preferred but not mandatory", "encouraged but not required"
-   - "you may include" (permissive language, not consequence)
-
-   If ANY of these are present → isMandatory: false, STOP.
-
-   === STEP 2: CHECK FOR WARNING/CONSEQUENCE PATTERNS ===
-   Set isMandatory: true IF the text contains consequence warnings:
-   - "Failure to [X] may/will result in..."
-   - "Failure to [X] may render [submission/response] invalid"
-   - "If not [provided/submitted/included], [consequence]..."
-   - "Non-compliance with [X] may/will result in..."
-   - "Proposals/submissions that do not [X] will be [rejected/disqualified]"
-   - "Incomplete [submissions/responses] may be [rejected/not considered]"
-
-   WARNING PATTERNS OVERRIDE "should" and "may" - these are MANDATORY.
-   If ANY warning pattern is present → isMandatory: true, STOP.
-
-   === STEP 3: CHECK FOR STRONG MANDATORY SIGNALS ===
-   Set isMandatory: true IF the text contains:
-   - "must", "shall", "required", "mandatory", "essential", "critical", "obligatory"
-   - "will" as commitment: "Respondents will provide...", "Proposals will include..."
-   - "are required to", "is required", "must be provided", "shall include"
-
-   If ANY of these are present → isMandatory: true, STOP.
-
-   === STEP 4: CHECK FOR STRUCTURAL MANDATORY SIGNALS ===
-   Set isMandatory: true IF the text contains:
-   - Word/character limits: "maximum X words", "X word limit", "not to exceed X"
-   - Direct questions (contains "?") requesting specific information
-   - Request language: "Please provide...", "Describe your...", "Explain your...",
-     "State your...", "Outline your...", "Detail your..."
-
-   If ANY structural signal is present → isMandatory: true, STOP.
-
-   === STEP 5: CONTEXT-AWARE "should" INTERPRETATION ===
-   "should" in RFP context is typically a POLITE IMPERATIVE (mandatory):
-
-   "should" is MANDATORY when:
-   - Requests specific information: "should state", "should provide", "should describe"
-   - Precedes deadline/action: "should notify by", "should submit by"
-   - Describes expected content: "should include", "should address"
-   - No explicit optional alternative is provided
-
-   "should" is OPTIONAL only when:
-   - Paired with optional language: "should, if possible, include"
-   - Alternative provided: "should do X, but may do Y instead"
-   - Explicit preference: "Ideally, respondents should..."
-
-   If "should" is present without optional context → isMandatory: true
-
-   === STEP 6: DEFAULT TO MANDATORY ===
-   If none of the above rules determined classification:
-   → isMandatory: true (DEFAULT)
-
-   RATIONALE: In professional RFPs, all questions and requirements expect a response.
-   Optional items are the EXCEPTION and are explicitly marked as such.
-
-   CONTEXT FOR "may":
-   - "you may include additional..." = OPTIONAL (permission)
-   - "failure to X may result in Y" = MANDATORY (consequence warning)
-   - "respondents may" without consequence = OPTIONAL (permission)
-   - Always check the full sentence context for "may"
-3. Section references - TWO SEPARATE FIELDS:
-   ==============================================================================
-   You must provide BOTH "section" AND "sectionGroup" for each requirement:
-   ==============================================================================
-
-   a) "section" - The SPECIFIC subsection reference where this requirement appears:
-      • This is the exact location/number in the document
-      • Examples: "A.1.2", "3.4.1", "B.2", "5.1.3", "II.A"
-      • Just the number/reference, NOT the title
-      • If the requirement appears under "A.1.2 Staffing Requirements", use "A.1.2"
-
-      CRITICAL - SECTION NUMBER FORMATTING:
-      ==============================================================================
-      Section numbers MUST be a single string WITHOUT newlines or extra whitespace.
-      If the document shows a section number split across lines (e.g., "3." on one line
-      and "12.5" on the next), you MUST combine them into "3.12.5".
-
-      CORRECT: "3.12.5", "4.3.1", "A.1.2"
-      WRONG: "3.\\n12.5", "12.5" (missing the 3), "3. 12.5" (extra space)
-
-      Never drop the leading number - "3.12.5" must stay "3.12.5", not become "12.5".
-      ==============================================================================
-
-   b) "sectionGroup" - The PARENT/MAJOR section with its TITLE:
-      • Look for the nearest major heading (A, B, 1, 2, etc.) and include its title
-      • Format: "NUMBER: TITLE"
-      • Examples: "A: REQUIRED BANKING SERVICES", "3: TECHNICAL REQUIREMENTS"
-      • This is used for grouping/filtering requirements by major category
-
-   EXAMPLES:
-   • Document has "A. REQUIRED BANKING SERVICES" then "A.1.2 Staffing" underneath:
-     → section: "A.1.2"
-     → sectionGroup: "A: REQUIRED BANKING SERVICES"
-
-   • Document has "3. Technical Requirements" then "3.4.1 Security":
-     → section: "3.4.1"
-     → sectionGroup: "3: Technical Requirements"
-
-   • Document has just "5. Pricing" with no subsections:
-     → section: "5"
-     → sectionGroup: "5: Pricing"
-
-   IMPORTANT: sectionGroup should ALWAYS include the title if one exists.
-4. The REQUIREMENT TYPE - classify each requirement into ONE of these categories:
-
-==============================================================================
-REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
-==============================================================================
-
-■ QUANTITATIVE
-  ==============================================================================
-  ACID TEST: Is the PRIMARY PURPOSE to obtain ACTUAL NUMBERS (prices, %, values)?
-  → If YES (asking for specific prices, costs, percentages) → QUANTITATIVE
-  → If NO (numbers are incidental, or asking about process/compliance) → Other type
-  ==============================================================================
-
-  STRICT TRIGGER KEYWORDS (MUST contain at least one):
-  £, $, €, ¥, price, pricing, cost, costing, fee, fees, rate, rates,
-  budget, tender sum, quote, quotation, TCO, ROI,
-  %, percent, percentage
-
-  STRONG INDICATORS (phrases that signal QUANTITATIVE):
-  • "what is the cost", "provide pricing", "your fees for"
-  • "what percentage", "how much" (when asking for specific numbers)
-  • "provide figures", "provide numbers", "breakdown of costs"
-  • Currency amounts or % values being requested
-
-  USE WHEN: Asking for ACTUAL PRICES, COSTS, PERCENTAGES, or NUMERIC VALUES
-
-  Examples - QUANTITATIVE:
-  • "Provide detailed pricing breakdown" → QUANTITATIVE (asks for prices)
-  • "What is your cost per user per month?" → QUANTITATIVE (specific cost)
-  • "What percentage uptime do you guarantee?" → QUANTITATIVE (asks for %)
-  • "Does your three-year total come in under £150k?" → QUANTITATIVE (pricing)
-
-  ==============================================================================
-  NOT QUANTITATIVE - Common False Positives (use correct type instead):
-  ==============================================================================
-  • "Describe your approach to metrics" → DESCRIPTIVE (asks HOW, not values)
-  • "How do you measure success?" → DESCRIPTIVE (asks for explanation)
-  • "Do you comply with SLA requirements?" → DECLARATIVE (compliance question)
-  • "Provide 3 client references" → REFERENCE_BASED (count is incidental)
-  • "How many FTEs will be dedicated?" → STAFFING (personnel question)
-  • "What are your key performance indicators?" → DESCRIPTIVE (asks to describe)
-
-■ EVIDENCE_BASED
-  TRIGGER KEYWORDS (if ANY present, strongly consider EVIDENCE_BASED):
-  attach, attached, include, included, submit, upload, enclose, provide copy,
-  sample, example, specimen, mock-up, template, certificate, certification,
-  license, insurance, bond, evidence, proof, documentation, appendix
-
-  USE WHEN: Response requires a FILE or ATTACHMENT, not just written text
-  Examples:
-  • "Include a sample monthly report" → EVIDENCE_BASED
-  • "Attach proof of insurance" → EVIDENCE_BASED
-  • "Provide copies of certifications" → EVIDENCE_BASED
-
-■ REFERENCE_BASED
-  TRIGGER KEYWORDS (if ANY present, strongly consider REFERENCE_BASED):
-  reference, references, past performance, similar project, previous client,
-  client contact, customer reference, case study, track record, experience with
-
-  USE WHEN: Asks for client contacts, project history, or verifiable references
-  Examples:
-  • "Provide 3 client references" → REFERENCE_BASED
-  • "Describe similar projects completed" → REFERENCE_BASED
-  • "List your experience with comparable implementations" → REFERENCE_BASED
-
-■ STAFFING
-  ==============================================================================
-  STAFFING HAS PRIORITY OVER CONTEXTUAL when asking for person contact info!
-  ==============================================================================
-
-  TRIGGER KEYWORDS (if ANY present, strongly consider STAFFING):
-  personnel, staff, team, resource, FTE, headcount, resume, CV, qualifications,
-  project manager, key personnel, roles, responsibilities, org chart, bio,
-  experience of staff, dedicated resource, contact person, contact details,
-  name and address, email address, telephone number, individual with authority
-
-  USE WHEN: About team composition, individual qualifications, personnel, OR contact information
-
-  STAFFING BEATS CONTEXTUAL - Even if text contains "shall submit" or "must provide":
-  ==============================================================================
-  When asking for a PERSON'S name/email/phone/contact info → ALWAYS use STAFFING
-  The fact that it says "shall submit" does NOT make it CONTEXTUAL.
-  ==============================================================================
-
-  Examples:
-  • "Identify key personnel for this project" → STAFFING
-  • "Provide CVs of proposed team members" → STAFFING
-  • "Describe your project manager's qualifications" → STAFFING
-  • "Submit the name, address, email, and telephone of an individual with authority to answer questions" → STAFFING
-  • "Banks shall submit the name, address, email address, and telephone number of an individual" → STAFFING
-    (Even though it says "shall submit", it's asking for person contact info → STAFFING)
-
-  CRITICAL: Requests for CONTACT INFORMATION of a person are STAFFING, not CONTEXTUAL:
-  • "Provide name and contact details of your project lead" → STAFFING
-  • "Submit contact information for clarification questions" → STAFFING
-  • "Shall submit name, address, and email of authorized representative" → STAFFING
-
-■ CONTEXTUAL
-  ==============================================================================
-  ACID TEST: Does this require a WRITTEN RESPONSE in the proposal?
-  → If NO written response is needed in the proposal document → CONTEXTUAL
-  → If YES a written answer/statement is needed → NOT CONTEXTUAL (use another type)
-  ==============================================================================
-
-  *** EXCEPTION: NEVER classify as CONTEXTUAL if asking for person contact info! ***
-  If text asks for name, email, telephone, address of a PERSON → use STAFFING instead
-  (See STAFFING section for details)
-
-  MANDATORY CONTEXTUAL - These patterns are ALWAYS CONTEXTUAL regardless of other signals:
-
-  A. CONSEQUENCE/WARNING PATTERNS (ALWAYS CONTEXTUAL):
-     • "Failure to [verb] may/will result in..."
-     • "Failure to [verb] may render [the RFP/submission/response] invalid..."
-     • "If not [provided/submitted/included], you will/may be [excluded/disqualified/eliminated]..."
-     • "Non-compliance with [X] may result in..."
-     These are WARNING STATEMENTS about process rules, NOT questions requiring answers.
-
-  B. PROCESS INSTRUCTION PATTERNS (ALWAYS CONTEXTUAL):
-     • "You should/shall/must [notify/submit/ensure/return/deliver/send/direct]..."
-     • "RFP [Respondents/Submissions] shall/should/must [process verb]..."
-     • "Respondents are [required/expected/advised] to [process action]..."
-     • "[Submissions/Responses] must be [delivered/received/sent/submitted] [by/to]..."
-     • "[Submissions/Responses] shall include [document X]" (instruction, not asking for content)
-     • "[Entity] shall/must/should answer/respond to ALL [questions/requirements]..."
-     These TELL you what to do procedurally; they don't ask for written proposal content.
-
-     CRITICAL: Meta-instructions about HOW to respond to the RFP are CONTEXTUAL:
-     • "Banks shall answer ALL questions in this RFP" → CONTEXTUAL (tells you to answer OTHER questions, not THIS one)
-     • "Respondents must address each requirement" → CONTEXTUAL (instruction about process)
-     • "Failure to respond to each requirement may result in rejection" → CONTEXTUAL (warning)
-     These are INSTRUCTIONS ABOUT the RFP process, not questions requiring answers themselves.
-
-  C. DEADLINE/TIMING INSTRUCTIONS (ALWAYS CONTEXTUAL when not asking a question):
-     • "[Action] by [date]" - e.g., "Submit by Friday 7 February"
-     • "Deadline for [X] is [date]"
-     • "Responses/Submissions due by..."
-     • "Notify us of your intention by [date]"
-
-  D. BACKGROUND/INTRODUCTORY CONTENT (ALWAYS CONTEXTUAL):
-     • Describes the issuing organization
-     • Explains purpose/scope of the RFP
-     • Provides project background information
-     • "Clarifications may be submitted to...", "Questions should be directed to..."
-
-  E. BUYER REQUIREMENTS/EXPECTATIONS (ALWAYS CONTEXTUAL):
-     • "We require [X]" - declarative statement of need
-     • "We need [X]" - organizational requirement
-     • "We are looking for [X]" - procurement intention
-     • "We expect [capability]" - buyer's expectation
-     • "The selected/chosen provider should/will/is expected to [have/offer/provide]..."
-     • "Our requirements include..."
-     • "Requirements for [X]: [capability list]"
-
-     THE ACID TEST: Is the RFP TELLING the bidder what the buyer wants?
-     → If BUYER DECLARING needs (no question mark) → CONTEXTUAL
-     → If ASKING BIDDER to explain/describe → NOT CONTEXTUAL
-
-     CRITICAL: Mentioning capabilities in a buyer's needs statement does NOT make it DESCRIPTIVE.
-     - "We require omnichannel tools" → CONTEXTUAL (buyer stating their requirement)
-     - "Describe your omnichannel tools" → DESCRIPTIVE (asking bidder to explain)
-
-  ==============================================================================
-  CRITICAL: CONTEXTUAL vs DECLARATIVE - Common Confusion Points
-  ==============================================================================
-
-  The word "shall" does NOT automatically mean DECLARATIVE. Look at the SUBJECT and VERB:
-
-  CONTEXTUAL (process instruction - no written response):
-  • "RFP submissions SHALL INCLUDE a signed Form of Tender" → Telling you what to include
-  • "Respondents SHALL ENSURE all information is supplied" → Telling you to do something
-  • "You SHOULD NOTIFY us by [date]" → Telling you to take an action
-
-  DECLARATIVE (asks for written statement - needs response):
-  • "CONFIRM you will include a signed Form of Tender" → Asking for confirmation statement
-  • "STATE whether you can ensure all information is supplied" → Asking for a statement
-  • "Will you notify us by [date]?" → Direct question requiring answer
-
-  THE DIFFERENCE: CONTEXTUAL uses imperative/instructive language telling you WHAT TO DO.
-  DECLARATIVE asks you to WRITE something (confirm, state, declare, answer yes/no).
-
-  ==============================================================================
-  CRITICAL: CONTEXTUAL vs DESCRIPTIVE - WHO IS THE SUBJECT?
-  ==============================================================================
-  This is the #1 misclassification source for buyer requirements.
-
-  CONTEXTUAL (buyer stating needs - NO response needed):
-  • "We require a fixed ESP to provide X features"
-  • "The organization expects Y capability"
-  • "Our needs include Z functionality"
-  • "The chosen provider is expected to offer robust tools"
-
-  DESCRIPTIVE (asking bidder to explain - RESPONSE needed):
-  • "Describe your ESP features"
-  • "Explain how you provide X capability"
-  • "How do you deliver Y functionality?"
-
-  The key: WHO is the subject doing the describing/providing?
-  - BUYER describing THEIR needs → CONTEXTUAL (background, no response)
-  - BIDDER describing THEIR solution → DESCRIPTIVE (response required)
-
-  ==============================================================================
-
-  NOT CONTEXTUAL (these require written responses - use other types):
-  ✗ "Describe your approach to..." → DESCRIPTIVE
-  ✗ "Confirm you will comply with..." → DECLARATIVE (asks for confirmation)
-  ✗ "Will you be able to...?" → DECLARATIVE (direct question)
-  ✗ "How do you ensure...?" → DESCRIPTIVE
-  ✗ "Provide evidence of..." → EVIDENCE_BASED
-  ✗ "State your policy on..." → DECLARATIVE
-
-  EXAMPLES - CONTEXTUAL:
-  • "The Treasurer of X County is soliciting proposals for..." → CONTEXTUAL (background)
-  • "ABC Organization serves 50,000 customers annually" → CONTEXTUAL (background)
-  • "RFP Responses should be submitted by email by 12:00pm Friday" → CONTEXTUAL (process)
-  • "You should notify of your intention to make a submission by [date]" → CONTEXTUAL (process)
-  • "Failure to provide all information may render the RFP invalid" → CONTEXTUAL (warning)
-  • "RFP Respondents shall ensure that all information is supplied" → CONTEXTUAL (process instruction)
-  • "RFP submissions shall include a signed copy of the Form of Tender. If not provided you will be excluded." → CONTEXTUAL (process instruction with warning)
-  • "Respondents seeking clarifications may do so in writing" → CONTEXTUAL (process)
-  • "We require a fixed, permanent ESP to cover the next three years." → CONTEXTUAL (buyer requirement)
-  • "The chosen provider is expected to offer a robust set of omnichannel marketing tools." → CONTEXTUAL (buyer expectation)
-  • "We are looking for a solution that integrates with our existing systems." → CONTEXTUAL (buyer need)
-  • "Banks shall answer ALL questions in this RFP. Failure to respond to each of the requirements in this RFP may be the basis for rejecting a response." → CONTEXTUAL (meta-instruction + warning about process, NOT a question itself)
-
-■ DESCRIPTIVE
-  INDICATORS (classify as DESCRIPTIVE if ANY apply):
-  • Contains "describe", "explain", "outline", "detail", "elaborate", "discuss"
-  • Contains a comma-separated list of 3+ features/capabilities to address
-  • Starts with "Please provide information on..."
-  • Asks about platform/system capabilities or features
-  • Contains phrases like "ability to cover:", "capabilities for:", "support for:"
-
-  USE WHEN: Requires detailed written explanation, multiple items, or comprehensive response
-  Examples:
-  • "Describe your approach to data migration" → DESCRIPTIVE
-  • "Explain your methodology for quality assurance" → DESCRIPTIVE
-  • "Please provide information on the platform's ability to cover: X, Y, Z" → DESCRIPTIVE
-
-■ DECLARATIVE
-  USE WHEN: Simple yes/no compliance question about POLICIES or STATUS (not pricing!)
-  IMPORTANT: If the yes/no question is about PRICING → use QUANTITATIVE instead
-  Examples:
-  • "Do you comply with ISO 27001?" → DECLARATIVE (compliance status)
-  • "Confirm you accept the terms and conditions" → DECLARATIVE
-  • "State your data protection policy" → DECLARATIVE
-
-■ PROCEDURAL
-  USE WHEN: Simple confirmation or acknowledgment that requires a brief response
-  NOTE: If telling you HOW/WHEN to submit (no response needed) → CONTEXTUAL instead
-  Examples:
-  • "Confirm receipt of this RFP" → PROCEDURAL
-  • "Sign the attached form" → PROCEDURAL
-  • "Provide your contact details" → PROCEDURAL
-
-==============================================================================
-CLASSIFICATION PRIORITY (FIRST MATCH WINS - CHECK IN THIS ORDER)
-==============================================================================
-
->>> STEP 0: CHECK FOR STAFFING CONTACT KEYWORDS FIRST (HIGHEST PRIORITY) <<<
-CRITICAL EXCEPTION: When asking for PERSON CONTACT INFORMATION, this is STAFFING even if
-it contains process verbs like "shall submit" or "must provide".
-
-STAFFING OVERRIDE KEYWORDS - If the text contains ANY of these, classify as STAFFING:
-  • "name, address" OR "name and address" (person's contact info)
-  • "email address" combined with "name" or "telephone" or "individual"
-  • "telephone number" or "phone number" combined with person-related words
-  • "individual with authority" or "individual with the authority"
-  • "contact person" or "contact details" for a specific person
-  • "submit the name" or "provide the name" of a person
-
-Example that MUST be STAFFING (not CONTEXTUAL):
-  "Banks shall submit the name, address, email address, and telephone number of an
-   individual with the authority to answer questions" → STAFFING
-   WHY: It's asking for a PERSON'S contact information to include in the proposal.
-
-If STAFFING OVERRIDE KEYWORDS are present → classify as STAFFING and STOP.
-
->>> STEP 1: CHECK FOR CONTEXTUAL (high priority) <<<
-Ask: "Does this require the respondent to WRITE something in the proposal?"
-
-CONTEXTUAL (no written response needed) - Check for these patterns:
-  ✓ Contains "Failure to [X] may/will result in..." → CONTEXTUAL (warning)
-  ✓ Contains "If not [provided/included], [consequence]" → CONTEXTUAL (warning)
-  ✓ Contains "shall/should/must [notify/submit/ensure/include/deliver/send]" → CONTEXTUAL (process instruction)
-      EXCEPTION: NOT CONTEXTUAL if asking for person contact info (see STEP 0 above)
-  ✓ Contains "submissions/responses shall include [document]" → CONTEXTUAL (instruction)
-  ✓ Background paragraph about the organization → CONTEXTUAL
-  ✓ Deadline statement without a question → CONTEXTUAL
-  ✓ Contains "We require/need/are looking for [X]" (buyer stating needs, no question mark) → CONTEXTUAL
-  ✓ Contains "The [selected/chosen] provider is expected to..." → CONTEXTUAL (buyer expectation)
-  ✓ Subject is BUYER describing their requirements (not asking bidder to explain) → CONTEXTUAL
-
-If ANY of the above match (and STEP 0 didn't match) → classify as CONTEXTUAL and STOP.
-
->>> STEP 2: IF NOT CONTEXTUAL, check other types in order <<<
-
-IMPORTANT: Check subject-specific types BEFORE generic ones to avoid false positives!
-CRITICAL: Classification is based on WHAT you're asking for (subject), NOT HOW you're asking (verb).
-
-3. EVIDENCE_BASED: Asks to attach/include/submit/upload a file, sample, or document
-4. REFERENCE_BASED: Asks for references, past performance, client contacts, case studies
-5. STAFFING: Asks for team, personnel, staff, qualifications, CVs, FTEs
-6. QUANTITATIVE: Subject matter is NUMERICAL - asking for rates, fees, prices, costs, percentages, or specific numeric data
-   QUANTITATIVE TRIGGERS (if ANY present, classify as QUANTITATIVE regardless of verb):
-   - Financial terms: rate, rates, earnings, interest, fee, fees, pricing, cost, price, charge, charges, index
-   - Currency/percentage symbols: £, $, €, %
-   - Temporal numeric requests: "last X months", "monthly rates", "annual", "quarterly figures"
-   - Numeric listing requests: "list the rates", "provide the figures", "state the percentages"
-   Example: "Describe what index the earnings rate would be pegged to, listing the last six months' rates" → QUANTITATIVE (subject: rates/numbers)
-7. DESCRIPTIVE: Contains "describe/explain/outline/how do you" about NON-NUMERICAL topics (processes, approaches, capabilities)
-   Example: "Describe your approach to customer service" → DESCRIPTIVE (subject: approach, not numbers)
-8. DECLARATIVE: Yes/no compliance question (about policy/status, NOT pricing)
-9. PROCEDURAL: Simple confirmation or acknowledgment needed
-10. Default → DESCRIPTIVE
-
-NOTE: The verb "describe" does NOT automatically mean DESCRIPTIVE. Check the SUBJECT first:
-- "Describe your rates" → QUANTITATIVE (subject: rates = numbers)
-- "Describe your process" → DESCRIPTIVE (subject: process = narrative)
-
-==============================================================================
-CRITICAL: CONTEXTUAL vs DECLARATIVE - The "shall/should" Trap
-==============================================================================
-
-Many misclassifications occur because "shall" appears in both types. THE KEY IS:
-- Is it TELLING you to do something (process)? → CONTEXTUAL
-- Is it ASKING you to write/confirm something? → DECLARATIVE
-
-CONTEXTUAL (instructions - no written answer):
-• "RFP submissions shall include a signed Form of Tender" → Instruction
-• "Respondents shall ensure all information is supplied" → Instruction
-• "Failure to [X] may render the RFP invalid" → Warning
-• "You should notify us by [date]" → Instruction
-
-DECLARATIVE (questions - requires written answer):
-• "Confirm you will include a signed Form of Tender" → Asks for confirmation
-• "State whether you will ensure all information is supplied" → Asks for statement
-• "Do you agree to [terms]?" → Question
-• "Will you notify us by [date]?" → Question (note the question mark)
-
-==============================================================================
-YES/NO QUESTIONS - Subject Matter Determines Type
-==============================================================================
-The question FORMAT (yes/no) does NOT determine the type. The SUBJECT determines type:
-
-• "Does your price come in under £150k?" → QUANTITATIVE (subject: pricing)
-• "Do you comply with ISO 27001?" → DECLARATIVE (subject: compliance status)
-• "Will you submit by the deadline?" → DECLARATIVE (question requiring answer)
-• "Can you provide three references?" → REFERENCE_BASED (subject: references)
-• "Do you have certified project managers?" → STAFFING (subject: personnel)
-
-But STATEMENTS about process (not questions) are CONTEXTUAL:
-• "Submit your response by [date]" → CONTEXTUAL (instruction, no answer needed)
-• "Failure to submit by [date] will result in disqualification" → CONTEXTUAL (warning)
-
-5. The DOMAIN CONTEXT - classify into ONE of these domains:
-
-DOMAIN CONTEXTS:
-- LEGAL: Mentions data, regulation, compliance, GDPR, privacy, terms, liability, security, certification, audit, ISO, SOC, breach, retention, processor, controller, DPA, SLA, indemnity, contract
-- PROCESS: Asks "how", mentions process, approach, steps, methodology, workflow, timeline, implementation, migration, onboarding, training, support, deployment
-- FEATURE: Default - describes capabilities, features, integrations, functionality (use when not clearly Legal or Process)
-
-DOMAIN CLASSIFICATION PRIORITY:
-1. If mentions data protection, compliance, GDPR, security certifications, legal terms → LEGAL
-2. If asks "how" something works, or mentions process/steps/timeline/implementation → PROCESS
-3. Otherwise → FEATURE (default)
-
-6. WORD/CHARACTER LIMITS - For each requirement, detect if there are response length limits:
-- Look for patterns: "maximum X words", "not to exceed X characters", "in X words or less", "limit: X words", "X word limit"
-- Extract numeric values for wordLimit and/or characterLimit
-- If no limit mentioned, set to null
-
-7. ATTESTATION CLASSIFICATION - Determine if the requirement is suitable for binary attestation (Compliant/Non-Compliant checkbox) vs requiring a written response:
-
-ATTESTATION ELIGIBLE (isAttestation: true):
-- Status/credential verification: "must hold", "must maintain", "must be certified", "must be licensed"
-- Procedural/timeline: "must submit by", "shall deliver to", "responses due", "due by"
-- Standard regulatory compliance: references specific statute, FAR clause, CFR, regulation
-- Simple yes/no compliance with no explanation requested
-- Standard insurance, licensing, bonding requirements
-
-NOT ATTESTATION (isAttestation: false):
-- Contains "describe", "explain", "detail", "demonstrate", "outline", "discuss"
-- Invites alternatives: "or equivalent", "if applicable", "may propose", "alternative"
-- Requests approach, methodology, or strategy
-- Compound requirements with multiple conditions needing explanation
-- Requires samples, attachments, or documentation
-
-==============================================================================
-OUTPUT FORMAT - SIMPLIFIED (Classification done in post-processing)
-==============================================================================
-
-Return your response as a JSON object with this COMPACT structure:
-{
-  "d": "ISO 8601 deadline or null",
-  "dt": "Original deadline text or null",
-  "r": [
-    [startLine, endLine, "section", "sectionGroup"],
-    [startLine, endLine, "section", "sectionGroup"]
-  ]
-}
-
-ARRAY FORMAT - each requirement is an array with 4 positions:
-[0] startLine - integer, line where requirement starts
-[1] endLine - integer, line where requirement ends
-[2] section - string like "3.1.2" or "A.1" or null if no section number
-[3] sectionGroup - string like "3: Technical Requirements" or null
-
-EXAMPLE:
-{"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February 2025","r":[
-[12,12,"1.0","1: Introduction"],
-[45,48,"3.1.2","3: Technical Requirements"],
-[52,52,"3.1.3","3: Technical Requirements"],
-[60,65,"3.2.1","3: Technical Requirements"],
-[70,72,"4.1","4: Pricing"],
-[80,82,"5.1","5: Optional Services"],
-[90,93,"6.1","6: Staffing"]
-]}
-
-LINE REFERENCE RULES:
-- startLine/endLine are integers from the "L123:" prefixes in the document
-- For single-line requirements, startLine equals endLine
-- For multi-line requirements, include ALL lines in the range
-- DO NOT output requirement text - we extract it using line numbers
-
-CRITICAL INSTRUCTIONS:
-- DEADLINE: Search the ENTIRE document for submission deadline. Look for: "submit by", "due date", "deadline", "responses due", "closing date", "must be received by". Extract the most specific deadline found.
-- Be thorough - extract ALL questions, requirements, deliverables, and compliance items
-- Include direct questions, mandatory requirements, deliverables, timelines, compliance requirements, technical specifications, and pricing requirements
-
-==============================================================================
-HIERARCHICAL SECTION HANDLING (CRITICAL - READ CAREFULLY)
-==============================================================================
-Documents often use multi-level numbering systems. You MUST understand the hierarchy:
-
-LEVEL 1 - Major Section (X.0 or X):
-  Examples: "3.0 Direct Query Questions" or "4. Technical Requirements"
-  → Extract as type: CONTEXTUAL (provides context, no response needed)
-  → This is a SECTION HEADER introducing what follows
-
-LEVEL 2 - Subsection (X.Y):
-  Examples: "3.1 Design, Form, and Templates" or "4.2 Security Requirements"
-  → Extract as type: CONTEXTUAL (subsection header, no response needed)
-  → This is a SUBSECTION HEADER grouping related requirements
-  → The text is typically SHORT (just a title)
-
-LEVEL 3 - Individual Requirement (X.Y.Z):
-  Examples: "3.1.1 Does the solution provide..." or "4.2.3 Describe your approach..."
-  → Extract as INDIVIDUAL requirements with appropriate type
-  → Each numbered item (3.1.1, 3.1.2, 3.1.3...) is a SEPARATE requirement
-
-*** CRITICAL ERROR TO AVOID ***
-NEVER combine a subsection header with its requirements into one item.
-WRONG: "3.1 Design, Form, and Templates: 3.1.1 Does the solution... 3.1.2 Does the WCMS..."
-RIGHT: Extract THREE separate items:
-  1. "3.1 Design, Form, and Templates" (section: "3.1", type: CONTEXTUAL)
-  2. "Does the solution provide..." (section: "3.1.1", type: DESCRIPTIVE or appropriate)
-  3. "Does the WCMS provide..." (section: "3.1.2", type: DESCRIPTIVE or appropriate)
-
-How to detect subsection headers:
-- Short text (usually under 50 characters)
-- Contains only a title, no question marks
-- Followed by multiple X.Y.Z numbered items
-- Marked with [SUBSECTION] tag in preprocessed text
-
-==============================================================================
-REQUIREMENT SEPARATION (NEVER CONCATENATE)
-==============================================================================
-Each numbered item must be its own requirement. When you see:
-  "3.1.1 First question? 3.1.2 Second question? 3.1.3 Third question?"
-You MUST create THREE separate requirements, NOT one requirement with all text.
-
-Signs you're incorrectly concatenating:
-- Your requirement text contains multiple X.Y.Z patterns (e.g., "3.1.1...3.1.2...3.1.3")
-- Your requirement text has multiple question marks with numbered items between them
-- The text is extremely long (>500 characters) with multiple distinct questions
-
-If you see multiple numbered items in one text block, SPLIT THEM.
-
-==============================================================================
-LIST PRESERVATION IN REQUIREMENTS
-==============================================================================
-When a requirement contains a list (bullets or numbers), preserve the formatting:
-- Keep bullet points (•, -, *) on separate lines
-- Keep numbered sub-items (a), b), 1., 2.) on separate lines
-- Preserve the list structure in your extracted text
-
-EXAMPLE:
-Original: "Please describe your approach to: • Security measures • Access controls • Audit logging"
-Extracted text should be:
-"Please describe your approach to:
-• Security measures
-• Access controls
-• Audit logging"
-
-NOT flattened to: "Please describe your approach to: • Security measures • Access controls • Audit logging"
-
-==============================================================================
-
-- COMPLETE LINE RANGE (CRITICAL):
-  * Include ALL lines of the requirement in your startLine to endLine range
-  * If a paragraph introduces context followed by a numbered question (e.g., "1. Does your..."), include BOTH the context AND the question lines
-  * Never start at the question line if there's preamble context above it
-  * If there's a word count limit mentioned (e.g., "Maximum word count 2,500"), include that line in the range
-  * The line range must cover everything the responder needs to understand and answer the requirement
-  * BUT: If you see multiple X.Y.Z numbered items, extract each as a SEPARATE requirement with its own line range
-- TABLE FORMAT: Documents may contain structured tables in this format:
-  * [TABLE START] / [TABLE END] markers indicate table boundaries
-  * [HEADER] indicates column headers
-  * [ROW N] indicates data rows
-  * [Col N] indicates column values
-  * When extracting from tables, combine relevant columns into a coherent requirement (e.g., if Col 1 is "Ref" and Col 2 is "Requirement", combine them logically)
-- STRUCTURE MARKERS: The document may contain preprocessing markers:
-  * [PAGE N] indicates page boundaries
-  * [SUBSECTION] indicates a subsection header (extract as CONTEXTUAL)
-  * ════════ lines indicate major section boundaries
-  * ────── lines indicate subsection boundaries
-  Use these markers to understand document structure, but do not include them in extracted text.
-- Do not summarize or paraphrase - extract the actual text from the document
-- Classify EVERY requirement with the most appropriate type
-- When uncertain between types, default to DESCRIPTIVE
-
-==============================================================================
-CRITICAL: EXTRACT THE COMPLETE DOCUMENT - DO NOT STOP EARLY
-==============================================================================
-You MUST extract requirements from the ENTIRE document, including:
-- The LAST subsection of each section (e.g., if section 3 has 3.1 through 3.17, extract ALL of them including 3.17)
-- The FINAL requirements in the document (do not stop at 90% - finish the full 100%)
-- Small sections that appear between larger ones (e.g., 3.2 between large 3.1 and 3.3)
-
-COMMON FAILURE MODES TO AVOID:
-- Stopping at 3.15 when there's a 3.16, 3.17, etc.
-- Missing small subsections (3.2 only has 2 items but must still be extracted)
-- Skipping the last 2-3 requirements of a subsection
-
-Extract to the ABSOLUTE END of the provided text. Count your extracted items and verify coverage.
-==============================================================================`;
+const EXTRACTION_PROMPT = `You extract requirements from RFP documents. The document has LINE NUMBERS (format: "L123: text").
+
+OUTPUT FORMAT - Return JSON:
+{"d":"ISO 8601 deadline or null","dt":"deadline text or null","r":[[startLine,endLine,"section"],...]}
+
+Each requirement is [startLine, endLine, "section"] where:
+- startLine/endLine: integers from "L123:" prefixes
+- section: string like "3.1.2" or null
+
+EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"3.1.3"]]}
+
+RULES:
+- Look for section/item identifiers IN THE TEXT at the start of lines (e.g., 3.1.2, 3.1, A.1, B), ii., IV, (a), 1., etc.)
+- Extract EACH identified item as a SEPARATE requirement with its OWN line range
+- The section in your output MUST match exactly what appears in the document text
+- NEVER combine questions from different items - each numbered/lettered item is separate
+- DO NOT output requirement text - only line numbers
+- Process the ENTIRE document - do not stop early
+
+CRITICAL - LINE RANGE BOUNDARIES:
+- endLine MUST be the LAST line of the requirement text itself
+- STOP the line range when you encounter:
+  * A new section number (e.g., "5.0", "5.1", "A.2", "3.1.4")
+  * Page numbers or headers (e.g., "Page 29 of 38", "Request for Proposal")
+  * Administrative sections (Timeline, Contact, Evaluation Criteria, Instructions)
+  * A blank line followed by unrelated content
+- Most requirements are 1-5 lines. If a range spans 10+ lines, verify it's actually one requirement
+- NEVER include RFP meta-content (deadlines, contact info, submission instructions) in requirement ranges
+
+WHAT TO EXTRACT:
+- Extract individual questions/requirements (formats vary: X.Y.Z, X.Y, A.1, IV.2, etc.)
+- Each numbered item gets its own separate entry with ONLY its own content
+- Section TITLES (short text like "4.4 Application Hosting and Configuration") are NOT requirements - skip them
+- DO NOT duplicate content - each line of text should appear in only ONE requirement
+- If a section title appears before questions, don't include it in the question's line range
+
+`;
 
 // =============================================================================
 // DOCUMENT STRUCTURE DETECTION
@@ -775,6 +152,180 @@ function detectDocumentSections(text: string): string {
   return summaryParts.join('\n');
 }
 
+interface MajorSection {
+  number: string;  // "3", "A", "IV"
+  title: string;   // "Direct Query Questions"
+}
+
+/**
+ * Detect major section headers in the document to populate sectionGroup.
+ * Returns a map of section number → {number, title}
+ */
+function detectMajorSections(text: string): Map<string, MajorSection> {
+  const sections = new Map<string, MajorSection>();
+
+  console.log(`[detectMajorSections] Scanning document of ${text.length} chars for section headers...`);
+
+  // Split into lines for easier pattern matching
+  const lines = text.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    // Skip very long lines (not headers)
+    if (line.length > 100) continue;
+
+    // Pattern 1: "X.0 Title" format (e.g., "3.0 Direct Query Questions")
+    // Allow leading whitespace - this is the most reliable pattern
+    let match = line.match(/^\s*(\d+)\.0\s+(.+)$/);
+    if (match) {
+      const num = match[1];
+      const title = cleanTitle(match[2]);
+      if (title) {
+        // X.0 format is AUTHORITATIVE - always use it, even if we found something else
+        sections.set(num, { number: num, title });
+        console.log(`[detectMajorSections] Found X.0 format (authoritative): ${num} -> "${title}"`);
+        continue;
+      }
+    }
+
+    // Pattern 2: "Section X: Title" or "Section X - Title"
+    match = line.match(/^(?:SECTION|Section)\s+(\d+|[A-Z])[.:\-\s]+(.+)$/i);
+    if (match) {
+      const num = match[1].toUpperCase();
+      const title = cleanTitle(match[2]);
+      if (title && !sections.has(num)) {
+        sections.set(num, { number: num, title });
+        console.log(`[detectMajorSections] Found Section X format: ${num} -> "${title}"`);
+        continue;
+      }
+    }
+
+    // Pattern 3: Markdown heading "# X. Title" or "## X: Title"
+    match = line.match(/^#+\s*(\d+|[A-Z])[.\s:]+(.+)$/);
+    if (match) {
+      const num = match[1].toUpperCase();
+      const title = cleanTitle(match[2]);
+      if (title && !sections.has(num)) {
+        sections.set(num, { number: num, title });
+        console.log(`[detectMajorSections] Found markdown heading: ${num} -> "${title}"`);
+        continue;
+      }
+    }
+
+    // Pattern 4: "X. Title" where X is single digit
+    // STRICT: Only match if title looks like a SECTION TITLE (not a list item)
+    // - ALL CAPS title
+    // - Mostly Title Case AND short (section titles are concise)
+    // Must NOT be X.Y format (subsection)
+    match = line.match(/^(\d)\.?\s+([A-Z].+)$/);
+    if (match && !line.match(/^\d+\.\d/)) {  // Exclude X.Y patterns
+      const num = match[1];
+      const rawTitle = match[2].trim();
+
+      // Check if this looks like a section title vs a list item in body text
+      const isAllCaps = /^[A-Z][A-Z\s,&\-]+$/.test(rawTitle);
+      const words = rawTitle.split(/\s+/);
+      const titleCaseWords = words.filter(w => /^[A-Z]/.test(w)).length;
+      const titleCaseRatio = titleCaseWords / words.length;
+      const isShort = rawTitle.length < 50;
+
+      // Only accept if:
+      // 1. ALL CAPS (clearly a header), or
+      // 2. Mostly Title Case (>60%) AND short (<50 chars)
+      // This rejects "Content strategy development..." (14% title case, 65 chars)
+      // but accepts "Direct Query Questions to RFP Respondents" (83% title case, 42 chars)
+      if (isAllCaps || (titleCaseRatio > 0.6 && isShort)) {
+        const title = cleanTitle(rawTitle);
+        if (title && title.length >= 3 && !sections.has(num)) {
+          sections.set(num, { number: num, title });
+          console.log(`[detectMajorSections] Found X. format: ${num} -> "${title}" (titleCase=${(titleCaseRatio*100).toFixed(0)}%, len=${rawTitle.length})`);
+          continue;
+        }
+      }
+    }
+
+    // Pattern 5: Roman numerals "IV. Title"
+    match = line.match(/^(I{1,3}|IV|VI{0,3}|IX|X{1,3})[.\s:]+(.+)$/);
+    if (match) {
+      const num = match[1].toUpperCase();
+      const title = cleanTitle(match[2]);
+      if (title && !sections.has(num)) {
+        sections.set(num, { number: num, title });
+        console.log(`[detectMajorSections] Found Roman numeral: ${num} -> "${title}"`);
+        continue;
+      }
+    }
+
+    // Pattern 6: Single letter sections "A. Title" or "A: Title"
+    match = line.match(/^([A-Z])[.\s:]+([A-Z][A-Za-z\s,&\-'":]+)$/);
+    if (match) {
+      const num = match[1];
+      const title = cleanTitle(match[2]);
+      if (title && title.length >= 3 && !sections.has(num)) {
+        sections.set(num, { number: num, title });
+        console.log(`[detectMajorSections] Found letter section: ${num} -> "${title}"`);
+        continue;
+      }
+    }
+
+    // Pattern 7: ALL CAPS standalone header on short line (e.g., "DIRECT QUERY QUESTIONS")
+    // Look for next line to see if it starts with a number (indicating this is a section header)
+    if (/^[A-Z][A-Z\s,&\-]+$/.test(line) && line.length >= 10 && line.length <= 60) {
+      // Check if previous line has a section number
+      const prevLine = i > 0 ? lines[i - 1].trim() : '';
+      const prevMatch = prevLine.match(/^(\d+)\.0?\s*$/);
+      if (prevMatch) {
+        const num = prevMatch[1];
+        const title = cleanTitle(line);
+        if (title && !sections.has(num)) {
+          sections.set(num, { number: num, title });
+          console.log(`[detectMajorSections] Found ALL CAPS after number: ${num} -> "${title}"`);
+          continue;
+        }
+      }
+    }
+  }
+
+  // Log what we found for debugging
+  if (sections.size === 0) {
+    console.log(`[detectMajorSections] WARNING: No section headers found. First 500 chars of doc:\n${text.substring(0, 500)}`);
+  } else {
+    console.log(`[detectMajorSections] Total sections found: ${sections.size}`);
+    for (const [num, section] of sections) {
+      console.log(`  ${num}: ${section.title}`);
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Clean up a section title string
+ */
+function cleanTitle(raw: string): string {
+  let title = raw.trim();
+
+  // Remove trailing punctuation
+  title = title.replace(/[.:\-,]+$/, '');
+
+  // Normalize whitespace
+  title = title.replace(/\s+/g, ' ');
+
+  // Convert ALL CAPS to Title Case for readability
+  if (/^[A-Z][A-Z\s,&\-]+$/.test(title) && title.length > 3) {
+    title = title.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // Validate - must be reasonable length
+  if (title.length < 3 || title.length > 80) {
+    return '';
+  }
+
+  return title;
+}
+
 // =============================================================================
 // HELPER FUNCTIONS (from main app)
 // =============================================================================
@@ -784,10 +335,33 @@ function detectDocumentSections(text: string): string {
  * Returns the count of detected requirement numbers
  */
 function detectConcatenatedRequirements(text: string): string[] {
-  // Pattern for requirement numbers: 3.1.1, 3.1.2, A.1.1, etc.
-  const reqNumberPattern = /\b(\d+\.\d+\.\d+|[A-Z]\.\d+\.\d+)\b/g;
-  const matches = text.match(reqNumberPattern);
-  return matches || [];
+  // Pattern for requirement numbers - multiple formats:
+  // X.Y.Z (3.1.1), A.X.Y (A.1.2), X.Y (3.1), X.Ya (3.1a)
+  const patterns = [
+    /\b(\d+\.\d+\.\d+)\b/g,           // X.Y.Z format (3.1.1)
+    /\b([A-Z]\.\d+\.\d+)\b/g,         // A.X.Y format (A.1.2)
+    /\b(\d+\.\d+[a-z])\b/g,           // X.Ya format (3.1a)
+    /\b(\([a-z]\))\b/g,               // (a) format
+  ];
+
+  const allMatches: string[] = [];
+  for (const pattern of patterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      allMatches.push(...matches);
+    }
+  }
+
+  // Also detect X.Y patterns at the start of lines (likely section headers within text)
+  const lineStartPattern = /(?:^|\n)\s*(\d+\.\d+)\s+[A-Z]/gm;
+  let match;
+  while ((match = lineStartPattern.exec(text)) !== null) {
+    if (!allMatches.includes(match[1])) {
+      allMatches.push(match[1]);
+    }
+  }
+
+  return [...new Set(allMatches)]; // Unique values
 }
 
 /**
@@ -797,35 +371,78 @@ function detectConcatenatedRequirements(text: string): string[] {
 function splitConcatenatedRequirement(text: string): Array<{ section: string; text: string }> {
   const results: Array<{ section: string; text: string }> = [];
 
-  // Pattern to split on requirement numbers
-  const splitPattern = /(\d+\.\d+\.\d+|\d+\.\d+\s*[a-z]\)|[A-Z]\.\d+\.\d+)\s+/g;
+  // Patterns to split on requirement numbers (multiple formats)
+  // Important: Order matters - try more specific patterns first
+  const splitPatterns = [
+    /(?:^|\n)\s*(\d+\.\d+\.\d+)[\s.]+/gm,    // X.Y.Z at start of line (3.1.1)
+    /(?:^|\n)\s*([A-Z]\.\d+\.\d+)[\s.]+/gm,  // A.X.Y at start of line (A.1.2)
+    /(?:^|\n)\s*(\d+\.\d+[a-z])[\s.)]+/gm,   // X.Ya at start of line (3.1a)
+    /(?:^|\n)\s*(\([a-z]\))[\s.]+/gm,        // (a) at start of line
+  ];
 
   // Find all requirement number positions
-  const parts: Array<{ index: number; section: string }> = [];
-  let match;
+  const parts: Array<{ index: number; section: string; endOfSection: number; isHeader: boolean }> = [];
 
-  while ((match = splitPattern.exec(text)) !== null) {
-    parts.push({
-      index: match.index,
-      section: match[1].trim(),
-    });
+  for (const pattern of splitPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      // Check if we already have a part at this position (avoid duplicates)
+      const existingIndex = parts.findIndex(p => Math.abs(p.index - match!.index) < 5);
+      if (existingIndex === -1) {
+        parts.push({
+          index: match.index,
+          section: match[1].trim(),
+          endOfSection: match.index + match[0].length,
+          isHeader: false,
+        });
+      }
+    }
   }
+
+  // Also detect X.Y SECTION HEADERS (not questions) - these are boundaries to STOP at
+  // Pattern: X.Y followed by title-case words (not question words like Is, Does, Can, etc.)
+  const headerPattern = /(?:^|\n)\s*(\d+\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){2,})/gm;
+  let headerMatch;
+  while ((headerMatch = headerPattern.exec(text)) !== null) {
+    const followingText = headerMatch[2];
+    // Skip if it starts with a question word (then it's a question, not a header)
+    if (/^(Is|Are|Does|Do|Can|Will|Has|Have|Should|Would|Could|What|How|Why|When|Where|Describe|Explain|Provide|List|Detail)\b/i.test(followingText)) {
+      continue;
+    }
+    // Check if we already have this position
+    const existingIndex = parts.findIndex(p => Math.abs(p.index - headerMatch!.index) < 5);
+    if (existingIndex === -1) {
+      parts.push({
+        index: headerMatch.index,
+        section: headerMatch[1].trim(),
+        endOfSection: headerMatch.index + headerMatch[0].length,
+        isHeader: true, // Mark as section header
+      });
+      console.log(`[splitConcatenatedRequirement] Found X.Y header: ${headerMatch[1]} "${followingText.substring(0, 40)}..."`);
+    }
+  }
+
+  // Sort parts by position
+  parts.sort((a, b) => a.index - b.index);
 
   // If no splits found, return original as single item
   if (parts.length === 0) {
+    console.log(`[splitConcatenatedRequirement] No split points found in text of ${text.length} chars`);
     return [{ section: '', text: text.trim() }];
   }
 
+  console.log(`[splitConcatenatedRequirement] Found ${parts.length} sections to split: ${parts.map(p => p.section + (p.isHeader ? ' (header)' : '')).join(', ')}`);
+
   // Extract text for each requirement
   for (let i = 0; i < parts.length; i++) {
-    const start = parts[i].index + parts[i].section.length;
+    const start = parts[i].endOfSection;
     const end = i < parts.length - 1 ? parts[i + 1].index : text.length;
     const reqText = text.substring(start, end).trim();
 
     if (reqText.length > 0) {
       results.push({
         section: parts[i].section,
-        text: reqText,
+        text: parts[i].isHeader ? `[SECTION_HEADER] ${reqText}` : reqText,  // Mark headers for later filtering
       });
     }
   }
@@ -1018,7 +635,7 @@ function correctQuantitativeType(text: string, llmType: RequirementType): Requir
 /**
  * Post-process extracted requirements to split any that were incorrectly concatenated.
  * The LLM sometimes groups multiple numbered requirements (3.1.1, 3.1.2, etc.) into one.
- * This function detects and splits them.
+ * This function detects and splits them, then strips section prefixes from individual parts.
  */
 function splitConcatenatedRequirementsPostProcess(
   requirements: ExtractedRequirement[]
@@ -1027,7 +644,7 @@ function splitConcatenatedRequirementsPostProcess(
   let splitCount = 0;
 
   for (const req of requirements) {
-    // Check for multiple requirement numbers in the text
+    // Check for multiple requirement numbers in the text (using RAW text with section numbers)
     const detectedNumbers = detectConcatenatedRequirements(req.text);
 
     // If 2+ requirement numbers found, this needs splitting
@@ -1040,31 +657,53 @@ function splitConcatenatedRequirementsPostProcess(
         // Skip empty parts
         if (!part.text.trim()) continue;
 
+        // Check if this is a marked section header - skip it entirely
+        // (Section headers are metadata, not requirements to respond to)
+        if (part.text.startsWith('[SECTION_HEADER]')) {
+          console.log(`[splitConcatenatedRequirements] Skipping section header: ${part.section}`);
+          continue;
+        }
+
+        // NOW strip section prefix from the individual split part
+        const strippedText = stripSectionPrefix(part.text);
+
+        // Skip if stripping resulted in empty text
+        if (!strippedText.trim()) continue;
+
         // Check if this part is actually a section header (not a requirement)
-        if (isSectionHeader(part.text)) {
-          result.push({
-            ...req,
-            text: part.text,
-            section: part.section || req.section,
-            type: "CONTEXTUAL", // Section headers are contextual
-          });
+        if (isSectionHeader(strippedText)) {
+          // Skip section headers - they're not requirements
+          console.log(`[splitConcatenatedRequirements] Skipping detected header: "${strippedText.substring(0, 50)}..."`);
+          continue;
         } else {
+          // Re-classify based on the actual split requirement text
+          const classification = classifyRequirement(strippedText);
+
           result.push({
             ...req,
-            text: formatListInRequirement(part.text), // Preserve list formatting
+            text: formatListInRequirement(strippedText),
             section: part.section || req.section,
-            // Re-detect type based on the actual requirement text
-            type: validateRequirementType(req.type),
+            type: classification.type,
+            isMandatory: classification.isMandatory,
+            domainContext: classification.domainContext,
+            isAttestation: classification.isAttestation,
+            wordLimit: classification.wordLimit,
+            characterLimit: classification.characterLimit,
           });
         }
         splitCount++;
       }
     } else {
-      // No concatenation detected, but still format lists
-      result.push({
-        ...req,
-        text: formatListInRequirement(req.text),
-      });
+      // No concatenation detected - strip section prefix and format
+      // (For requirements that weren't concatenated, we still need to strip prefix)
+      const strippedText = stripSectionPrefix(req.text);
+
+      if (strippedText.trim()) {
+        result.push({
+          ...req,
+          text: formatListInRequirement(strippedText),
+        });
+      }
     }
   }
 
@@ -1073,6 +712,199 @@ function splitConcatenatedRequirementsPostProcess(
   }
 
   return result;
+}
+
+/**
+ * Patterns that indicate where a requirement ends and administrative/meta content begins.
+ * These patterns should trigger trimming of the requirement text.
+ */
+const CONTAMINATION_BOUNDARY_PATTERNS: RegExp[] = [
+  // Page numbers and document titles
+  /\d+\s+of\s+\d+\s+Request\s+for\s+Proposal/i,
+  /Page\s+\d+\s+of\s+\d+/i,
+  /Request\s+for\s+Proposal:/i,
+
+  // New major sections (X.0 format) - e.g., "3.0 Direct Query Questions"
+  /\n\s*\d+\.0\s+[A-Z]/,
+
+  // X.Y subsection headers with title text (multiple title-case words)
+  // e.g., "3.3 Authoring, Editing, Personalization, Delivery, and Publication"
+  // More flexible pattern: X.Y followed by capitalized words (with commas, and, &)
+  /\n\s*\d+\.\d+\s+[A-Z][a-z]+[\s,&]+([A-Za-z,&\s]+){2,}/,
+
+  // X.Y subsection headers (shorter titles) - e.g., "3.3 System Security"
+  /\n\s*\d+\.\d+\s+[A-Z][a-z]+\s+[A-Z][a-z]+\s*(?:\n|$)/,
+
+  // Administrative section headers
+  /\n\s*\d+\.\d+\s+(Timeline|Contact|Evaluation|Instructions|Submission|Response\s+Format)/i,
+
+  // Timeline tables
+  /\n\s*(Event|Date|Release|Questions\s+due|Deadline)\s+(Date|and\s+Time)/i,
+
+  // Contact information blocks
+  /\n\s*(Contact|Point\s+of\s+Contact)\s*\n/i,
+  /\n\s*[A-Z][a-z]+\s+[A-Z][a-z]+\s*\n\s*(Chief|Director|Manager|Officer)/i,
+
+  // Email/phone patterns in isolation
+  /\n\s*\S+@\S+\.\S+\s*\n/,
+  /\n\s*O:\s*\d{3}[-.]\d{3,4}/,
+];
+
+/**
+ * Trim contaminated requirements at obvious boundaries.
+ * If a requirement contains administrative content, trim it at the boundary.
+ */
+function trimContaminatedRequirements(requirements: ExtractedRequirement[]): void {
+  let trimCount = 0;
+
+  for (const req of requirements) {
+    // Only process long requirements (likely contaminated)
+    if (req.text.length < 300) continue;
+
+    let trimmedText = req.text;
+    let wasTrimmed = false;
+
+    // Check each boundary pattern
+    for (const pattern of CONTAMINATION_BOUNDARY_PATTERNS) {
+      const match = pattern.exec(trimmedText);
+      if (match && match.index > 50) { // Must have some content before the boundary
+        // Trim at the boundary
+        const beforeBoundary = trimmedText.substring(0, match.index).trim();
+
+        // Only trim if we still have meaningful content
+        if (beforeBoundary.length >= 30) {
+          trimmedText = beforeBoundary;
+          wasTrimmed = true;
+          break; // Use first (earliest) match
+        }
+      }
+    }
+
+    if (wasTrimmed) {
+      console.log(`[trimContaminatedRequirements] Trimmed requirement from ${req.text.length} to ${trimmedText.length} chars`);
+      console.log(`  Before: "${req.text.substring(0, 100)}..."`);
+      console.log(`  After:  "${trimmedText.substring(0, 100)}..."`);
+      req.text = trimmedText;
+      trimCount++;
+    }
+  }
+
+  if (trimCount > 0) {
+    console.log(`[trimContaminatedRequirements] Trimmed ${trimCount} contaminated requirements`);
+  }
+}
+
+/**
+ * Extract X.Y subsection from a section like "3.1.5" -> "3.1"
+ */
+function getSubsection(section: string | null): string | null {
+  if (!section) return null;
+  const match = section.match(/^(\d+\.\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Remove duplicate requirements based on text similarity.
+ * Keeps the first occurrence and removes subsequent duplicates.
+ *
+ * IMPORTANT: Only removes TRUE duplicates where the text is nearly identical.
+ * Does NOT remove requirements that merely share similar phrasing.
+ * CRITICAL: Never removes items from DIFFERENT subsections (e.g., 3.8 vs 3.9)
+ */
+function deduplicateRequirements(requirements: ExtractedRequirement[]): ExtractedRequirement[] {
+  const seen = new Map<string, ExtractedRequirement>();
+  const result: ExtractedRequirement[] = [];
+  let dupeCount = 0;
+
+  for (const req of requirements) {
+    // Normalize text for comparison (lowercase, collapse whitespace)
+    const normalizedText = req.text.toLowerCase().replace(/\s+/g, ' ').trim();
+    const reqSubsection = getSubsection(req.section);
+
+    // Skip very short text (likely just section numbers or noise)
+    if (normalizedText.length < 10) {
+      continue;
+    }
+
+    // Check for exact duplicates only - but ONLY within the same subsection
+    if (seen.has(normalizedText)) {
+      const seenReq = seen.get(normalizedText)!;
+      const seenSubsection = getSubsection(seenReq.section);
+
+      // Only dedupe if SAME subsection OR no section info
+      if (reqSubsection === seenSubsection || !reqSubsection || !seenSubsection) {
+        console.log(`[deduplicateRequirements] Removing exact duplicate: ${req.section} (same as ${seenReq.section})`);
+        dupeCount++;
+        continue;
+      }
+    }
+
+    // Check for near-duplicates ONLY if one text is a complete subset of another
+    // This catches cases where the LLM returns overlapping line ranges
+    // CRITICAL: Items with DIFFERENT section identifiers are NEVER duplicates
+    let isDupe = false;
+    for (const [seenText, seenReq] of seen) {
+      // CRITICAL FIX: Items with DIFFERENT full section identifiers are NEVER duplicates
+      // This prevents false positives like 3.3.8 and 3.3.9 being compared
+      // Works for ANY section format: X.Y.Z, Roman, Letter, etc.
+      if (req.section && seenReq.section && req.section !== seenReq.section) {
+        continue; // Different sections can't be duplicates
+      }
+
+      const seenSubsection = getSubsection(seenReq.section);
+
+      // Additional check: NEVER dedupe items from different X.Y subsections
+      if (reqSubsection && seenSubsection && reqSubsection !== seenSubsection) {
+        continue;
+      }
+
+      // Only check longer texts to avoid false positives
+      if (normalizedText.length > 100 && seenText.length > 100) {
+        const shorter = normalizedText.length < seenText.length ? normalizedText : seenText;
+        const longer = normalizedText.length < seenText.length ? seenText : normalizedText;
+
+        // ONLY dedupe if one is a complete substring of the other (95%+ contained)
+        // This is much stricter than before to avoid removing valid requirements
+        if (longer.includes(shorter)) {
+          // Verify the shorter text is substantial (not just a common phrase)
+          if (shorter.length > longer.length * 0.7) {
+            console.log(`[deduplicateRequirements] Removing subset duplicate: ${req.section} is contained in ${seenReq.section}`);
+            dupeCount++;
+            isDupe = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!isDupe) {
+      seen.set(normalizedText, req);
+      result.push(req);
+    }
+  }
+
+  if (dupeCount > 0) {
+    console.log(`[deduplicateRequirements] Removed ${dupeCount} duplicates. Kept ${result.length} requirements.`);
+  }
+
+  return result;
+}
+
+/**
+ * Calculate text overlap ratio between two strings.
+ */
+function calculateOverlap(shorter: string, longer: string): number {
+  // Simple approach: check how much of the shorter string appears in the longer
+  const words = shorter.split(' ');
+  let matchedWords = 0;
+
+  for (const word of words) {
+    if (word.length > 3 && longer.includes(word)) {
+      matchedWords++;
+    }
+  }
+
+  return words.length > 0 ? matchedWords / words.length : 0;
 }
 
 /**
@@ -1183,17 +1015,34 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
  * Add line numbers to document text.
  * Format: "L1: first line\nL2: second line\n..."
  */
-function addLineNumbers(text: string): { numberedText: string; lines: string[] } {
-  const lines = text.split('\n');
-  const numberedLines = lines.map((line, i) => `L${i + 1}: ${line}`);
+function addLineNumbers(text: string): { numberedText: string; lines: string[]; lineMap: Map<number, number> } {
+  const allLines = text.split('\n');
+  const numberedLines: string[] = [];
+  const contentLines: string[] = [];
+  const lineMap = new Map<number, number>(); // Maps L-number to original line index
+
+  let lineNum = 1;
+  for (let i = 0; i < allLines.length; i++) {
+    const line = allLines[i];
+    // Only number non-empty lines (skip pure whitespace)
+    if (line.trim().length > 0) {
+      numberedLines.push(`L${lineNum}: ${line}`);
+      contentLines.push(line);
+      lineMap.set(lineNum, contentLines.length - 1); // Map L-number to content index
+      lineNum++;
+    }
+  }
+
   return {
     numberedText: numberedLines.join('\n'),
-    lines, // Keep original lines for text extraction
+    lines: contentLines, // Only non-empty lines
+    lineMap, // For mapping L-numbers to array indices
   };
 }
 
 /**
  * Extract text from document using line range.
+ * Returns RAW text - section prefixes are stripped later after splitting.
  */
 function extractTextFromLines(lines: string[], startLine: number, endLine: number): string {
   // Convert to 0-indexed
@@ -1204,8 +1053,9 @@ function extractTextFromLines(lines: string[], startLine: number, endLine: numbe
     return '';
   }
 
-  const rawText = lines.slice(start, end + 1).join('\n').trim();
-  return stripSectionPrefix(rawText);
+  // Return RAW text - do NOT strip section prefixes here
+  // Stripping happens after splitting so we can detect concatenated requirements
+  return lines.slice(start, end + 1).join('\n').trim();
 }
 
 /**
@@ -1245,9 +1095,9 @@ function stripSectionPrefix(text: string): string {
   return result;
 }
 
-// Compact array format from LLM (simplified - classification done in post-processing)
-// Each requirement is: [startLine, endLine, section, sectionGroup]
-type CompactRequirement = [number, number, string | null, string | null];
+// Compact array format from LLM (ultra-compact - classification and sectionGroup derived in post-processing)
+// Each requirement is: [startLine, endLine, section]
+type CompactRequirement = [number, number, string | null];
 
 interface CompactResult {
   d: string | null;   // deadline
@@ -1259,88 +1109,298 @@ interface CompactResult {
 // HEURISTIC CLASSIFICATION FUNCTIONS
 // =============================================================================
 
-/**
- * Classify requirement TYPE based on text content
- */
-function classifyType(text: string): RequirementType {
-  const lower = text.toLowerCase();
-  const trimmed = text.trim();
+type QuestionStructureType = 'yes_no' | 'open_ended' | 'list_request' | 'confirmation' | 'statement' | 'unknown';
 
-  // CONTEXTUAL - Section headers, introductory text, context-setting
-  // Short text without questions, often title-case or all-caps
-  if (trimmed.length < 80 && !trimmed.includes('?')) {
-    const words = trimmed.split(/\s+/);
-    const titleCaseCount = words.filter(w => /^[A-Z]/.test(w)).length;
-    if (titleCaseCount / words.length > 0.6 || /^[A-Z\s\-&:]+$/.test(trimmed)) {
-      return 'CONTEXTUAL';
+interface QuestionStructure {
+  type: QuestionStructureType;
+  confidence: number;
+}
+
+/**
+ * Pass 1: Detect the structural pattern of a question/requirement.
+ * This determines HOW the question is asked, not WHAT it's about.
+ */
+function detectQuestionStructure(text: string): QuestionStructure {
+  const trimmed = text.trim();
+  const endsWithQuestion = trimmed.endsWith('?');
+
+  // YES/NO questions - start with auxiliary verbs
+  // More permissive: any "Can X...?" is likely yes/no
+  if (/^can\s+\w+/i.test(trimmed) && endsWithQuestion) {
+    // Exclude "Can you describe/explain..." which are open-ended
+    if (!/^can\s+(you\s+)?(describe|explain|detail|outline|provide)/i.test(trimmed)) {
+      return { type: 'yes_no', confidence: 95 };
     }
+  }
+
+  // "Does/Do X...?" patterns
+  if (/^(does|do)\s+\w+/i.test(trimmed) && endsWithQuestion) {
+    // Exclude "Do you describe..." type patterns
+    if (!/^(does|do)\s+(you\s+)?(describe|explain|detail)/i.test(trimmed)) {
+      return { type: 'yes_no', confidence: 95 };
+    }
+  }
+
+  // "Is/Are X...?" patterns
+  if (/^is\s+\w+/i.test(trimmed) && endsWithQuestion) {
+    return { type: 'yes_no', confidence: 95 };
+  }
+  if (/^are\s+\w+/i.test(trimmed) && endsWithQuestion) {
+    return { type: 'yes_no', confidence: 95 };
+  }
+
+  // "Will/Would/Has/Have X...?" patterns
+  if (/^(will|would|has|have)\s+\w+/i.test(trimmed) && endsWithQuestion) {
+    return { type: 'yes_no', confidence: 90 };
+  }
+
+  // OPEN-ENDED questions - require descriptive answers
+  if (/^describe\b/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 95 };
+  }
+  if (/^explain\b/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 95 };
+  }
+  if (/^(how|what|why)\s+(does|do|is|are|will|would|can)/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 92 };
+  }
+  if (/^(detail|outline|discuss)\b/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 90 };
+  }
+
+  // LIST requests - ask for enumeration
+  if (/^(list|identify|name|enumerate)\b/i.test(trimmed)) {
+    return { type: 'list_request', confidence: 92 };
+  }
+  if (/^provide\s+(a\s+)?list\b/i.test(trimmed)) {
+    return { type: 'list_request', confidence: 90 };
+  }
+
+  // CONFIRMATION requests - attestation/certification
+  if (/^(please\s+)?(confirm|acknowledge|agree|certify|attest)\b/i.test(trimmed)) {
+    return { type: 'confirmation', confidence: 95 };
+  }
+
+  // Provide/submit with details usually means open-ended
+  if (/^(provide|submit)\s+(a\s+)?(detailed|comprehensive)/i.test(trimmed)) {
+    return { type: 'open_ended', confidence: 85 };
+  }
+
+  // Fallback based on punctuation
+  if (trimmed.endsWith('?')) {
+    return { type: 'unknown', confidence: 50 };
+  }
+  return { type: 'statement', confidence: 30 };
+}
+
+interface TopicMatch {
+  type: RequirementType;
+  confidence: number;
+}
+
+/**
+ * Pass 2: Detect topic-based patterns in requirement text.
+ * This determines WHAT the requirement is about.
+ */
+function detectTopicPattern(text: string): TopicMatch | null {
+  const lower = text.toLowerCase();
+
+  // STAFFING - Personnel, team, resources
+  // Note: "resume" as verb (save & resume) should NOT match - only CV/resume
+  if (/\b(staff|personnel|team\s+(member|composition|structure)|fte|full[- ]time\s+equivalent)\b/i.test(lower)) {
+    return { type: 'STAFFING', confidence: 90 };
+  }
+  // Only match "resume" when it means CV (not "save & resume", "resume later", etc.)
+  if (/\b(cv|curriculum\s+vitae|key\s+personnel|project\s+manager)\b/i.test(lower)) {
+    return { type: 'STAFFING', confidence: 85 };
+  }
+  // "resume" only when preceded by "submit", "provide", "attach" (CV context)
+  if (/\b(submit|provide|attach|include)\s+(a\s+|your\s+)?resume\b/i.test(lower)) {
+    return { type: 'STAFFING', confidence: 85 };
+  }
+  if (/\b(qualifications?|experience)\b.{0,30}\b(staff|team|personnel)\b/i.test(lower)) {
+    return { type: 'STAFFING', confidence: 80 };
   }
 
   // QUANTITATIVE - Pricing, costs, numbers, financial
-  if (/\b(price|pricing|cost|budget|fee|rate|quote|£|\$|€|%)\b/i.test(text)) {
-    if (/\b(provide|submit|state|list|what)\b.*\b(price|cost|fee|rate|budget|quote)\b/i.test(lower)) {
-      return 'QUANTITATIVE';
-    }
+  if (/[£$€¥]\s*\d/.test(text)) {
+    return { type: 'QUANTITATIVE', confidence: 95 };
   }
-
-  // STAFFING - Personnel, team, resources
-  if (/\b(staff|staffing|personnel|team|resource|employee|fte|headcount|cv|resume|experience.*years)\b/i.test(lower)) {
-    if (/\b(provide|describe|list|detail|submit)\b.*\b(staff|team|personnel|cv|resource)/i.test(lower)) {
-      return 'STAFFING';
+  if (/\b(price|pricing|cost|fee|rate|budget|quote|quotation|tariff)\b/i.test(lower)) {
+    if (/\b(provide|submit|state|list|what)\b.*\b(price|cost|fee|rate|budget|quote)\b/i.test(lower)) {
+      return { type: 'QUANTITATIVE', confidence: 90 };
+    }
+    if (/\b(total|hourly|daily|annual|monthly)\s+(price|cost|fee|rate)\b/i.test(lower)) {
+      return { type: 'QUANTITATIVE', confidence: 88 };
     }
   }
 
   // REFERENCE_BASED - References, case studies, past performance
-  if (/\b(reference|case study|case studies|past performance|previous project|client.*name|testimonial)\b/i.test(lower)) {
-    return 'REFERENCE_BASED';
+  if (/\b(reference|case\s+study|case\s+studies|past\s+performance|previous\s+(project|contract|client))\b/i.test(lower)) {
+    return { type: 'REFERENCE_BASED', confidence: 90 };
+  }
+  if (/\b(similar\s+(work|project|contract)|client\s+(name|reference)|testimonial)\b/i.test(lower)) {
+    return { type: 'REFERENCE_BASED', confidence: 85 };
   }
 
-  // EVIDENCE_BASED - Proof, evidence, demonstrate, certifications
-  if (/\b(provide evidence|demonstrate|proof|certif|accredit|audit|compliance.*evidence|evidence.*compliance)\b/i.test(lower)) {
-    return 'EVIDENCE_BASED';
+  // EVIDENCE_BASED - Proof, evidence, certifications
+  // Note: "audit log" and "audit trail" are FEATURES, not evidence - exclude them
+  const hasAuditFeature = /\baudit\s+(log|trail|history|capabilities)\b/i.test(lower);
+  if (!hasAuditFeature) {
+    if (/\b(provide\s+evidence|demonstrate|proof\s+of|certif|accredit|audit|compliance\s+evidence)\b/i.test(lower)) {
+      return { type: 'EVIDENCE_BASED', confidence: 88 };
+    }
+  }
+  if (/\b(iso\s*\d{4,5}|soc\s*[12]|cmmi|itil)\b/i.test(lower)) {
+    return { type: 'EVIDENCE_BASED', confidence: 85 };
   }
 
-  // PROCEDURAL - Process, timeline, schedule, methodology steps
-  if (/\b(timeline|schedule|milestone|phase|process|procedure|step|workflow|methodology)\b/i.test(lower)) {
-    if (/\b(describe|outline|provide|detail|explain)\b.*\b(timeline|schedule|process|procedure|methodology)\b/i.test(lower)) {
-      return 'PROCEDURAL';
+  // PROCEDURAL - Process, timeline, schedule, methodology
+  if (/\b(timeline|schedule|milestone|phase|gantt|project\s+plan)\b/i.test(lower)) {
+    return { type: 'PROCEDURAL', confidence: 88 };
+  }
+  if (/\b(process|procedure|methodology|approach|workflow)\b/i.test(lower)) {
+    if (/\b(describe|outline|provide|detail|explain)\b/i.test(lower)) {
+      return { type: 'PROCEDURAL', confidence: 82 };
     }
   }
 
-  // DECLARATIVE - Yes/no questions, confirmations, simple statements
-  // Questions that can be answered with yes/no or simple confirmation
-  if (/^(do you|does your|can you|is your|are you|will you|have you|has your)\b/i.test(trimmed)) {
-    // Short questions without "describe/explain" are declarative
-    if (trimmed.length < 200 && !/\b(describe|explain|detail|outline|how)\b/i.test(lower)) {
-      return 'DECLARATIVE';
-    }
-  }
-  if (/\b(confirm|acknowledge|agree|accept|certify|declare|attest)\b/i.test(lower)) {
-    if (trimmed.length < 300) {
-      return 'DECLARATIVE';
+  // CONTEXTUAL - Section headers (short, title-case, no question)
+  const trimmed = text.trim();
+  if (trimmed.length < 80 && !trimmed.includes('?')) {
+    const words = trimmed.split(/\s+/);
+    const titleCaseCount = words.filter(w => /^[A-Z]/.test(w)).length;
+    if (titleCaseCount / words.length > 0.6 || /^[A-Z\s\-&:]+$/.test(trimmed)) {
+      return { type: 'CONTEXTUAL', confidence: 85 };
     }
   }
 
-  // DESCRIPTIVE - Default for most requirements asking for description/explanation
-  // Describe, explain, detail, outline, provide information
-  return 'DESCRIPTIVE';
+  // CONTEXTUAL - Document format/submission instructions
+  // These are instructions about HOW to format the response, not actual requirements
+  if (/\b(table\s+of\s+contents|executive\s+summary|cover\s+(page|letter|sheet))\b/i.test(lower)) {
+    if (/\b(shall\s+be\s+submitted|must\s+(include|contain|be)|should\s+(include|contain))\b/i.test(lower)) {
+      return { type: 'CONTEXTUAL', confidence: 88 };
+    }
+  }
+  // Submission format instructions
+  if (/\b(response|proposal|submission)\s+(format|shall|must|should)\b/i.test(lower)) {
+    if (/\b(page|font|margin|format|submit|attach|include)\b/i.test(lower)) {
+      return { type: 'CONTEXTUAL', confidence: 85 };
+    }
+  }
+  // RFP process/timeline information (not requirements to respond to)
+  if (/\b(rfp|request\s+for\s+proposal)\s+(evaluation|timeline|schedule|process)\b/i.test(lower)) {
+    return { type: 'CONTEXTUAL', confidence: 82 };
+  }
+  // Contact information sections
+  if (/\b(contact|point\s+of\s+contact|questions\s+(about|regarding)|submit\s+questions)\b/i.test(lower)) {
+    if (/\b(email|phone|address)\b/i.test(lower)) {
+      return { type: 'CONTEXTUAL', confidence: 80 };
+    }
+  }
+
+  return null;
 }
 
 /**
- * Determine if requirement is MANDATORY based on text content
+ * Pass 3: Combine question structure and topic pattern for final classification.
+ * Uses rules to determine the most appropriate requirement type.
+ */
+function classifyType(text: string): RequirementType {
+  const structure = detectQuestionStructure(text);
+  const topic = detectTopicPattern(text);
+  const lower = text.toLowerCase();
+
+  // Rule 0: Explicit "describe" requests
+  const hasDescribeRequest = /\b(please\s+)?describe\b/i.test(lower) ||
+                              /^describe\b/i.test(text.trim());
+
+  if (hasDescribeRequest && topic?.type !== 'CONTEXTUAL') {
+    // Check for process/methodology keywords → PROCEDURAL
+    const hasProcessKeywords = /\b(process|procedure|methodology|approach|workflow|timeline|schedule|milestone|phase|implementation|deployment)\b/i.test(lower);
+    if (hasProcessKeywords) {
+      return 'PROCEDURAL';
+    }
+    // Otherwise → DESCRIPTIVE
+    return 'DESCRIPTIVE';
+  }
+
+  // Rule 1: Strong topic match wins if confident enough (but not over describe)
+  if (topic && topic.confidence >= 85) {
+    return topic.type;
+  }
+
+  // Rule 2: Yes/no questions → DECLARATIVE (unless strong topic match)
+  if (structure.type === 'yes_no' && structure.confidence >= 85) {
+    if (topic && topic.confidence >= 70) {
+      return topic.type; // Topic wins if reasonably confident
+    }
+    return 'DECLARATIVE';
+  }
+
+  // Rule 3: Confirmation requests → DECLARATIVE
+  if (structure.type === 'confirmation' && structure.confidence >= 85) {
+    return 'DECLARATIVE';
+  }
+
+  // Rule 4: List requests → check topic or default to DESCRIPTIVE
+  if (structure.type === 'list_request') {
+    if (topic && topic.confidence >= 60) {
+      return topic.type;
+    }
+    return 'DESCRIPTIVE';
+  }
+
+  // Rule 5: Open-ended questions → check topic or DESCRIPTIVE
+  if (structure.type === 'open_ended') {
+    if (topic && topic.confidence >= 60) {
+      return topic.type;
+    }
+    return 'DESCRIPTIVE';
+  }
+
+  // Rule 6: Topic match wins if moderately confident
+  if (topic && topic.confidence >= 60) {
+    return topic.type;
+  }
+
+  // Default: DESCRIPTIVE for most requirements
+  return 'DESCRIPTIVE';
+}
+
+// Anti-patterns: these describe CONTENT, not the requirement being optional
+const OPTIONAL_CONTENT_ANTIPATTERNS: RegExp[] = [
+  /\b(describe|explain|detail|list|what\s+are)\b.{0,30}\b(optional|recommended)/i,
+  /\boptional\s+(fields?|settings?|features?|parameters?|configurations?|validation|criteria|functionality|modules?|add-?ons?)\b/i,
+  /\brecommended\s+(settings?|configurations?|approach|process|system|practices?|methods?)\b/i,
+  /\bwhat\s+(is|are)\s+(the\s+)?recommended\b/i,
+  /\b(include|provide|add|attach).{0,20}if\s+(applicable|available|possible)\b/i,
+  /\b(support|handle|manage).{0,20}optional\b/i,
+  /\boptional\s+(for|to)\s+(users?|clients?|customers?)\b/i,
+];
+
+/**
+ * Determine if requirement is MANDATORY based on text content.
+ * Uses anti-patterns to avoid false-positives where "optional" describes content, not the requirement.
  */
 function classifyMandatory(text: string): boolean {
   const lower = text.toLowerCase();
 
-  // Explicit OPTIONAL signals - return false
-  if (/\b(optional|if desired|if applicable|where applicable|at your discretion)\b/i.test(lower)) {
-    return false;
-  }
-  if (/\b(not required|not mandatory|nice to have|desirable but not)\b/i.test(lower)) {
-    return false;
-  }
-  if (/\b(may choose|you may|bonus|preferred but not)\b/i.test(lower)) {
-    return false;
+  // Check anti-patterns first - if matched, "optional" refers to content, not requirement
+  const hasContentAntipattern = OPTIONAL_CONTENT_ANTIPATTERNS.some(ap => ap.test(text));
+
+  if (!hasContentAntipattern) {
+    // Only check optional patterns if no anti-pattern matched
+    // Explicit OPTIONAL signals - return false
+    if (/\b(optional|if desired|if applicable|where applicable|at your discretion)\b/i.test(lower)) {
+      return false;
+    }
+    if (/\b(not required|not mandatory|nice to have|desirable but not)\b/i.test(lower)) {
+      return false;
+    }
+    if (/\b(may choose|you may|bonus|preferred but not)\b/i.test(lower)) {
+      return false;
+    }
   }
 
   // Everything else is mandatory by default in RFPs
@@ -1349,27 +1409,65 @@ function classifyMandatory(text: string): boolean {
 
 /**
  * Classify DOMAIN context (Feature, Process, Legal)
+ * Determines the domain category of a requirement based on its content.
  */
 function classifyDomain(text: string): 'FEATURE' | 'PROCESS' | 'LEGAL' {
   const lower = text.toLowerCase();
 
   // LEGAL - Compliance, regulatory, legal terms, contracts
+  // Core legal/compliance terms
   if (/\b(comply|compliance|regulation|regulatory|legal|law|statute|legislation)\b/i.test(lower)) {
     return 'LEGAL';
   }
-  if (/\b(gdpr|hipaa|sox|pci|iso\s*\d|far\s+\d|dfar|contract|liability|indemnif|warrant)\b/i.test(lower)) {
+  // Specific regulations and standards
+  if (/\b(gdpr|hipaa|sox|pci|iso\s*\d{4,5}|far\s+\d|dfar|nist|fedramp)\b/i.test(lower)) {
     return 'LEGAL';
   }
-  if (/\b(terms and conditions|privacy policy|data protection|confidential)\b/i.test(lower)) {
+  // Contract and liability terms
+  if (/\b(contract|liability|indemnif|warrant|terms\s+and\s+conditions)\b/i.test(lower)) {
+    return 'LEGAL';
+  }
+  // Privacy and data protection
+  if (/\b(privacy\s+policy|data\s+protection|confidential|nda|non-?disclosure)\b/i.test(lower)) {
+    return 'LEGAL';
+  }
+  // Insurance and bonding
+  if (/\b(insurance|bonding|surety|e&o|errors\s+and\s+omissions)\b/i.test(lower)) {
+    return 'LEGAL';
+  }
+  // Intellectual property
+  if (/\b(intellectual\s+property|copyright|patent|trademark|licensing)\b/i.test(lower)) {
     return 'LEGAL';
   }
 
   // PROCESS - Methodology, approach, process-related
-  if (/\b(process|procedure|methodology|approach|workflow|how do you|how will you)\b/i.test(lower)) {
+  // Questions about HOW things are done
+  if (/\b(how do you|how will you|how does your|how would you)\b/i.test(lower)) {
     return 'PROCESS';
   }
+  // Process/methodology when combined with action verbs
+  if (/\b(process|procedure|methodology|approach|workflow)\b/i.test(lower)) {
+    if (/\b(describe|explain|outline|detail|provide)\b/i.test(lower)) {
+      return 'PROCESS';
+    }
+  }
+  // Timeline and schedule related
+  if (/\b(timeline|schedule|milestone|phase|project\s+plan|gantt)\b/i.test(lower)) {
+    return 'PROCESS';
+  }
+  // Implementation and delivery
   if (/\b(implement|deploy|deliver|manage|monitor|maintain|support|transition)\b/i.test(lower)) {
-    if (/\b(how|approach|process|methodology|procedure)\b/i.test(lower)) {
+    if (/\b(how|approach|process|methodology|procedure|plan)\b/i.test(lower)) {
+      return 'PROCESS';
+    }
+  }
+  // Quality and management processes
+  if (/\b(quality\s+(assurance|control|management)|change\s+management|risk\s+management)\b/i.test(lower)) {
+    return 'PROCESS';
+  }
+  // Training and onboarding
+  if (/\b(training|onboarding|knowledge\s+transfer)\b/i.test(lower)) {
+    if (/\b(process|approach|plan|methodology)\b/i.test(lower)) {
       return 'PROCESS';
     }
   }
@@ -1378,39 +1476,65 @@ function classifyDomain(text: string): 'FEATURE' | 'PROCESS' | 'LEGAL' {
   return 'FEATURE';
 }
 
+// Signals that indicate a WRITTEN RESPONSE is required (NOT attestation)
+const WRITTEN_RESPONSE_SIGNALS: RegExp[] = [
+  /\b(describe|explain|detail|demonstrate|outline|discuss)\b/i,
+  /\b(how will|how do|how does|how would|what is your)\b/i,
+  /\b(methodology|approach|strategy|plan for)\b/i,
+  /\b(provide.*information|provide.*details|provide.*description)\b/i,
+  /\b(submit.*document|attach|include.*sample)\b/i,
+];
+
+// Signals that indicate ATTESTATION (simple yes/no or compliance confirmation)
+const ATTESTATION_SIGNALS: RegExp[] = [
+  // Capability questions - "Does your system provide X?"
+  /^does\s+(the|your)\s+\w+\s+(provide|support|have|offer|allow|enable|include)\b/i,
+  // Capability questions - "Can X do Y?" (but not "Can you describe...")
+  /^can\s+(?!.{0,30}(describe|explain|how\s+(do|would|will))).+\?$/i,
+  // Ability questions
+  /^is\s+(the|your)\s+\w+\s+(able|capable)\b/i,
+  // Existence questions
+  /^are\s+there\b/i,
+  /^is\s+there\b/i,
+  // Compliance questions - "Is X compliant with Y?"
+  /\bis\s+(the|your|it)\s+.{0,80}\s+compliant\b/i,
+  /\b(does|do)\s+(the|your|it)\s+.{0,60}\s+(comply|meet|conform)\s+(with|to)\b/i,
+  // Confirmation patterns
+  /\b(confirm that|certify that|acknowledge that|agree to)\b/i,
+  /\b(must comply|shall comply|in accordance with)\b/i,
+  // Direct compliance questions
+  /\b(do you comply|will you comply|can you comply|confirm.*compliance)\b/i,
+  // Yes/no capability checks
+  /^(does|do|can|will|is|are|has|have)\s+(the|your|it|this)\b.*\?$/i,
+];
+
 /**
- * Determine if requirement is an ATTESTATION (simple yes/no compliance)
+ * Determine if requirement is an ATTESTATION (simple yes/no compliance).
+ * Attestations are questions that can be answered with a simple yes/no or confirmation,
+ * rather than requiring a detailed written response.
  */
 function classifyAttestation(text: string): boolean {
-  const lower = text.toLowerCase();
   const trimmed = text.trim();
 
-  // NOT attestation if it asks for description/explanation
-  if (/\b(describe|explain|detail|outline|provide.*information|how do|how will|what is your)\b/i.test(lower)) {
+  // Written response signals override attestation
+  if (WRITTEN_RESPONSE_SIGNALS.some(p => p.test(text))) {
     return false;
   }
 
-  // NOT attestation if it asks for documentation/evidence
-  if (/\b(provide.*evidence|submit.*document|attach|include.*sample|demonstrate)\b/i.test(lower)) {
-    return false;
-  }
-
-  // IS attestation - simple yes/no compliance questions
-  if (/^(do you|does your|can you|is your|are you|will you|have you)\b/i.test(trimmed)) {
-    // Short questions are likely attestation
-    if (trimmed.length < 150) {
+  // Short text that starts with capability/compliance patterns is likely attestation
+  if (trimmed.length < 200) {
+    if (ATTESTATION_SIGNALS.some(p => p.test(text))) {
       return true;
     }
   }
 
-  // IS attestation - confirm/certify/acknowledge patterns
-  if (/\b(confirm that|certify that|acknowledge that|agree to|accept the)\b/i.test(lower)) {
-    return true;
-  }
-
-  // IS attestation - comply with requirement
-  if (/\b(do you comply|will you comply|can you comply|confirm.*compliance)\b/i.test(lower)) {
-    return true;
+  // Longer text can still be attestation if it has strong attestation signals
+  // (e.g., multi-line questions that are still yes/no in nature)
+  if (trimmed.length < 400) {
+    // Strong attestation patterns (confirmation/certification)
+    if (/\b(confirm that|certify that|acknowledge that|agree to|accept the)\b/i.test(text)) {
+      return true;
+    }
   }
 
   // Default: not attestation
@@ -1482,6 +1606,348 @@ function classifyRequirement(text: string): {
 }
 
 // =============================================================================
+// GAP DETECTION AND FILLING
+// =============================================================================
+
+/**
+ * Detect missing section numbers by comparing PDF content with extracted items.
+ * Returns array of missing section numbers like ["3.1.15", "3.1.16", "3.7.19", ...]
+ */
+function detectMissingItems(documentText: string, extractedSections: Set<string>): string[] {
+  // Find all X.Y.Z patterns in document
+  const pattern = /\b(\d+\.\d+\.\d+)\b/g;
+  const allSections = new Set<string>();
+  let match;
+  while ((match = pattern.exec(documentText)) !== null) {
+    allSections.add(match[1]);
+  }
+
+  // Find missing items
+  const missing: string[] = [];
+  for (const section of allSections) {
+    // Skip section 6.x (submission instructions, not requirements)
+    if (section.startsWith('6.')) continue;
+
+    if (!extractedSections.has(section)) {
+      missing.push(section);
+    }
+  }
+
+  // Sort by section number
+  missing.sort((a, b) => {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2];
+  });
+
+  return missing;
+}
+
+/**
+ * Find the line range in the document where a specific section number appears.
+ * Returns {startLine, endLine} or null if not found.
+ */
+function findSectionLineRange(
+  lines: string[],
+  sectionNumber: string
+): { startLine: number; endLine: number } | null {
+  // Escape dots for regex
+  const escapedSection = sectionNumber.replace(/\./g, '\\.');
+  const pattern = new RegExp(`^\\s*${escapedSection}[\\s.]`);
+
+  for (let i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) {
+      // Found the start, now find where this item ends
+      // Look for the next section number or significant gap
+      let endLine = i;
+      const parts = sectionNumber.split('.');
+      const nextPattern = new RegExp(`^\\s*\\d+\\.\\d+(\\.\\d+)?[\\s.]`);
+
+      for (let j = i + 1; j < lines.length && j < i + 10; j++) {
+        if (nextPattern.test(lines[j]) && !lines[j].includes(sectionNumber)) {
+          break;
+        }
+        if (lines[j].trim().length > 0) {
+          endLine = j;
+        }
+      }
+
+      return { startLine: i + 1, endLine: endLine + 1 }; // 1-indexed
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find context around a section number using text-based search.
+ * More robust than line-based detection - searches anywhere in text.
+ * Returns context lines and whether the exact section was found.
+ */
+function findSectionContext(
+  documentText: string,
+  lines: string[],
+  sectionNumber: string
+): { contextLines: string; found: boolean; lineIndex: number | null } {
+  const escaped = sectionNumber.replace(/\./g, '\\.');
+
+  // Strategy 1: Find at line start (most reliable - current approach)
+  const lineStartPattern = new RegExp(`^\\s*${escaped}[\\s.:]`, 'm');
+  let match = lineStartPattern.exec(documentText);
+
+  // Strategy 2: Find anywhere in text (handles unusual PDF formatting)
+  if (!match) {
+    const anywherePattern = new RegExp(`${escaped}[\\s.:]`);
+    match = anywherePattern.exec(documentText);
+    if (match) {
+      console.log(`[findSectionContext] Found ${sectionNumber} via anywhere search at position ${match.index}`);
+    }
+  }
+
+  // Strategy 3: Fuzzy match (handles OCR errors like "3.l.5" instead of "3.1.5")
+  if (!match) {
+    // Replace digits with digit character class for fuzzy matching
+    const fuzzyEscaped = escaped.replace(/\\\.(\d)/g, '\\.[$1l|]');  // l and | look like 1
+    const fuzzyPattern = new RegExp(`${fuzzyEscaped}[\\s.:]`);
+    match = fuzzyPattern.exec(documentText);
+    if (match) {
+      console.log(`[findSectionContext] Found ${sectionNumber} via fuzzy match at position ${match.index}`);
+    }
+  }
+
+  if (match) {
+    // Extract context: 200 chars before, 500 chars after
+    const start = Math.max(0, match.index - 200);
+    const end = Math.min(documentText.length, match.index + 500);
+    const contextText = documentText.substring(start, end);
+
+    // Find the approximate line index for this position
+    let charCount = 0;
+    let lineIndex: number | null = null;
+    for (let i = 0; i < lines.length; i++) {
+      charCount += lines[i].length + 1; // +1 for newline
+      if (charCount >= match.index) {
+        lineIndex = i;
+        break;
+      }
+    }
+
+    return { contextLines: contextText, found: true, lineIndex };
+  }
+
+  // Fallback: Return context around the X.Y section header
+  const subsection = sectionNumber.split('.').slice(0, 2).join('.');
+  const subsectionEscaped = subsection.replace(/\./g, '\\.');
+  const subsectionPattern = new RegExp(`${subsectionEscaped}[\\s.:]`);
+  match = subsectionPattern.exec(documentText);
+
+  if (match) {
+    console.log(`[findSectionContext] Falling back to subsection ${subsection} context for ${sectionNumber}`);
+    const start = Math.max(0, match.index - 100);
+    const end = Math.min(documentText.length, match.index + 2000);
+    return { contextLines: documentText.substring(start, end), found: false, lineIndex: null };
+  }
+
+  console.log(`[findSectionContext] WARNING: Could not find any context for ${sectionNumber}`);
+  return { contextLines: '', found: false, lineIndex: null };
+}
+
+/**
+ * Extract specific missing items by doing targeted LLM calls.
+ * Groups nearby missing items together for efficiency.
+ */
+async function extractMissingItemsTargeted(
+  openai: OpenAI,
+  model: string,
+  lines: string[],
+  documentText: string,
+  missingItems: string[],
+  majorSections: Map<string, { number: string; title: string }>
+): Promise<ExtractedRequirement[]> {
+  if (missingItems.length === 0) return [];
+
+  console.log(`[gap-fill] Attempting to extract ${missingItems.length} missing items`);
+
+  const results: ExtractedRequirement[] = [];
+
+  // Group missing items by their X.Y prefix for batch processing
+  const bySubsection = new Map<string, string[]>();
+  for (const item of missingItems) {
+    const parts = item.split('.');
+    const key = `${parts[0]}.${parts[1]}`;
+    if (!bySubsection.has(key)) bySubsection.set(key, []);
+    bySubsection.get(key)!.push(item);
+  }
+
+  // For each group, find the line range and extract
+  for (const [subsection, items] of bySubsection) {
+    // Find the first and last item in this group
+    const firstItem = items[0];
+    const lastItem = items[items.length - 1];
+
+    // Find line ranges - try line-based first, fall back to text-based context
+    let firstRange = findSectionLineRange(lines, firstItem);
+    let lastRange = findSectionLineRange(lines, lastItem);
+    let contextLines: string;
+    let usingTextContext = false;
+
+    if (firstRange) {
+      // Line-based detection worked - use line ranges
+      const contextStart = Math.max(0, firstRange.startLine - 3);
+      const contextEnd = lastRange
+        ? Math.min(lines.length, lastRange.endLine + 3)
+        : Math.min(lines.length, firstRange.endLine + 20);
+
+      contextLines = lines
+        .slice(contextStart, contextEnd)
+        .map((line, idx) => `L${contextStart + idx + 1}: ${line}`)
+        .join('\n');
+
+      console.log(`[gap-fill] Extracting ${items.length} items from ${subsection} (lines ${contextStart + 1}-${contextEnd})`);
+    } else {
+      // FALLBACK: Use text-based context search
+      console.log(`[gap-fill] Line detection failed for ${firstItem}, trying text-based context search`);
+
+      const firstContext = findSectionContext(documentText, lines, firstItem);
+      const lastContext = items.length > 1 ? findSectionContext(documentText, lines, lastItem) : null;
+
+      if (!firstContext.contextLines) {
+        console.log(`[gap-fill] Could not find any context for ${firstItem}`);
+        continue;
+      }
+
+      usingTextContext = true;
+
+      // For text-based context, we don't have line numbers - use raw text context
+      // Combine first and last context if different
+      if (lastContext && lastContext.contextLines && lastContext.contextLines !== firstContext.contextLines) {
+        // Use a broader context that includes both
+        contextLines = `...${firstContext.contextLines}...\n...\n...${lastContext.contextLines}...`;
+      } else {
+        contextLines = firstContext.contextLines;
+      }
+
+      console.log(`[gap-fill] Using text-based context for ${subsection} (${contextLines.length} chars)`);
+    }
+
+    // Build targeted prompt - adjust based on whether we have line numbers or raw text
+    let targetedPrompt: string;
+    if (usingTextContext) {
+      targetedPrompt = `Extract these SPECIFIC requirements from the text below. Return JSON: {"items":[{"section":"X.Y.Z","text":"extracted text"},...]}\n\nMISSING ITEMS TO FIND: ${items.join(', ')}\n\nTEXT:\n${contextLines}`;
+    } else {
+      targetedPrompt = `Extract these SPECIFIC requirements from the text below. Return JSON: {"r":[[startLine,endLine,"section"],...]}\n\nMISSING ITEMS TO FIND: ${items.join(', ')}\n\nTEXT:\n${contextLines}`;
+    }
+
+    try {
+      const response = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You extract specific requirements by line number. Return ONLY the JSON with line references for the requested items.',
+          },
+          { role: 'user', content: targetedPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 2000,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) continue;
+
+      const parsed = JSON.parse(content) as {
+        r?: Array<[number, number, string]>;
+        items?: Array<{ section: string; text: string }>;
+      };
+
+      // Handle line-based format
+      if (parsed.r && Array.isArray(parsed.r)) {
+        console.log(`[gap-fill] Found ${parsed.r.length} items for ${subsection} (line-based)`);
+
+        for (const [startLine, endLine, section] of parsed.r) {
+          const text = extractTextFromLines(lines, startLine, endLine);
+          if (!text) continue;
+
+          const classification = classifyRequirement(text);
+          let sectionGroup: string | null = null;
+          if (section) {
+            const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
+            if (majorMatch) {
+              const majorNum = majorMatch[1].toUpperCase();
+              const majorSection = majorSections.get(majorNum);
+              if (majorSection) {
+                sectionGroup = `${majorSection.number}: ${majorSection.title}`;
+              }
+            }
+          }
+
+          results.push({
+            section: section || null,
+            sectionGroup,
+            text,
+            type: classification.type,
+            isMandatory: classification.isMandatory,
+            domainContext: classification.domainContext,
+            wordLimit: classification.wordLimit,
+            characterLimit: classification.characterLimit,
+            isAttestation: classification.isAttestation,
+          });
+        }
+      }
+      // Handle text-based format (from context search fallback)
+      else if (parsed.items && Array.isArray(parsed.items)) {
+        console.log(`[gap-fill] Found ${parsed.items.length} items for ${subsection} (text-based)`);
+
+        for (const item of parsed.items) {
+          const text = item.text?.trim();
+          const section = item.section?.trim();
+          if (!text) continue;
+
+          const classification = classifyRequirement(text);
+          let sectionGroup: string | null = null;
+          if (section) {
+            const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
+            if (majorMatch) {
+              const majorNum = majorMatch[1].toUpperCase();
+              const majorSection = majorSections.get(majorNum);
+              if (majorSection) {
+                sectionGroup = `${majorSection.number}: ${majorSection.title}`;
+              }
+            }
+          }
+
+          results.push({
+            section: section || null,
+            sectionGroup,
+            text,
+            type: classification.type,
+            isMandatory: classification.isMandatory,
+            domainContext: classification.domainContext,
+            wordLimit: classification.wordLimit,
+            characterLimit: classification.characterLimit,
+            isAttestation: classification.isAttestation,
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`[gap-fill] Error extracting ${subsection}:`, err);
+    }
+  }
+
+  // VALIDATION: Check which items are still missing after gap-fill
+  const recoveredSections = new Set(results.map(r => r.section).filter(Boolean));
+  const stillMissing = missingItems.filter(item => !recoveredSections.has(item));
+
+  if (stillMissing.length > 0) {
+    console.warn(`[gap-fill] WARNING: ${stillMissing.length} items still not found after gap-fill: ${stillMissing.slice(0, 10).join(', ')}${stillMissing.length > 10 ? '...' : ''}`);
+  }
+
+  console.log(`[gap-fill] Total recovered: ${results.length} requirements`);
+  return results;
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -1513,6 +1979,10 @@ export async function extractRequirements(
     const sectionSummary = detectDocumentSections(documentText);
     console.log(`[extract] Document sections detected: ${sectionSummary || 'none'}`);
 
+    // Detect major section headers for sectionGroup population
+    const majorSections = detectMajorSections(documentText);
+    console.log(`[extract] Major sections detected: ${majorSections.size} sections`);
+
     // Build user message with line-numbered document
     // Include section summary to ensure complete extraction
     let userMessage = `Please extract all requirements and questions from this RFP document. Use line numbers (L1, L2, etc.) to reference where each requirement is located.`;
@@ -1531,7 +2001,7 @@ export async function extractRequirements(
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1, // Low temperature for consistent extraction
-      max_tokens: 16384,
+      max_tokens: 16384, // Max for gpt-4o-mini
     });
 
     const content = response.choices[0]?.message?.content;
@@ -1554,10 +2024,10 @@ export async function extractRequirements(
     console.log(`[extract] Output tokens: ${response.usage?.completion_tokens || 'unknown'}`);
 
     // Convert compact array format to full requirements
-    // Format: [startLine, endLine, section, sectionGroup]
+    // Format: [startLine, endLine, section] - sectionGroup derived from majorSections
     // Classification is done via heuristics in post-processing
     let requirements: ExtractedRequirement[] = (rawResult.r || []).map((arr, idx) => {
-      const [startLine, endLine, section, sectionGroup] = arr;
+      const [startLine, endLine, section] = arr;
 
       const text = extractTextFromLines(lines, startLine, endLine);
 
@@ -1568,9 +2038,26 @@ export async function extractRequirements(
       // Apply heuristic classification based on extracted text
       const classification = classifyRequirement(text);
 
+      // Derive sectionGroup from major sections map
+      // Extract major section number from section (e.g., "3.1.2" -> "3", "A.2.1" -> "A")
+      let sectionGroup: string | null = null;
+      if (section) {
+        const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
+        if (majorMatch) {
+          const majorNum = majorMatch[1].toUpperCase();
+          const majorSection = majorSections.get(majorNum);
+          if (majorSection) {
+            sectionGroup = `${majorSection.number}: ${majorSection.title}`;
+          } else {
+            // Fallback: just use the major number
+            sectionGroup = majorNum;
+          }
+        }
+      }
+
       return {
         section: section || null,
-        sectionGroup: sectionGroup || null,
+        sectionGroup,
         text,
         type: classification.type,
         isMandatory: classification.isMandatory,
@@ -1594,22 +2081,75 @@ export async function extractRequirements(
 
     console.log('[extract] Applying post-processing pipeline...');
 
-    // Step 1: Validate types and apply heuristic corrections
+    // Step 1: Trim contaminated requirements (removes administrative content that leaked in)
+    trimContaminatedRequirements(requirements);
+
+    // Step 2: Validate types and apply heuristic corrections
     requirements = requirements.map(req => ({
       ...req,
       type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
     }));
 
-    // Step 2: Split concatenated requirements
+    // Step 3: Split concatenated requirements
     requirements = splitConcatenatedRequirementsPostProcess(requirements);
 
-    // Step 3: Reclassify section headers
+    // Step 4: Deduplicate requirements (removes exact and near-duplicates)
+    requirements = deduplicateRequirements(requirements);
+
+    // Step 5: Reclassify section headers
     reclassifySectionHeaders(requirements);
 
-    // Step 4: Enrich section data
+    // Step 6: Enrich section data
     enrichSectionData(requirements, documentText);
 
     console.log(`[extract] Post-processing complete: ${requirements.length} requirements`);
+
+    // ==========================================================================
+    // GAP DETECTION AND FILLING
+    // ==========================================================================
+
+    // Build set of extracted section numbers (X.Y.Z format)
+    const extractedSectionNumbers = new Set<string>();
+    for (const req of requirements) {
+      if (req.section) {
+        extractedSectionNumbers.add(req.section);
+      }
+    }
+
+    // Detect missing items
+    const missingItems = detectMissingItems(documentText, extractedSectionNumbers);
+
+    if (missingItems.length > 0) {
+      console.log(`[extract] Detected ${missingItems.length} potentially missing items: ${missingItems.slice(0, 10).join(', ')}${missingItems.length > 10 ? '...' : ''}`);
+
+      // Attempt targeted extraction for missing items
+      const recoveredRequirements = await extractMissingItemsTargeted(
+        openai,
+        model,
+        lines,
+        documentText,
+        missingItems,
+        majorSections
+      );
+
+      if (recoveredRequirements.length > 0) {
+        console.log(`[extract] Recovered ${recoveredRequirements.length} missing requirements`);
+
+        // Add recovered requirements, avoiding duplicates
+        for (const recovered of recoveredRequirements) {
+          // Check if we already have this section
+          const isDuplicate = requirements.some(
+            r => r.section === recovered.section && r.text === recovered.text
+          );
+          if (!isDuplicate) {
+            requirements.push(recovered);
+          }
+        }
+
+        // Re-run deduplication after adding recovered items
+        requirements = deduplicateRequirements(requirements);
+      }
+    }
 
     // Validate section coverage
     const warnings: string[] = [];
@@ -1634,7 +2174,7 @@ export async function extractRequirements(
       expectedSections.set(key, (expectedSections.get(key) || 0) + 1);
     }
 
-    // Find sections with significant gaps
+    // Find sections with significant gaps (only report if still missing after gap fill)
     for (const [section, expectedCount] of expectedSections) {
       const actualCount = extractedSections.get(section) || 0;
       if (actualCount < expectedCount * 0.5) { // Less than 50% extracted
