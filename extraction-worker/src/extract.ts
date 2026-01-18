@@ -1166,14 +1166,30 @@ export async function extractRequirements(
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1, // Low temperature for consistent extraction
+      max_tokens: 16384, // Ensure we get complete response for large documents
     });
 
     const content = response.choices[0]?.message?.content;
+    const finishReason = response.choices[0]?.finish_reason;
+
     if (!content) {
       throw new Error('Empty response from OpenAI');
     }
 
-    const rawResult = JSON.parse(content) as ExtractionResult;
+    // Check if response was truncated
+    if (finishReason === 'length') {
+      console.warn('[extract] WARNING: Response was truncated due to token limit');
+    }
+
+    let rawResult: ExtractionResult;
+    try {
+      rawResult = JSON.parse(content) as ExtractionResult;
+    } catch (parseError) {
+      console.error('[extract] JSON parse failed. Response length:', content.length);
+      console.error('[extract] Finish reason:', finishReason);
+      console.error('[extract] Last 200 chars:', content.slice(-200));
+      throw new Error(`Failed to parse LLM response as JSON (finish_reason: ${finishReason})`);
+    }
     const elapsed = Date.now() - startTime;
 
     console.log(`[extract] Raw extraction: ${rawResult.requirements?.length || 0} requirements in ${elapsed}ms`);
