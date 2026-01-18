@@ -38,14 +38,18 @@ interface ExtractionOptions {
 }
 
 // =============================================================================
-// EXTRACTION PROMPT
-// This is the complete prompt from the main application
+// LINE-REFERENCE EXTRACTION PROMPT
+// Optimized to reduce output size by using line references instead of full text
 // =============================================================================
 
 const EXTRACTION_PROMPT = `You are an expert at analyzing RFP (Request for Proposal) and tender documents. Your task is to extract ALL questions, requirements, and mandatory items from the document.
 
+IMPORTANT: The document has LINE NUMBERS at the start of each line (format: "L123: text").
+Instead of outputting the full requirement text, output the START and END line numbers.
+This dramatically reduces response size and prevents truncation.
+
 For each item extracted, identify:
-1. The exact text of the requirement or question
+1. The LINE RANGE (startLine and endLine) where the requirement appears
 2. Whether it is MANDATORY or OPTIONAL - use these rules IN ORDER:
 
    ==============================================================================
@@ -557,7 +561,8 @@ Return your response as a JSON object with this structure:
   "deadlineText": "Original deadline text from document (e.g., '5pm Friday 14 February 2025') or null",
   "requirements": [
     {
-      "text": "The COMPLETE requirement text including context, numbered questions, and word limits. Example: if document says 'We have a budget of £150k. 1. Does your total come in under this? (Max 2500 words)' then text should be 'We have a budget of £150k. 1. Does your total come in under this? (Max 2500 words)' - never truncate to just the first sentence.",
+      "startLine": 123,
+      "endLine": 127,
       "isMandatory": true/false,
       "section": "Specific subsection reference (e.g., 'A.1.2', '3.4.1', 'B.2') - just the number, NOT the title",
       "sectionGroup": "Parent section with title (e.g., 'A: REQUIRED BANKING SERVICES', '3: Technical Requirements')",
@@ -569,6 +574,14 @@ Return your response as a JSON object with this structure:
     }
   ]
 }
+
+LINE REFERENCE RULES:
+- startLine: The line number where the requirement BEGINS (inclusive)
+- endLine: The line number where the requirement ENDS (inclusive)
+- For single-line requirements, startLine equals endLine
+- For multi-line requirements (e.g., a question with bullet points), include ALL lines
+- Line numbers are the integers after "L" at the start of each line (e.g., "L245:" means line 245)
+- DO NOT output the requirement text - we will extract it using your line numbers
 
 CRITICAL INSTRUCTIONS:
 - DEADLINE: Search the ENTIRE document for submission deadline. Look for: "submit by", "due date", "deadline", "responses due", "closing date", "must be received by". Extract the most specific deadline found.
@@ -644,13 +657,13 @@ NOT flattened to: "Please describe your approach to: • Security measures • A
 
 ==============================================================================
 
-- COMPLETE TEXT EXTRACTION (CRITICAL):
-  * Extract the ENTIRE requirement text, including ALL parts
-  * If a paragraph introduces context followed by a numbered question (e.g., "1. Does your..."), include BOTH the context AND the question
-  * Never truncate at the preamble - always include the actual question being asked
-  * If there's a word count limit mentioned (e.g., "Maximum word count 2,500"), include that in the extracted text
-  * The "text" field must contain everything the responder needs to understand and answer the requirement
-  * BUT: If you see multiple X.Y.Z numbered items, extract each as a SEPARATE requirement
+- COMPLETE LINE RANGE (CRITICAL):
+  * Include ALL lines of the requirement in your startLine to endLine range
+  * If a paragraph introduces context followed by a numbered question (e.g., "1. Does your..."), include BOTH the context AND the question lines
+  * Never start at the question line if there's preamble context above it
+  * If there's a word count limit mentioned (e.g., "Maximum word count 2,500"), include that line in the range
+  * The line range must cover everything the responder needs to understand and answer the requirement
+  * BUT: If you see multiple X.Y.Z numbered items, extract each as a SEPARATE requirement with its own line range
 - TABLE FORMAT: Documents may contain structured tables in this format:
   * [TABLE START] / [TABLE END] markers indicate table boundaries
   * [HEADER] indicates column headers
@@ -1132,6 +1145,58 @@ function enrichSectionData(requirements: ExtractedRequirement[], documentText: s
 }
 
 // =============================================================================
+// LINE NUMBER UTILITIES
+// =============================================================================
+
+/**
+ * Add line numbers to document text.
+ * Format: "L1: first line\nL2: second line\n..."
+ */
+function addLineNumbers(text: string): { numberedText: string; lines: string[] } {
+  const lines = text.split('\n');
+  const numberedLines = lines.map((line, i) => `L${i + 1}: ${line}`);
+  return {
+    numberedText: numberedLines.join('\n'),
+    lines, // Keep original lines for text extraction
+  };
+}
+
+/**
+ * Extract text from document using line range.
+ */
+function extractTextFromLines(lines: string[], startLine: number, endLine: number): string {
+  // Convert to 0-indexed
+  const start = Math.max(0, startLine - 1);
+  const end = Math.min(lines.length - 1, endLine - 1);
+
+  if (start > end || start >= lines.length) {
+    return '';
+  }
+
+  return lines.slice(start, end + 1).join('\n').trim();
+}
+
+// Line reference result from LLM
+interface LineReferenceRequirement {
+  startLine: number;
+  endLine: number;
+  section: string | null;
+  sectionGroup: string | null;
+  type: string;
+  isMandatory: boolean;
+  domainContext: string | null;
+  wordLimit: number | null;
+  characterLimit: number | null;
+  isAttestation: boolean;
+}
+
+interface LineReferenceResult {
+  deadline: string | null;
+  deadlineText: string | null;
+  requirements: LineReferenceRequirement[];
+}
+
+// =============================================================================
 // EXTRACTION FUNCTION
 // =============================================================================
 
@@ -1154,9 +1219,13 @@ export async function extractRequirements(
   console.log(`[extract] Starting extraction with model ${model}`);
   console.log(`[extract] Document length: ${documentText.length} chars`);
 
+  // Add line numbers to document for reference-based extraction
+  const { numberedText, lines } = addLineNumbers(documentText);
+  console.log(`[extract] Document has ${lines.length} lines`);
+
   try {
-    // Build user message with instruction prefix
-    const userMessage = `Please extract all requirements and questions from this RFP document:\n\n${documentText}`;
+    // Build user message with line-numbered document
+    const userMessage = `Please extract all requirements and questions from this RFP document. Use line numbers (L1, L2, etc.) to reference where each requirement is located:\n\n${numberedText}`;
 
     const response = await openai.chat.completions.create({
       model,
@@ -1166,31 +1235,50 @@ export async function extractRequirements(
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1, // Low temperature for consistent extraction
+      max_tokens: 16384,
     });
 
     const content = response.choices[0]?.message?.content;
+    const finishReason = response.choices[0]?.finish_reason;
+
     if (!content) {
       throw new Error('Empty response from OpenAI');
     }
 
-    const rawResult = JSON.parse(content) as ExtractionResult;
+    // Check for truncation
+    if (finishReason === 'length') {
+      console.warn('[extract] WARNING: Response may have been truncated');
+    }
+
+    const rawResult = JSON.parse(content) as LineReferenceResult;
     const elapsed = Date.now() - startTime;
 
     console.log(`[extract] Raw extraction: ${rawResult.requirements?.length || 0} requirements in ${elapsed}ms`);
     console.log(`[extract] Tokens used: ${response.usage?.total_tokens || 'unknown'}`);
+    console.log(`[extract] Output tokens: ${response.usage?.completion_tokens || 'unknown'}`);
 
-    // Normalize the response first
-    let requirements: ExtractedRequirement[] = (rawResult.requirements || []).map(req => ({
-      section: req.section || null,
-      sectionGroup: req.sectionGroup || null,
-      text: req.text || '',
-      type: req.type || 'DESCRIPTIVE',
-      isMandatory: req.isMandatory !== false, // Default to true
-      domainContext: req.domainContext || 'FEATURE',
-      wordLimit: req.wordLimit || null,
-      characterLimit: req.characterLimit || null,
-      isAttestation: req.isAttestation || false,
-    }));
+    // Convert line references to actual text
+    let requirements: ExtractedRequirement[] = (rawResult.requirements || []).map(req => {
+      const text = extractTextFromLines(lines, req.startLine, req.endLine);
+      return {
+        section: req.section || null,
+        sectionGroup: req.sectionGroup || null,
+        text,
+        type: (req.type as RequirementType) || 'DESCRIPTIVE',
+        isMandatory: req.isMandatory !== false, // Default to true
+        domainContext: (req.domainContext as 'FEATURE' | 'PROCESS' | 'LEGAL') || 'FEATURE',
+        wordLimit: req.wordLimit || null,
+        characterLimit: req.characterLimit || null,
+        isAttestation: req.isAttestation || false,
+      };
+    });
+
+    // Filter out any empty requirements (bad line references)
+    const beforeFilter = requirements.length;
+    requirements = requirements.filter(req => req.text.length > 0);
+    if (beforeFilter !== requirements.length) {
+      console.log(`[extract] Filtered ${beforeFilter - requirements.length} empty requirements from bad line refs`);
+    }
 
     // ==========================================================================
     // POST-PROCESSING PIPELINE (from main app)
