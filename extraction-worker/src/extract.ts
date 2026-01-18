@@ -553,29 +553,8 @@ NOT ATTESTATION (isAttestation: false):
 - Compound requirements with multiple conditions needing explanation
 - Requires samples, attachments, or documentation
 
-When uncertain, default to NOT attestation (isAttestation: false) - this is the safer assumption.
-
 ==============================================================================
-IMPORTANT: CLASSIFY EACH REQUIREMENT INDIVIDUALLY
-==============================================================================
-Do NOT copy-paste the same classification for every requirement. Each requirement
-must be analyzed independently:
-
-- TYPE: Read the requirement text. Is it asking for description (DES), evidence (EVI),
-  pricing/numbers (QUA), process/procedure (PRO), references (REF), staffing (STA),
-  a simple declaration (DEC), or is it just context (CTX)?
-
-- MANDATORY: Does this specific requirement contain "optional", "if desired",
-  "where applicable"? If yes → false. Otherwise → true.
-
-- DOMAIN: Is this about legal/compliance/regulatory (L)? About process/methodology (P)?
-  Or about features/capabilities/technical (F)?
-
-- ATTESTATION: Can this be answered with a simple "Yes, we comply" or "No"?
-  If yes → true. If it needs explanation/description → false.
-
-RFPs typically have a MIX of types. If you find yourself outputting the same
-classification for every requirement, STOP and re-read the requirements.
+OUTPUT FORMAT - SIMPLIFIED (Classification done in post-processing)
 ==============================================================================
 
 Return your response as a JSON object with this COMPACT structure:
@@ -583,51 +562,27 @@ Return your response as a JSON object with this COMPACT structure:
   "d": "ISO 8601 deadline or null",
   "dt": "Original deadline text or null",
   "r": [
-    [startLine, endLine, "section", "sectionGroup", "TYPE", mandatory, "DOMAIN", wordLimit, charLimit, attestation],
-    [startLine, endLine, "section", "sectionGroup", "TYPE", mandatory, "DOMAIN", wordLimit, charLimit, attestation]
+    [startLine, endLine, "section", "sectionGroup"],
+    [startLine, endLine, "section", "sectionGroup"]
   ]
 }
 
-ARRAY FORMAT - each requirement is an array with these positions:
+ARRAY FORMAT - each requirement is an array with 4 positions:
 [0] startLine - integer, line where requirement starts
 [1] endLine - integer, line where requirement ends
-[2] section - string like "3.1.2" or "A.1" or null
+[2] section - string like "3.1.2" or "A.1" or null if no section number
 [3] sectionGroup - string like "3: Technical Requirements" or null
-[4] type - one of: "CTX","PRO","DEC","DES","EVI","QUA","REF","STA"
-[5] mandatory - boolean (true/false)
-[6] domain - one of: "F","P","L" (Feature/Process/Legal)
-[7] wordLimit - integer or null
-[8] charLimit - integer or null
-[9] attestation - boolean (true/false)
 
-TYPE CODES:
-- CTX = CONTEXTUAL
-- PRO = PROCEDURAL
-- DEC = DECLARATIVE
-- DES = DESCRIPTIVE
-- EVI = EVIDENCE_BASED
-- QUA = QUANTITATIVE
-- REF = REFERENCE_BASED
-- STA = STAFFING
-
-EXAMPLE showing VARIETY in classifications:
+EXAMPLE:
 {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February 2025","r":[
-[12,12,"1.0","1: Introduction","CTX",true,"F",null,null,false],
-[45,48,"3.1.2","3: Technical Requirements","DES",true,"F",2500,null,false],
-[52,52,"3.1.3","3: Technical Requirements","DEC",true,"L",null,null,true],
-[60,65,"3.2.1","3: Technical Requirements","EVI",true,"P",null,null,false],
-[70,72,"4.1","4: Pricing","QUA",true,"F",null,null,false],
-[80,82,"5.1","5: Optional Services","DES",false,"F",1000,null,false],
-[90,93,"6.1","6: Staffing","STA",true,"P",null,null,false],
-[100,100,"7.1","7: References","REF",true,"L",null,null,true],
-[110,115,"8.1","8: Compliance","PRO",true,"L",null,null,false]
+[12,12,"1.0","1: Introduction"],
+[45,48,"3.1.2","3: Technical Requirements"],
+[52,52,"3.1.3","3: Technical Requirements"],
+[60,65,"3.2.1","3: Technical Requirements"],
+[70,72,"4.1","4: Pricing"],
+[80,82,"5.1","5: Optional Services"],
+[90,93,"6.1","6: Staffing"]
 ]}
-
-CLASSIFICATION VARIETY IS CRITICAL:
-- NOT all requirements are the same type - use the FULL range: CTX, PRO, DEC, DES, EVI, QUA, REF, STA
-- NOT all requirements are mandatory - look for "optional", "if applicable", "desired but not required"
-- NOT all requirements are FEATURE domain - legal/compliance items are "L", process/methodology are "P"
-- NOT all requirements are non-attestation - simple yes/no compliance questions ARE attestation (true)
 
 LINE REFERENCE RULES:
 - startLine/endLine are integers from the "L123:" prefixes in the document
@@ -1266,9 +1221,9 @@ function stripSectionPrefix(text: string): string {
   return result;
 }
 
-// Compact array format from LLM
-// Each requirement is: [startLine, endLine, section, sectionGroup, type, mandatory, domain, wordLimit, charLimit, attestation]
-type CompactRequirement = [number, number, string | null, string | null, string, boolean, string, number | null, number | null, boolean];
+// Compact array format from LLM (simplified - classification done in post-processing)
+// Each requirement is: [startLine, endLine, section, sectionGroup]
+type CompactRequirement = [number, number, string | null, string | null];
 
 interface CompactResult {
   d: string | null;   // deadline
@@ -1276,36 +1231,231 @@ interface CompactResult {
   r: CompactRequirement[];  // requirements
 }
 
-// Type code mapping
-const TYPE_CODE_MAP: Record<string, RequirementType> = {
-  'CTX': 'CONTEXTUAL',
-  'PRO': 'PROCEDURAL',
-  'DEC': 'DECLARATIVE',
-  'DES': 'DESCRIPTIVE',
-  'EVI': 'EVIDENCE_BASED',
-  'QUA': 'QUANTITATIVE',
-  'REF': 'REFERENCE_BASED',
-  'STA': 'STAFFING',
-  // Also accept full names in case LLM doesn't use codes
-  'CONTEXTUAL': 'CONTEXTUAL',
-  'PROCEDURAL': 'PROCEDURAL',
-  'DECLARATIVE': 'DECLARATIVE',
-  'DESCRIPTIVE': 'DESCRIPTIVE',
-  'EVIDENCE_BASED': 'EVIDENCE_BASED',
-  'QUANTITATIVE': 'QUANTITATIVE',
-  'REFERENCE_BASED': 'REFERENCE_BASED',
-  'STAFFING': 'STAFFING',
-};
+// =============================================================================
+// HEURISTIC CLASSIFICATION FUNCTIONS
+// =============================================================================
 
-// Domain code mapping
-const DOMAIN_CODE_MAP: Record<string, 'FEATURE' | 'PROCESS' | 'LEGAL'> = {
-  'F': 'FEATURE',
-  'P': 'PROCESS',
-  'L': 'LEGAL',
-  'FEATURE': 'FEATURE',
-  'PROCESS': 'PROCESS',
-  'LEGAL': 'LEGAL',
-};
+/**
+ * Classify requirement TYPE based on text content
+ */
+function classifyType(text: string): RequirementType {
+  const lower = text.toLowerCase();
+  const trimmed = text.trim();
+
+  // CONTEXTUAL - Section headers, introductory text, context-setting
+  // Short text without questions, often title-case or all-caps
+  if (trimmed.length < 80 && !trimmed.includes('?')) {
+    const words = trimmed.split(/\s+/);
+    const titleCaseCount = words.filter(w => /^[A-Z]/.test(w)).length;
+    if (titleCaseCount / words.length > 0.6 || /^[A-Z\s\-&:]+$/.test(trimmed)) {
+      return 'CONTEXTUAL';
+    }
+  }
+
+  // QUANTITATIVE - Pricing, costs, numbers, financial
+  if (/\b(price|pricing|cost|budget|fee|rate|quote|£|\$|€|%)\b/i.test(text)) {
+    if (/\b(provide|submit|state|list|what)\b.*\b(price|cost|fee|rate|budget|quote)\b/i.test(lower)) {
+      return 'QUANTITATIVE';
+    }
+  }
+
+  // STAFFING - Personnel, team, resources
+  if (/\b(staff|staffing|personnel|team|resource|employee|fte|headcount|cv|resume|experience.*years)\b/i.test(lower)) {
+    if (/\b(provide|describe|list|detail|submit)\b.*\b(staff|team|personnel|cv|resource)/i.test(lower)) {
+      return 'STAFFING';
+    }
+  }
+
+  // REFERENCE_BASED - References, case studies, past performance
+  if (/\b(reference|case study|case studies|past performance|previous project|client.*name|testimonial)\b/i.test(lower)) {
+    return 'REFERENCE_BASED';
+  }
+
+  // EVIDENCE_BASED - Proof, evidence, demonstrate, certifications
+  if (/\b(provide evidence|demonstrate|proof|certif|accredit|audit|compliance.*evidence|evidence.*compliance)\b/i.test(lower)) {
+    return 'EVIDENCE_BASED';
+  }
+
+  // PROCEDURAL - Process, timeline, schedule, methodology steps
+  if (/\b(timeline|schedule|milestone|phase|process|procedure|step|workflow|methodology)\b/i.test(lower)) {
+    if (/\b(describe|outline|provide|detail|explain)\b.*\b(timeline|schedule|process|procedure|methodology)\b/i.test(lower)) {
+      return 'PROCEDURAL';
+    }
+  }
+
+  // DECLARATIVE - Yes/no questions, confirmations, simple statements
+  // Questions that can be answered with yes/no or simple confirmation
+  if (/^(do you|does your|can you|is your|are you|will you|have you|has your)\b/i.test(trimmed)) {
+    // Short questions without "describe/explain" are declarative
+    if (trimmed.length < 200 && !/\b(describe|explain|detail|outline|how)\b/i.test(lower)) {
+      return 'DECLARATIVE';
+    }
+  }
+  if (/\b(confirm|acknowledge|agree|accept|certify|declare|attest)\b/i.test(lower)) {
+    if (trimmed.length < 300) {
+      return 'DECLARATIVE';
+    }
+  }
+
+  // DESCRIPTIVE - Default for most requirements asking for description/explanation
+  // Describe, explain, detail, outline, provide information
+  return 'DESCRIPTIVE';
+}
+
+/**
+ * Determine if requirement is MANDATORY based on text content
+ */
+function classifyMandatory(text: string): boolean {
+  const lower = text.toLowerCase();
+
+  // Explicit OPTIONAL signals - return false
+  if (/\b(optional|if desired|if applicable|where applicable|at your discretion)\b/i.test(lower)) {
+    return false;
+  }
+  if (/\b(not required|not mandatory|nice to have|desirable but not)\b/i.test(lower)) {
+    return false;
+  }
+  if (/\b(may choose|you may|bonus|preferred but not)\b/i.test(lower)) {
+    return false;
+  }
+
+  // Everything else is mandatory by default in RFPs
+  return true;
+}
+
+/**
+ * Classify DOMAIN context (Feature, Process, Legal)
+ */
+function classifyDomain(text: string): 'FEATURE' | 'PROCESS' | 'LEGAL' {
+  const lower = text.toLowerCase();
+
+  // LEGAL - Compliance, regulatory, legal terms, contracts
+  if (/\b(comply|compliance|regulation|regulatory|legal|law|statute|legislation)\b/i.test(lower)) {
+    return 'LEGAL';
+  }
+  if (/\b(gdpr|hipaa|sox|pci|iso\s*\d|far\s+\d|dfar|contract|liability|indemnif|warrant)\b/i.test(lower)) {
+    return 'LEGAL';
+  }
+  if (/\b(terms and conditions|privacy policy|data protection|confidential)\b/i.test(lower)) {
+    return 'LEGAL';
+  }
+
+  // PROCESS - Methodology, approach, process-related
+  if (/\b(process|procedure|methodology|approach|workflow|how do you|how will you)\b/i.test(lower)) {
+    return 'PROCESS';
+  }
+  if (/\b(implement|deploy|deliver|manage|monitor|maintain|support|transition)\b/i.test(lower)) {
+    if (/\b(how|approach|process|methodology|procedure)\b/i.test(lower)) {
+      return 'PROCESS';
+    }
+  }
+
+  // FEATURE - Default for technical capabilities, features, functionality
+  return 'FEATURE';
+}
+
+/**
+ * Determine if requirement is an ATTESTATION (simple yes/no compliance)
+ */
+function classifyAttestation(text: string): boolean {
+  const lower = text.toLowerCase();
+  const trimmed = text.trim();
+
+  // NOT attestation if it asks for description/explanation
+  if (/\b(describe|explain|detail|outline|provide.*information|how do|how will|what is your)\b/i.test(lower)) {
+    return false;
+  }
+
+  // NOT attestation if it asks for documentation/evidence
+  if (/\b(provide.*evidence|submit.*document|attach|include.*sample|demonstrate)\b/i.test(lower)) {
+    return false;
+  }
+
+  // IS attestation - simple yes/no compliance questions
+  if (/^(do you|does your|can you|is your|are you|will you|have you)\b/i.test(trimmed)) {
+    // Short questions are likely attestation
+    if (trimmed.length < 150) {
+      return true;
+    }
+  }
+
+  // IS attestation - confirm/certify/acknowledge patterns
+  if (/\b(confirm that|certify that|acknowledge that|agree to|accept the)\b/i.test(lower)) {
+    return true;
+  }
+
+  // IS attestation - comply with requirement
+  if (/\b(do you comply|will you comply|can you comply|confirm.*compliance)\b/i.test(lower)) {
+    return true;
+  }
+
+  // Default: not attestation
+  return false;
+}
+
+/**
+ * Extract word limit from requirement text
+ */
+function extractWordLimit(text: string): number | null {
+  // Patterns: "maximum 2500 words", "max 2,500 words", "2500 word limit", "(2500 words)"
+  const patterns = [
+    /\b(?:max(?:imum)?|limit)\s*[:\-]?\s*(\d[\d,]*)\s*words?\b/i,
+    /\b(\d[\d,]*)\s*words?\s*(?:max(?:imum)?|limit)\b/i,
+    /\((\d[\d,]*)\s*words?\)/i,
+    /\bword\s*(?:count|limit)\s*[:\-]?\s*(\d[\d,]*)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      return parseInt(match[1].replace(/,/g, ''), 10);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract character limit from requirement text
+ */
+function extractCharacterLimit(text: string): number | null {
+  // Patterns: "maximum 5000 characters", "5000 char limit"
+  const patterns = [
+    /\b(?:max(?:imum)?|limit)\s*[:\-]?\s*(\d[\d,]*)\s*(?:char(?:acter)?s?)\b/i,
+    /\b(\d[\d,]*)\s*(?:char(?:acter)?s?)\s*(?:max(?:imum)?|limit)\b/i,
+    /\((\d[\d,]*)\s*(?:char(?:acter)?s?)\)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      return parseInt(match[1].replace(/,/g, ''), 10);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Apply all heuristic classifications to a requirement
+ */
+function classifyRequirement(text: string): {
+  type: RequirementType;
+  isMandatory: boolean;
+  domainContext: 'FEATURE' | 'PROCESS' | 'LEGAL';
+  isAttestation: boolean;
+  wordLimit: number | null;
+  characterLimit: number | null;
+} {
+  return {
+    type: classifyType(text),
+    isMandatory: classifyMandatory(text),
+    domainContext: classifyDomain(text),
+    isAttestation: classifyAttestation(text),
+    wordLimit: extractWordLimit(text),
+    characterLimit: extractCharacterLimit(text),
+  };
+}
 
 // =============================================================================
 // EXTRACTION FUNCTION
@@ -1369,28 +1519,30 @@ export async function extractRequirements(
     console.log(`[extract] Output tokens: ${response.usage?.completion_tokens || 'unknown'}`);
 
     // Convert compact array format to full requirements
-    // Format: [startLine, endLine, section, sectionGroup, type, mandatory, domain, wordLimit, charLimit, attestation]
+    // Format: [startLine, endLine, section, sectionGroup]
+    // Classification is done via heuristics in post-processing
     let requirements: ExtractedRequirement[] = (rawResult.r || []).map((arr, idx) => {
-      const [startLine, endLine, section, sectionGroup, typeCode, mandatory, domainCode, wordLimit, charLimit, attestation] = arr;
+      const [startLine, endLine, section, sectionGroup] = arr;
 
       const text = extractTextFromLines(lines, startLine, endLine);
-      const type = TYPE_CODE_MAP[typeCode] || 'DESCRIPTIVE';
-      const domainContext = DOMAIN_CODE_MAP[domainCode] || 'FEATURE';
 
       if (!text && startLine && endLine) {
         console.warn(`[extract] Empty text for requirement ${idx}: lines ${startLine}-${endLine}`);
       }
 
+      // Apply heuristic classification based on extracted text
+      const classification = classifyRequirement(text);
+
       return {
         section: section || null,
         sectionGroup: sectionGroup || null,
         text,
-        type,
-        isMandatory: mandatory !== false,
-        domainContext,
-        wordLimit: wordLimit || null,
-        characterLimit: charLimit || null,
-        isAttestation: attestation || false,
+        type: classification.type,
+        isMandatory: classification.isMandatory,
+        domainContext: classification.domainContext,
+        wordLimit: classification.wordLimit,
+        characterLimit: classification.characterLimit,
+        isAttestation: classification.isAttestation,
       };
     });
 
