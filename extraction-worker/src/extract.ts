@@ -709,46 +709,70 @@ Extract to the ABSOLUTE END of the provided text. Count your extracted items and
 
 /**
  * Detect section structure in document to help guide complete extraction.
- * Returns a summary of all sections found (e.g., "3.1 through 3.17, 4.1 through 4.6")
+ * Returns a detailed summary of all sections found with item counts per subsection.
  */
 function detectDocumentSections(text: string): string {
-  // Find all section patterns like 3.1, 3.1.1, 4.2.3, etc.
-  const sectionPattern = /\b(\d+)\.(\d+)(?:\.(\d+))?\b/g;
-  const sections = new Map<string, Set<number>>();
+  // Find all section patterns like 3.1.1, 3.1.2, 4.2.3, etc. (X.Y.Z format)
+  const detailedPattern = /\b(\d+)\.(\d+)\.(\d+)\b/g;
+  // Key: "major.minor" -> Set of tertiary numbers (3.1 -> {1,2,3,...,20})
+  const subsectionItems = new Map<string, Set<number>>();
+  // Key: "major" -> Set of minor numbers (3 -> {1,2,3,...,17})
+  const majorSections = new Map<string, Set<number>>();
 
   let match;
-  while ((match = sectionPattern.exec(text)) !== null) {
+  while ((match = detailedPattern.exec(text)) !== null) {
     const major = match[1];
     const minor = parseInt(match[2], 10);
+    const tertiary = parseInt(match[3], 10);
 
-    if (!sections.has(major)) {
-      sections.set(major, new Set());
+    const subsectionKey = `${major}.${minor}`;
+    if (!subsectionItems.has(subsectionKey)) {
+      subsectionItems.set(subsectionKey, new Set());
     }
-    sections.get(major)!.add(minor);
+    subsectionItems.get(subsectionKey)!.add(tertiary);
+
+    if (!majorSections.has(major)) {
+      majorSections.set(major, new Set());
+    }
+    majorSections.get(major)!.add(minor);
   }
 
-  if (sections.size === 0) {
+  if (majorSections.size === 0) {
     return '';
   }
 
-  // Build summary
+  // Build detailed summary
   const summaryParts: string[] = [];
-  const sortedMajors = Array.from(sections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
+  const sortedMajors = Array.from(majorSections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
+
+  let totalExpectedItems = 0;
 
   for (const major of sortedMajors) {
-    const minors = Array.from(sections.get(major)!).sort((a, b) => a - b);
-    if (minors.length > 0) {
-      const min = minors[0];
-      const max = minors[minors.length - 1];
-      if (min === max) {
-        summaryParts.push(`Section ${major}.${min}`);
-      } else {
-        summaryParts.push(`Section ${major}: subsections ${major}.${min} through ${major}.${max}`);
+    const minors = Array.from(majorSections.get(major)!).sort((a, b) => a - b);
+    const minCount = minors[0];
+    const maxCount = minors[minors.length - 1];
+
+    // Build subsection detail
+    const subsectionDetails: string[] = [];
+    for (const minor of minors) {
+      const subsectionKey = `${major}.${minor}`;
+      const items = subsectionItems.get(subsectionKey);
+      if (items && items.size > 0) {
+        const itemsList = Array.from(items).sort((a, b) => a - b);
+        const itemMax = itemsList[itemsList.length - 1];
+        totalExpectedItems += items.size;
+        subsectionDetails.push(`${subsectionKey} (${items.size} items: up to ${subsectionKey}.${itemMax})`);
       }
+    }
+
+    if (subsectionDetails.length > 0) {
+      summaryParts.push(`Section ${major}: subsections ${major}.${minCount}-${major}.${maxCount}\n  ${subsectionDetails.join('\n  ')}`);
     }
   }
 
-  return summaryParts.join('; ');
+  summaryParts.push(`\nTOTAL EXPECTED: ~${totalExpectedItems} numbered items (plus section headers)`);
+
+  return summaryParts.join('\n');
 }
 
 // =============================================================================
@@ -1485,8 +1509,19 @@ export async function extractRequirements(
   console.log(`[extract] Document has ${lines.length} lines`);
 
   try {
+    // Detect document sections to help LLM know what to expect
+    const sectionSummary = detectDocumentSections(documentText);
+    console.log(`[extract] Document sections detected: ${sectionSummary || 'none'}`);
+
     // Build user message with line-numbered document
-    const userMessage = `Please extract all requirements and questions from this RFP document. Use line numbers (L1, L2, etc.) to reference where each requirement is located:\n\n${numberedText}`;
+    // Include section summary to ensure complete extraction
+    let userMessage = `Please extract all requirements and questions from this RFP document. Use line numbers (L1, L2, etc.) to reference where each requirement is located.`;
+
+    if (sectionSummary) {
+      userMessage += `\n\nIMPORTANT - DOCUMENT SECTIONS TO EXTRACT:\n${sectionSummary}\n\nYou MUST extract requirements from ALL of these sections. Do NOT stop early - extract to the very end of the document.\n\n`;
+    }
+
+    userMessage += `\n\n${numberedText}`;
 
     const response = await openai.chat.completions.create({
       model,
@@ -1576,10 +1611,49 @@ export async function extractRequirements(
 
     console.log(`[extract] Post-processing complete: ${requirements.length} requirements`);
 
+    // Validate section coverage
+    const warnings: string[] = [];
+    const extractedSections = new Map<string, number>();
+    for (const req of requirements) {
+      if (req.section) {
+        // Extract the X.Y part from X.Y.Z
+        const match = req.section.match(/^(\d+\.\d+)/);
+        if (match) {
+          const key = match[1];
+          extractedSections.set(key, (extractedSections.get(key) || 0) + 1);
+        }
+      }
+    }
+
+    // Check for potentially missing sections by comparing with detected structure
+    const expectedPattern = /\b(\d+)\.(\d+)\.(\d+)\b/g;
+    const expectedSections = new Map<string, number>();
+    let expMatch;
+    while ((expMatch = expectedPattern.exec(documentText)) !== null) {
+      const key = `${expMatch[1]}.${expMatch[2]}`;
+      expectedSections.set(key, (expectedSections.get(key) || 0) + 1);
+    }
+
+    // Find sections with significant gaps
+    for (const [section, expectedCount] of expectedSections) {
+      const actualCount = extractedSections.get(section) || 0;
+      if (actualCount < expectedCount * 0.5) { // Less than 50% extracted
+        warnings.push(`Section ${section}: extracted ${actualCount} of ~${expectedCount} expected items`);
+      }
+    }
+
+    if (warnings.length > 0) {
+      console.warn('[extract] COVERAGE WARNINGS:');
+      warnings.forEach(w => console.warn(`  - ${w}`));
+    }
+
+    console.log(`[extract] Final count: ${requirements.length} requirements from ${extractedSections.size} subsections`);
+
     return {
       deadline: rawResult.d || null,
       deadlineText: rawResult.dt || null,
       requirements,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch (error: unknown) {
     const elapsed = Date.now() - startTime;
