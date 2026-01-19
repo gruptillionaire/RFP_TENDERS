@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const token = searchParams.get("token");
   const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
@@ -29,7 +29,10 @@ function VerifyEmailContent() {
       if (sessionStorage.getItem(`verify-success-${token}`)) {
         setStatus("success");
         setMessage("Your email has been verified successfully!");
-        setTimeout(() => { window.location.href = redirectUrl; }, 1000);
+        // Ensure session is updated before redirect
+        updateSession().then(() => {
+          setTimeout(() => { window.location.href = redirectUrl; }, 500);
+        });
       }
       return;
     }
@@ -55,10 +58,14 @@ function VerifyEmailContent() {
             ? "Your email was already verified."
             : "Your email has been verified successfully!");
 
-          // Hard redirect to force fresh session fetch (router.replace uses cached data)
+          // Force session refresh to update JWT cookie with new emailVerified value
+          // This ensures middleware sees the updated verification status
+          await updateSession();
+
+          // Redirect after session is updated
           setTimeout(() => {
             window.location.href = redirectUrl;
-          }, 2000);
+          }, 1500);
         } else {
           setStatus("error");
           setMessage(data.error || "Verification failed. Please try again.");
