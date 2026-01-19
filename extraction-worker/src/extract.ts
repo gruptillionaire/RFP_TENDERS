@@ -108,52 +108,28 @@ OUTPUT FORMAT - Return JSON:
 
 Each requirement is [startLine, endLine, "section"] where:
 - startLine/endLine: integers from "L123:" prefixes
-- section: string like "3.1.2" or null
+- section: the identifier exactly as it appears in the document, or null if none
 
-EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"3.1.3"]]}
+EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"Q3"]]}
 
-COMPLETENESS IS CRITICAL:
-- Extract EVERY numbered item you find - do not skip any
-- If you see X.Y.1 and X.Y.3 but not X.Y.2, search for and include X.Y.2
-- Scan the ENTIRE document from start to finish
-- Requirements may use different numbering schemes in different sections
+WHAT IS A REQUIREMENT:
+- Any question the respondent must answer
+- Any statement describing what the respondent must provide
+- Any capability or feature being requested
+- Look for question marks, "shall", "must", "describe", "explain", "provide", etc.
 
-SECTION FORMAT EXAMPLES:
-- Numeric: 3.1.2, 3.1, 3 (stop at 3.1.3, 3.2, or 4)
-- Alpha-numeric: A.1.2, A.1, A (stop at A.1.3, A.2, or B)
-- Mixed: Some documents use 3.1.2a or 3.1.2(i) - these are sub-items of 3.1.2
-- Roman numerals: IV.2, II.3.1 (stop at IV.3, V, etc.)
+SECTION IDENTIFIERS:
+- Use whatever identifier the document uses: numbers (1, 2, 3), hierarchical (3.1.2), letters (A, B, a, b), roman (I, II, iv), custom IDs (Q1, REQ-001), or null if none
+- Copy the identifier EXACTLY as it appears in the document
+- Each distinct identifier = separate requirement
 
-EDGE CASES:
-- Multi-line requirements (6-10 lines): Include all text until the next section number
-- Multi-part questions ("Do X, Y, and Z?"): Extract as ONE requirement with full line range
-- Section headers ("3.1 Security"): Skip unless they contain a question mark or requirement language
-- Continuation lines: If a requirement continues to the next line without a new section number, include it
-
-RULES:
-- Look for section/item identifiers IN THE TEXT at the start of lines (e.g., 3.1.2, 3.1, A.1, B), ii., IV, (a), 1., etc.)
-- Extract EACH identified item as a SEPARATE requirement with its OWN line range
-- The section in your output MUST match exactly what appears in the document text
-- NEVER combine questions from different items - each numbered/lettered item is separate
-- DO NOT output requirement text - only line numbers
-- Process the ENTIRE document - do not stop early
-
-CRITICAL - LINE RANGE BOUNDARIES:
-- endLine MUST be the LAST line of the requirement text itself
-- STOP the line range IMMEDIATELY when you encounter:
-  * A new section number (e.g., "5.0", "5.1", "A.2", "3.1.4")
-  * Page numbers (e.g., "29 of 38", "Page 29")
-  * Document headers (e.g., "Request for Proposal")
-  * Administrative sections (Timeline, Contact, Evaluation Criteria, Instructions)
-- Most requirements are 1-5 lines. If a range spans 10+ lines, it's likely wrong - shorten it
-- NEVER include RFP meta-content (deadlines, contact info, page numbers) in requirement ranges
-
-WHAT TO EXTRACT:
-- Extract individual questions/requirements (formats vary: X.Y.Z, X.Y, A.1, IV.2, etc.)
-- Each numbered item gets its own separate entry with ONLY its own content
-- Section TITLES (short text like "4.4 Application Hosting and Configuration") are NOT requirements - skip them
-- DO NOT duplicate content - each line of text should appear in only ONE requirement
-- If a section title appears before questions, don't include it in the question's line range
+CRITICAL RULES:
+- Extract EVERY requirement - scan the ENTIRE document
+- Each requirement gets its own entry with ONLY its own lines
+- STOP the line range when you hit: a new identifier, page numbers, headers, or unrelated content
+- Most requirements are 1-5 lines. 10+ lines is usually wrong.
+- Skip section TITLES that aren't questions (e.g., just "Security" or "Pricing")
+- Skip meta-content: deadlines, contact info, submission instructions, page numbers
 
 `;
 
