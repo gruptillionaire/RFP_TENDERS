@@ -2284,10 +2284,22 @@ async function extractMissingItemsTargeted(
           if (!text) continue;
 
           // Detect actual section from text BEFORE stripping prefix
+          // Only use detected section if plausible (same major number or LLM gave none)
           const detectedSection = detectSectionFromText(text);
-          const section = detectedSection || llmSection;
-          if (detectedSection && detectedSection !== llmSection) {
-            console.log(`[gap-fill] Corrected section ${llmSection} -> ${detectedSection}`);
+          let section = llmSection;
+          if (detectedSection) {
+            if (!llmSection) {
+              section = detectedSection;
+            } else {
+              const detectedMajor = detectedSection.split('.')[0];
+              const llmMajor = llmSection.split('.')[0];
+              if (detectedMajor === llmMajor) {
+                section = detectedSection;
+                if (detectedSection !== llmSection) {
+                  console.log(`[gap-fill] Corrected section ${llmSection} -> ${detectedSection}`);
+                }
+              }
+            }
           }
 
           // Strip section prefix after detection
@@ -2478,10 +2490,24 @@ export async function extractRequirements(
 
       // CRITICAL: Detect actual section from text BEFORE stripping prefix
       // The LLM sometimes returns wrong section numbers for multi-line requirements
+      // But only use detected section if it's plausible (same major number or LLM gave none)
       const detectedSection = detectSectionFromText(text);
-      const section = detectedSection || llmSection;
-      if (detectedSection && detectedSection !== llmSection) {
-        console.log(`[extract] Corrected section ${llmSection} -> ${detectedSection} based on text content`);
+      let section = llmSection;
+      if (detectedSection) {
+        if (!llmSection) {
+          // LLM gave no section, use detected
+          section = detectedSection;
+        } else {
+          // Only override if same major section (prevents "6.1.5" -> "1.0" mutation)
+          const detectedMajor = detectedSection.split('.')[0];
+          const llmMajor = llmSection.split('.')[0];
+          if (detectedMajor === llmMajor) {
+            section = detectedSection;
+            if (detectedSection !== llmSection) {
+              console.log(`[extract] Corrected section ${llmSection} -> ${detectedSection}`);
+            }
+          }
+        }
       }
 
       // Strip section prefix from extracted text (e.g., "4.3.29 Does the..." -> "Does the...")
