@@ -112,6 +112,18 @@ Each requirement is [startLine, endLine, "section"] where:
 
 EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"3.1.3"]]}
 
+SECTION FORMAT EXAMPLES:
+- Numeric: 3.1.2, 3.1, 3 (stop at 3.1.3, 3.2, or 4)
+- Alpha-numeric: A.1.2, A.1, A (stop at A.1.3, A.2, or B)
+- Mixed: Some documents use 3.1.2a or 3.1.2(i) - these are sub-items of 3.1.2
+- Roman numerals: IV.2, II.3.1 (stop at IV.3, V, etc.)
+
+EDGE CASES:
+- Multi-line requirements (6-10 lines): Include all text until the next section number
+- Multi-part questions ("Do X, Y, and Z?"): Extract as ONE requirement with full line range
+- Section headers ("3.1 Security"): Skip unless they contain a question mark or requirement language
+- Continuation lines: If a requirement continues to the next line without a new section number, include it
+
 RULES:
 - Look for section/item identifiers IN THE TEXT at the start of lines (e.g., 3.1.2, 3.1, A.1, B), ii., IV, (a), 1., etc.)
 - Extract EACH identified item as a SEPARATE requirement with its OWN line range
@@ -146,8 +158,12 @@ WHAT TO EXTRACT:
 /**
  * Detect section structure in document to help guide complete extraction.
  * Returns a detailed summary of all sections found with item counts per subsection.
+ * Handles multiple formats: X.Y.Z, X.Y, A.X.Y, A.X
  */
 function detectDocumentSections(text: string): string {
+  // Track all detected formats for reporting
+  const detectedFormats: string[] = [];
+
   // Find all section patterns like 3.1.1, 3.1.2, 4.2.3, etc. (X.Y.Z format)
   const detailedPattern = /\b(\d+)\.(\d+)\.(\d+)\b/g;
   // Key: "major.minor" -> Set of tertiary numbers (3.1 -> {1,2,3,...,20})
@@ -173,40 +189,109 @@ function detectDocumentSections(text: string): string {
     majorSections.get(major)!.add(minor);
   }
 
-  if (majorSections.size === 0) {
-    return '';
+  // Detect X.Y format (without tertiary) - only count if NOT followed by .digit
+  const doublePattern = /\b(\d+)\.(\d+)\b(?!\.\d)/g;
+  const doubleOnlySections = new Map<string, Set<number>>();
+  while ((match = doublePattern.exec(text)) !== null) {
+    const major = match[1];
+    const minor = parseInt(match[2], 10);
+    const subsectionKey = `${major}.${minor}`;
+    // Only add if we didn't already count X.Y.Z items for this subsection
+    if (!subsectionItems.has(subsectionKey)) {
+      if (!doubleOnlySections.has(major)) {
+        doubleOnlySections.set(major, new Set());
+      }
+      doubleOnlySections.get(major)!.add(minor);
+    }
+  }
+
+  // Detect A.X.Y format (letter-prefixed)
+  const letterPattern = /\b([A-Z])\.(\d+)(?:\.(\d+))?\b/gi;
+  const letterSections = new Map<string, { minors: Set<number>; items: Map<number, Set<number>> }>();
+  while ((match = letterPattern.exec(text)) !== null) {
+    const letter = match[1].toUpperCase();
+    const minor = parseInt(match[2], 10);
+    const tertiary = match[3] ? parseInt(match[3], 10) : null;
+
+    if (!letterSections.has(letter)) {
+      letterSections.set(letter, { minors: new Set(), items: new Map() });
+    }
+    const section = letterSections.get(letter)!;
+    section.minors.add(minor);
+    if (tertiary !== null) {
+      if (!section.items.has(minor)) {
+        section.items.set(minor, new Set());
+      }
+      section.items.get(minor)!.add(tertiary);
+    }
   }
 
   // Build detailed summary
   const summaryParts: string[] = [];
-  const sortedMajors = Array.from(majorSections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
-
   let totalExpectedItems = 0;
 
-  for (const major of sortedMajors) {
-    const minors = Array.from(majorSections.get(major)!).sort((a, b) => a - b);
-    const minCount = minors[0];
-    const maxCount = minors[minors.length - 1];
+  // Report X.Y.Z sections
+  if (majorSections.size > 0) {
+    detectedFormats.push('X.Y.Z (e.g., 3.1.2)');
+    const sortedMajors = Array.from(majorSections.keys()).sort((a, b) => parseInt(a) - parseInt(b));
 
-    // Build subsection detail
-    const subsectionDetails: string[] = [];
-    for (const minor of minors) {
-      const subsectionKey = `${major}.${minor}`;
-      const items = subsectionItems.get(subsectionKey);
-      if (items && items.size > 0) {
-        const itemsList = Array.from(items).sort((a, b) => a - b);
-        const itemMax = itemsList[itemsList.length - 1];
-        totalExpectedItems += items.size;
-        subsectionDetails.push(`${subsectionKey} (${items.size} items: up to ${subsectionKey}.${itemMax})`);
+    for (const major of sortedMajors) {
+      const minors = Array.from(majorSections.get(major)!).sort((a, b) => a - b);
+      const minCount = minors[0];
+      const maxCount = minors[minors.length - 1];
+
+      // Build subsection detail
+      const subsectionDetails: string[] = [];
+      for (const minor of minors) {
+        const subsectionKey = `${major}.${minor}`;
+        const items = subsectionItems.get(subsectionKey);
+        if (items && items.size > 0) {
+          const itemsList = Array.from(items).sort((a, b) => a - b);
+          const itemMax = itemsList[itemsList.length - 1];
+          totalExpectedItems += items.size;
+          subsectionDetails.push(`${subsectionKey} (${items.size} items: up to ${subsectionKey}.${itemMax})`);
+        }
       }
-    }
 
-    if (subsectionDetails.length > 0) {
-      summaryParts.push(`Section ${major}: subsections ${major}.${minCount}-${major}.${maxCount}\n  ${subsectionDetails.join('\n  ')}`);
+      if (subsectionDetails.length > 0) {
+        summaryParts.push(`Section ${major}: subsections ${major}.${minCount}-${major}.${maxCount}\n  ${subsectionDetails.join('\n  ')}`);
+      }
     }
   }
 
+  // Report X.Y only sections (if any without tertiary)
+  if (doubleOnlySections.size > 0) {
+    if (!detectedFormats.includes('X.Y (e.g., 3.1)')) {
+      detectedFormats.push('X.Y (e.g., 3.1)');
+    }
+    for (const [major, minors] of doubleOnlySections) {
+      const minorsList = Array.from(minors).sort((a, b) => a - b);
+      totalExpectedItems += minors.size;
+      summaryParts.push(`Section ${major}: ${minors.size} X.Y items (${major}.${minorsList[0]} to ${major}.${minorsList[minorsList.length - 1]})`);
+    }
+  }
+
+  // Report A.X.Y sections
+  if (letterSections.size > 0) {
+    detectedFormats.push('A.X (e.g., A.1, B.2.3)');
+    for (const [letter, section] of letterSections) {
+      const minorsList = Array.from(section.minors).sort((a, b) => a - b);
+      let itemCount = 0;
+      for (const items of section.items.values()) {
+        itemCount += items.size;
+      }
+      if (itemCount === 0) itemCount = section.minors.size;
+      totalExpectedItems += itemCount;
+      summaryParts.push(`Section ${letter}: ${itemCount} items (${letter}.${minorsList[0]} to ${letter}.${minorsList[minorsList.length - 1]})`);
+    }
+  }
+
+  if (summaryParts.length === 0) {
+    return '';
+  }
+
   summaryParts.push(`\nTOTAL EXPECTED: ~${totalExpectedItems} numbered items (plus section headers)`);
+  summaryParts.push(`\nSection formats detected: ${detectedFormats.join(', ')}`);
 
   return summaryParts.join('\n');
 }
@@ -383,6 +468,39 @@ function cleanTitle(raw: string): string {
   }
 
   return title;
+}
+
+/**
+ * Sort requirements by section number for proper ordering.
+ * Handles numeric (3.1.2), alpha-numeric (A.1.2), and mixed formats.
+ */
+function sortBySection(a: ExtractedRequirement, b: ExtractedRequirement): number {
+  if (!a.section && !b.section) return 0;
+  if (!a.section) return 1;  // null sections at end
+  if (!b.section) return -1;
+
+  // Parse section numbers for proper numeric sorting
+  // "3.1.2" vs "3.1.10" should sort correctly (not lexicographically)
+  // Also handle "A.1.2" by treating letters as high values
+  const parseSegment = (s: string): number => {
+    const num = parseInt(s, 10);
+    if (!isNaN(num)) return num;
+    // Letter sections: A=1000, B=1001, etc.
+    if (/^[A-Z]$/i.test(s)) {
+      return 1000 + s.toUpperCase().charCodeAt(0) - 65;
+    }
+    return 0;
+  };
+
+  const aParts = a.section.split('.').map(parseSegment);
+  const bParts = b.section.split('.').map(parseSegment);
+
+  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+    const aVal = aParts[i] || 0;
+    const bVal = bParts[i] || 0;
+    if (aVal !== bVal) return aVal - bVal;
+  }
+  return 0;
 }
 
 // =============================================================================
@@ -1838,6 +1956,19 @@ function extractRequirementDeterministic(
   // Clean up newlines within the text
   extractedText = extractedText.replace(/\s+/g, ' ').trim();
 
+  // Strip section prefix from the requirement text (e.g., "4.3.29 Does the..." -> "Does the...")
+  extractedText = stripSectionPrefix(extractedText);
+
+  // Apply contamination boundary detection to trim garbage (page numbers, section headers)
+  for (const pattern of CONTAMINATION_BOUNDARY_PATTERNS) {
+    const match = pattern.exec(extractedText);
+    if (match && match.index > MIN_BOUNDARY_CONTENT_LENGTH) {
+      extractedText = extractedText.substring(0, match.index).trim();
+      console.log(`[deterministic] Trimmed contamination at boundary for ${sectionNumber}`);
+      break;
+    }
+  }
+
   console.log(`[deterministic] Extracted ${sectionNumber}: "${sanitizeForLog(extractedText)}"`);
 
   // Apply heuristic classification
@@ -2190,7 +2321,10 @@ export async function extractRequirements(
     let userMessage = `Please extract all requirements and questions from this RFP document. Use line numbers (L1, L2, etc.) to reference where each requirement is located.`;
 
     if (sectionSummary) {
-      userMessage += `\n\nIMPORTANT - DOCUMENT SECTIONS TO EXTRACT:\n${sectionSummary}\n\nYou MUST extract requirements from ALL of these sections. Do NOT stop early - extract to the very end of the document.\n\n`;
+      userMessage += `\n\nIMPORTANT - DOCUMENT SECTIONS TO EXTRACT:\n${sectionSummary}`;
+      userMessage += `\n\nYou MUST extract requirements from ALL of these sections. Do NOT stop early.`;
+      userMessage += `\nIf you're unsure whether something is a new section, treat it as one and stop the previous requirement's line range.`;
+      userMessage += `\nPay attention to the section formats listed above - some documents mix X.Y.Z with X.Y or A.X formats.\n\n`;
     }
 
     userMessage += `\n\n${numberedText}`;
@@ -2442,6 +2576,10 @@ export async function extractRequirements(
     }
 
     console.log(`[extract] Final count: ${requirements.length} requirements from ${extractedSections.size} subsections`);
+
+    // Sort requirements by section number for proper ordering
+    requirements.sort(sortBySection);
+    console.log(`[extract] Sorted requirements by section number`);
 
     return {
       deadline: rawResult.d || null,
