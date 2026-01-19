@@ -22,8 +22,8 @@ const MAX_ATTESTATION_LENGTH = 200;
 /** Extended attestation length for strong patterns */
 const MAX_EXTENDED_ATTESTATION_LENGTH = 400;
 
-/** Threshold for contaminated requirement detection */
-const MIN_CONTAMINATION_LENGTH = 300;
+/** Threshold for contaminated requirement detection (reduced to catch shorter contaminations) */
+const MIN_CONTAMINATION_LENGTH = 100;
 
 /** LLM API call timeout in milliseconds (2 minutes) */
 const LLM_TIMEOUT_MS = 120000;
@@ -783,6 +783,8 @@ const CONTAMINATION_BOUNDARY_PATTERNS: RegExp[] = [
   // Page numbers and document titles
   /\d+\s+of\s+\d+\s+Request\s+for\s+Proposal/i,
   /Page\s+\d+\s+of\s+\d+/i,
+  /\n\s*\d+\s+of\s+\d+\s*$/,  // Just "29 of 38" at end of text
+  /\n\s*\d+\s+of\s+\d+\s*\n/,  // "29 of 38" on its own line
   /Request\s+for\s+Proposal:/i,
 
   // New major sections (X.0 format) - e.g., "3.0 Direct Query Questions"
@@ -792,6 +794,10 @@ const CONTAMINATION_BOUNDARY_PATTERNS: RegExp[] = [
   // e.g., "3.3 Authoring, Editing, Personalization, Delivery, and Publication"
   // Non-greedy pattern: X.Y followed by 1-6 capitalized words, stopping at newline
   /\n\s*\d+\.\d+\s+[A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){1,6}\s*(?:\n|$)/,
+
+  // X.Y subsection headers at END of text (no newline prefix needed)
+  // e.g., "...maintenance of the solutions. 4.4 Application Hosting and Configuration"
+  /\s+\d+\.\d+\s+[A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){1,8}\s*$/,
 
   // X.Y subsection headers (shorter titles) - e.g., "3.3 System Security"
   /\n\s*\d+\.\d+\s+[A-Z][a-z]+\s+[A-Z][a-z]+\s*(?:\n|$)/,
@@ -1354,9 +1360,14 @@ function detectTopicPattern(text: string): TopicMatch | null {
 
   // CONTEXTUAL - Document format/submission instructions
   // These are instructions about HOW to format the response, not actual requirements
-  if (/\b(table\s+of\s+contents|executive\s+summary|cover\s+(page|letter|sheet))\b/i.test(lower)) {
-    if (/\b(shall\s+be\s+submitted|must\s+(include|contain|be)|should\s+(include|contain))\b/i.test(lower)) {
-      return { type: 'CONTEXTUAL', confidence: 88 };
+  if (/\b(table\s+of\s+contents|executive\s+summary|cover\s+(page|letter|sheet)|title\s+page|transmittal\s+letter)\b/i.test(lower)) {
+    // These document element names strongly indicate format instructions
+    return { type: 'CONTEXTUAL', confidence: 88 };
+  }
+  // Response/proposal structure instructions
+  if (/\b(response|proposal)\s+(must|shall|should)\s+(include|contain|provide|be)/i.test(lower)) {
+    if (/\b(page|format|section|tab|attachment|appendix|exhibit)\b/i.test(lower)) {
+      return { type: 'CONTEXTUAL', confidence: 86 };
     }
   }
   // Submission format instructions
@@ -1407,10 +1418,14 @@ function classifyType(text: string): RequirementType {
     return topic.type;
   }
 
-  // Rule 2: Yes/no questions → DECLARATIVE (unless strong topic match)
+  // Rule 2: Yes/no questions → DECLARATIVE
+  // Give yes/no structure higher priority - these are simple capability questions
+  // Only allow STAFFING, QUANTITATIVE, REFERENCE_BASED, EVIDENCE_BASED to override
+  // (never let generic DESCRIPTIVE override yes/no)
   if (structure.type === 'yes_no' && structure.confidence >= 85) {
-    if (topic && topic.confidence >= 70) {
-      return topic.type; // Topic wins if reasonably confident
+    if (topic && topic.confidence >= 80 &&
+        ['STAFFING', 'QUANTITATIVE', 'REFERENCE_BASED', 'EVIDENCE_BASED'].includes(topic.type)) {
+      return topic.type; // Only specific topic types can override yes/no
     }
     return 'DECLARATIVE';
   }
@@ -1672,13 +1687,16 @@ function classifyRequirement(text: string): {
   wordLimit: number | null;
   characterLimit: number | null;
 } {
+  // Strip section prefix for classification (e.g., "4.3.29 Does the..." -> "Does the...")
+  const classificationText = stripSectionPrefix(text);
+
   return {
-    type: classifyType(text),
-    isMandatory: classifyMandatory(text),
-    domainContext: classifyDomain(text),
-    isAttestation: classifyAttestation(text),
-    wordLimit: extractWordLimit(text),
-    characterLimit: extractCharacterLimit(text),
+    type: classifyType(classificationText),
+    isMandatory: classifyMandatory(classificationText),
+    domainContext: classifyDomain(classificationText),
+    isAttestation: classifyAttestation(classificationText),
+    wordLimit: extractWordLimit(text),  // Keep original for limit extraction
+    characterLimit: extractCharacterLimit(text),  // Keep original for limit extraction
   };
 }
 
