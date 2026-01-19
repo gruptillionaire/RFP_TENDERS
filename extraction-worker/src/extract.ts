@@ -97,20 +97,21 @@ interface ExtractionOptions {
 }
 
 // =============================================================================
-// LINE-REFERENCE EXTRACTION PROMPT
-// Optimized to reduce output size by using line references instead of full text
+// FULL-TEXT EXTRACTION PROMPT
+// EXPERIMENTAL: Returns complete requirement text instead of line references
+// Rollback tag: stable-line-reference
 // =============================================================================
 
-const EXTRACTION_PROMPT = `You extract requirements from RFP documents. The document has LINE NUMBERS (format: "L123: text").
+const EXTRACTION_PROMPT = `You extract requirements from RFP documents.
 
 OUTPUT FORMAT - Return JSON:
-{"d":"ISO 8601 deadline or null","dt":"deadline text or null","r":[[startLine,endLine,"section"],...]}
+{"d":"ISO 8601 deadline or null","dt":"deadline text or null","r":["section|complete requirement text",...]}
 
-Each requirement is [startLine, endLine, "section"] where:
-- startLine/endLine: integers from "L123:" prefixes
-- section: the identifier exactly as it appears in the document, or null if none
+Each requirement is a string: "section|text" where:
+- section: the identifier exactly as it appears (3.1.2, A.1, Q5, etc.) or empty if none
+- text: the COMPLETE requirement text, word-for-word from the document
 
-EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"Q3"]]}
+EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":["3.1.2|Does the system support PDF export?","3.1.3|Describe the backup procedures.","Q5|What is your approach to security?"]}
 
 WHAT IS A REQUIREMENT:
 - Any question the respondent must answer
@@ -119,17 +120,15 @@ WHAT IS A REQUIREMENT:
 - Look for question marks, "shall", "must", "describe", "explain", "provide", etc.
 
 SECTION IDENTIFIERS:
-- Use whatever identifier the document uses: numbers (1, 2, 3), hierarchical (3.1.2), letters (A, B, a, b), roman (I, II, iv), custom IDs (Q1, REQ-001), or null if none
+- Use whatever identifier the document uses: numbers (1, 2, 3), hierarchical (3.1.2), letters (A, B, a, b), roman (I, II, iv), custom IDs (Q1, REQ-001), or empty string if none
 - Copy the identifier EXACTLY as it appears in the document
-- Each distinct identifier = separate requirement
 
 CRITICAL RULES:
 - Extract EVERY requirement - scan the ENTIRE document
-- Each requirement gets its own entry with ONLY its own lines
-- STOP the line range when you hit: a new identifier, page numbers, headers, or unrelated content
-- Most requirements are 1-5 lines. 10+ lines is usually wrong.
+- Copy the COMPLETE requirement text - full sentences, no truncation
 - Skip section TITLES that aren't questions (e.g., just "Security" or "Pricing")
 - Skip meta-content: deadlines, contact info, submission instructions, page numbers
+- Do NOT include page numbers like "Page 5 of 10" in the text
 
 `;
 
@@ -1404,14 +1403,12 @@ function stripSectionPrefix(text: string): string {
   return result;
 }
 
-// Compact array format from LLM (ultra-compact - classification and sectionGroup derived in post-processing)
-// Each requirement is: [startLine, endLine, section]
-type CompactRequirement = [number, number, string | null];
-
+// Full-text format from LLM (EXPERIMENTAL - rollback tag: stable-line-reference)
+// Each requirement is: "section|text" string
 interface CompactResult {
   d: string | null;   // deadline
   dt: string | null;  // deadlineText
-  r: CompactRequirement[];  // requirements
+  r: string[];        // requirements as "section|text" strings
 }
 
 // =============================================================================
@@ -2175,6 +2172,7 @@ function findSectionContext(
  * Extract specific missing items by doing targeted LLM calls.
  * Groups nearby missing items together for efficiency.
  */
+// EXPERIMENTAL: Gap-fill using full-text format (rollback tag: stable-line-reference)
 async function extractMissingItemsTargeted(
   openai: OpenAI,
   model: string,
@@ -2189,209 +2187,123 @@ async function extractMissingItemsTargeted(
 
   const results: ExtractedRequirement[] = [];
 
-  // Group missing items by their X.Y prefix for batch processing
-  const bySubsection = new Map<string, string[]>();
+  // Find context for missing items by searching in document
+  const contextChunks: string[] = [];
   for (const item of missingItems) {
-    const parts = item.split('.');
-    const key = `${parts[0]}.${parts[1]}`;
-    if (!bySubsection.has(key)) bySubsection.set(key, []);
-    bySubsection.get(key)!.push(item);
-  }
-
-  // For each group, find the line range and extract
-  for (const [subsection, items] of bySubsection) {
-    // Find the first and last item in this group
-    const firstItem = items[0];
-    const lastItem = items[items.length - 1];
-
-    // Find line ranges - try line-based first, fall back to text-based context
-    const firstRange = findSectionLineRange(lines, firstItem);
-    // Only compute lastRange if firstRange succeeded (avoid wasted work)
-    const lastRange = firstRange ? findSectionLineRange(lines, lastItem) : null;
-    let contextLines: string;
-    let usingTextContext = false;
-
-    if (firstRange) {
-      // Line-based detection worked - use line ranges
-      const contextStart = Math.max(0, firstRange.startLine - 3);
-      const contextEnd = lastRange
-        ? Math.min(lines.length, lastRange.endLine + 3)
-        : Math.min(lines.length, firstRange.endLine + 20);
-
-      contextLines = lines
-        .slice(contextStart, contextEnd)
-        .map((line, idx) => `L${contextStart + idx + 1}: ${line}`)
-        .join('\n');
-
-      console.log(`[gap-fill] Extracting ${items.length} items from ${subsection} (lines ${contextStart + 1}-${contextEnd})`);
-    } else {
-      // FALLBACK: Use text-based context search
-      console.log(`[gap-fill] Line detection failed for ${firstItem}, trying text-based context search`);
-
-      const firstContext = findSectionContext(documentText, lines, firstItem);
-      const lastContext = items.length > 1 ? findSectionContext(documentText, lines, lastItem) : null;
-
-      if (!firstContext.contextLines) {
-        console.log(`[gap-fill] Could not find any context for ${firstItem}`);
-        continue;
-      }
-
-      usingTextContext = true;
-
-      // For text-based context, we don't have line numbers - use raw text context
-      // Combine first and last context if different
-      if (lastContext && lastContext.contextLines && lastContext.contextLines !== firstContext.contextLines) {
-        // Use a broader context that includes both
-        contextLines = `...${firstContext.contextLines}...\n...\n...${lastContext.contextLines}...`;
-      } else {
-        contextLines = firstContext.contextLines;
-      }
-
-      console.log(`[gap-fill] Using text-based context for ${subsection} (${contextLines.length} chars)`);
-    }
-
-    // Build targeted prompt - adjust based on whether we have line numbers or raw text
-    let targetedPrompt: string;
-    if (usingTextContext) {
-      targetedPrompt = `Extract these SPECIFIC requirements from the text below. Return JSON: {"items":[{"section":"X.Y.Z","text":"extracted text"},...]}\n\nMISSING ITEMS TO FIND: ${items.join(', ')}\n\nTEXT:\n${contextLines}`;
-    } else {
-      targetedPrompt = `Extract these SPECIFIC requirements from the text below. Return JSON: {"r":[[startLine,endLine,"section"],...]}\n\nMISSING ITEMS TO FIND: ${items.join(', ')}\n\nTEXT:\n${contextLines}`;
-    }
-
-    try {
-      const response = await openai.chat.completions.create(
-        {
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You extract specific requirements by line number. Return ONLY the JSON with line references for the requested items.',
-            },
-            { role: 'user', content: targetedPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.1,
-          max_tokens: 2000,
-        },
-        { timeout: LLM_TIMEOUT_MS }
-      );
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) continue;
-
-      const parsed = JSON.parse(content) as {
-        r?: Array<[number, number, string]>;
-        items?: Array<{ section: string; text: string }>;
-      };
-
-      // Handle line-based format
-      if (parsed.r && Array.isArray(parsed.r)) {
-        console.log(`[gap-fill] Found ${parsed.r.length} items for ${subsection} (line-based)`);
-
-        for (const [startLine, endLine, llmSection] of parsed.r) {
-          let text = extractTextFromLines(lines, startLine, endLine);
-          if (!text) continue;
-
-          // Detect actual section from text BEFORE stripping prefix
-          // Only use detected section if plausible (same major number or LLM gave none)
-          const detectedSection = detectSectionFromText(text);
-          let section: string | null = llmSection;
-          if (detectedSection) {
-            if (!llmSection) {
-              section = detectedSection;
-            } else {
-              const detectedMajor = detectedSection.split('.')[0];
-              const llmMajor = llmSection.split('.')[0];
-              if (detectedMajor === llmMajor) {
-                section = detectedSection;
-                if (detectedSection !== llmSection) {
-                  console.log(`[gap-fill] Corrected section ${llmSection} -> ${detectedSection}`);
-                }
-              }
-            }
-          }
-
-          // Validate section format - reject garbage
-          if (section && !isValidSection(section)) {
-            console.log(`[gap-fill] Rejected invalid section: "${section}"`);
-            section = null;
-          }
-
-          // Strip section prefix after detection
-          text = stripSectionPrefix(text);
-
-          const classification = classifyRequirement(text);
-          let sectionGroup: string | null = null;
-          if (section) {
-            const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
-            if (majorMatch) {
-              const majorNum = majorMatch[1].toUpperCase();
-              const majorSection = majorSections.get(majorNum);
-              if (majorSection) {
-                sectionGroup = `${majorSection.number}: ${majorSection.title}`;
-              }
-            }
-          }
-
-          results.push({
-            section: section || null,
-            sectionGroup,
-            text,
-            type: classification.type,
-            isMandatory: classification.isMandatory,
-            domainContext: classification.domainContext,
-            wordLimit: classification.wordLimit,
-            characterLimit: classification.characterLimit,
-            isAttestation: classification.isAttestation,
-          });
-        }
-      }
-      // Handle text-based format (from context search fallback)
-      else if (parsed.items && Array.isArray(parsed.items)) {
-        console.log(`[gap-fill] Found ${parsed.items.length} items for ${subsection} (text-based)`);
-
-        for (const item of parsed.items) {
-          const text = item.text?.trim();
-          const section = item.section?.trim();
-          if (!text) continue;
-
-          const classification = classifyRequirement(text);
-          let sectionGroup: string | null = null;
-          if (section) {
-            const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
-            if (majorMatch) {
-              const majorNum = majorMatch[1].toUpperCase();
-              const majorSection = majorSections.get(majorNum);
-              if (majorSection) {
-                sectionGroup = `${majorSection.number}: ${majorSection.title}`;
-              }
-            }
-          }
-
-          results.push({
-            section: section || null,
-            sectionGroup,
-            text,
-            type: classification.type,
-            isMandatory: classification.isMandatory,
-            domainContext: classification.domainContext,
-            wordLimit: classification.wordLimit,
-            characterLimit: classification.characterLimit,
-            isAttestation: classification.isAttestation,
-          });
-        }
-      }
-    } catch (err) {
-      console.error(`[gap-fill] Error extracting ${subsection}:`, err);
+    const context = findSectionContext(documentText, lines, item);
+    if (context.contextLines) {
+      contextChunks.push(context.contextLines);
     }
   }
 
-  // VALIDATION: Check which items are still missing after gap-fill
+  // Combine context chunks (dedupe and limit size)
+  const uniqueContext = [...new Set(contextChunks)].join('\n\n---\n\n');
+  const contextToSend = uniqueContext.length > 15000
+    ? uniqueContext.substring(0, 15000) + '\n...[truncated]'
+    : uniqueContext;
+
+  if (!contextToSend) {
+    console.log(`[gap-fill] Could not find context for any missing items`);
+    return { requirements: [], stillMissing: missingItems };
+  }
+
+  // Use same full-text format as main extraction
+  const targetedPrompt = `Extract these SPECIFIC requirements from the text below.
+Return JSON: {"r":["section|complete requirement text",...]}
+
+MISSING ITEMS TO FIND: ${missingItems.join(', ')}
+
+TEXT:
+${contextToSend}`;
+
+  try {
+    const response = await openai.chat.completions.create(
+      {
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You extract specific requirements. Return the COMPLETE requirement text for each requested section.',
+          },
+          { role: 'user', content: targetedPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 4000,
+      },
+      { timeout: LLM_TIMEOUT_MS }
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      return { requirements: [], stillMissing: missingItems };
+    }
+
+    const parsed = JSON.parse(content) as { r?: string[] };
+
+    if (parsed.r && Array.isArray(parsed.r)) {
+      console.log(`[gap-fill] Found ${parsed.r.length} items`);
+
+      for (const reqString of parsed.r) {
+        // Parse "section|text" format
+        const pipeIndex = reqString.indexOf('|');
+        let section: string | null = null;
+        let text: string;
+
+        if (pipeIndex > -1) {
+          section = reqString.substring(0, pipeIndex).trim() || null;
+          text = reqString.substring(pipeIndex + 1).trim();
+        } else {
+          text = reqString.trim();
+        }
+
+        if (!text) continue;
+
+        // Validate section format
+        if (section && !isValidSection(section)) {
+          console.log(`[gap-fill] Rejected invalid section: "${section}"`);
+          section = null;
+        }
+
+        // Strip section prefix from text
+        text = stripSectionPrefix(text);
+
+        const classification = classifyRequirement(text);
+        let sectionGroup: string | null = null;
+        if (section) {
+          const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
+          if (majorMatch) {
+            const majorNum = majorMatch[1].toUpperCase();
+            const majorSection = majorSections.get(majorNum);
+            if (majorSection) {
+              sectionGroup = `${majorSection.number}: ${majorSection.title}`;
+            }
+          }
+        }
+
+        results.push({
+          section,
+          sectionGroup,
+          text,
+          type: classification.type,
+          isMandatory: classification.isMandatory,
+          domainContext: classification.domainContext,
+          wordLimit: classification.wordLimit,
+          characterLimit: classification.characterLimit,
+          isAttestation: classification.isAttestation,
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[gap-fill] Error:`, err);
+  }
+
+  // Check which items are still missing
   const recoveredSections = new Set(results.map(r => r.section).filter(Boolean));
   const stillMissing = missingItems.filter(item => !recoveredSections.has(item));
 
   if (stillMissing.length > 0) {
-    console.warn(`[gap-fill] WARNING: ${stillMissing.length} items still not found after gap-fill: ${stillMissing.slice(0, 10).join(', ')}${stillMissing.length > 10 ? '...' : ''}`);
+    console.warn(`[gap-fill] WARNING: ${stillMissing.length} items still not found: ${stillMissing.slice(0, 10).join(', ')}${stillMissing.length > 10 ? '...' : ''}`);
   }
 
   console.log(`[gap-fill] Total recovered: ${results.length} requirements`);
@@ -2432,8 +2344,9 @@ export async function extractRequirements(
     };
   }
 
-  // Add line numbers to document for reference-based extraction
-  const { numberedText, lines } = addLineNumbers(documentText);
+  // EXPERIMENTAL: Full-text extraction - no line numbers needed
+  // Rollback tag: stable-line-reference
+  const lines = documentText.split('\n');
   console.log(`[extract] Document has ${lines.length} lines`);
 
   try {
@@ -2445,18 +2358,15 @@ export async function extractRequirements(
     const majorSections = detectMajorSections(documentText);
     console.log(`[extract] Major sections detected: ${majorSections.size} sections`);
 
-    // Build user message with line-numbered document
-    // Include section summary to ensure complete extraction
-    let userMessage = `Please extract all requirements and questions from this RFP document. Use line numbers (L1, L2, etc.) to reference where each requirement is located.`;
+    // Build user message with raw document (no line numbers needed for full-text extraction)
+    let userMessage = `Please extract all requirements and questions from this RFP document.`;
 
     if (sectionSummary) {
       userMessage += `\n\nIMPORTANT - DOCUMENT SECTIONS TO EXTRACT:\n${sectionSummary}`;
       userMessage += `\n\nYou MUST extract requirements from ALL of these sections. Do NOT stop early.`;
-      userMessage += `\nIf you're unsure whether something is a new section, treat it as one and stop the previous requirement's line range.`;
-      userMessage += `\nPay attention to the section formats listed above - some documents mix X.Y.Z with X.Y or A.X formats.\n\n`;
     }
 
-    userMessage += `\n\n${numberedText}`;
+    userMessage += `\n\nDOCUMENT:\n${documentText}`;
 
     const response = await openai.chat.completions.create(
       {
@@ -2491,38 +2401,24 @@ export async function extractRequirements(
     console.log(`[extract] Tokens used: ${response.usage?.total_tokens || 'unknown'}`);
     console.log(`[extract] Output tokens: ${response.usage?.completion_tokens || 'unknown'}`);
 
-    // Convert compact array format to full requirements
-    // Format: [startLine, endLine, section] - sectionGroup derived from majorSections
-    // Classification is done via heuristics in post-processing
-    let requirements: ExtractedRequirement[] = (rawResult.r || []).map((arr, idx) => {
-      const [startLine, endLine, llmSection] = arr;
+    // EXPERIMENTAL: Parse full-text format "section|text"
+    // Rollback tag: stable-line-reference
+    let requirements: ExtractedRequirement[] = (rawResult.r || []).map((reqString, idx) => {
+      // Parse "section|text" format
+      const pipeIndex = reqString.indexOf('|');
+      let section: string | null = null;
+      let text: string;
 
-      let text = extractTextFromLines(lines, startLine, endLine);
-
-      if (!text && startLine && endLine) {
-        console.warn(`[extract] Empty text for requirement ${idx}: lines ${startLine}-${endLine}`);
+      if (pipeIndex > -1) {
+        section = reqString.substring(0, pipeIndex).trim() || null;
+        text = reqString.substring(pipeIndex + 1).trim();
+      } else {
+        // No pipe - treat entire string as text
+        text = reqString.trim();
       }
 
-      // CRITICAL: Detect actual section from text BEFORE stripping prefix
-      // The LLM sometimes returns wrong section numbers for multi-line requirements
-      // But only use detected section if it's plausible (same major number or LLM gave none)
-      const detectedSection = detectSectionFromText(text);
-      let section = llmSection;
-      if (detectedSection) {
-        if (!llmSection) {
-          // LLM gave no section, use detected
-          section = detectedSection;
-        } else {
-          // Only override if same major section (prevents "6.1.5" -> "1.0" mutation)
-          const detectedMajor = detectedSection.split('.')[0];
-          const llmMajor = llmSection.split('.')[0];
-          if (detectedMajor === llmMajor) {
-            section = detectedSection;
-            if (detectedSection !== llmSection) {
-              console.log(`[extract] Corrected section ${llmSection} -> ${detectedSection}`);
-            }
-          }
-        }
+      if (!text) {
+        console.warn(`[extract] Empty text for requirement ${idx}`);
       }
 
       // Validate section format - reject garbage like "Reporting and Analytics"
@@ -2531,8 +2427,7 @@ export async function extractRequirements(
         section = null;
       }
 
-      // Strip section prefix from extracted text (e.g., "4.3.29 Does the..." -> "Does the...")
-      // Must happen AFTER section detection
+      // Strip section prefix from text if LLM included it (e.g., "4.3.29 Does the..." -> "Does the...")
       if (text) {
         text = stripSectionPrefix(text);
       }
@@ -2541,7 +2436,6 @@ export async function extractRequirements(
       const classification = classifyRequirement(text);
 
       // Derive sectionGroup from major sections map
-      // Extract major section number from section (e.g., "3.1.2" -> "3", "A.2.1" -> "A")
       let sectionGroup: string | null = null;
       if (section) {
         const majorMatch = section.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
@@ -2551,14 +2445,13 @@ export async function extractRequirements(
           if (majorSection) {
             sectionGroup = `${majorSection.number}: ${majorSection.title}`;
           } else {
-            // Fallback: just use the major number
             sectionGroup = majorNum;
           }
         }
       }
 
       return {
-        section: section || null,
+        section,
         sectionGroup,
         text,
         type: classification.type,
@@ -2570,16 +2463,12 @@ export async function extractRequirements(
       };
     });
 
-    // Filter out any empty requirements (bad line references)
+    // Filter out any empty requirements
     const beforeFilter = requirements.length;
-    requirements = requirements.filter(req => req.text.length > 0);
+    requirements = requirements.filter(req => req.text && req.text.length > 0);
     const emptyCount = beforeFilter - requirements.length;
     if (emptyCount > 0) {
-      console.log(`[extract] Filtered ${emptyCount} empty requirements from bad line refs`);
-      // Warn if high empty rate indicates systematic line mapping issues
-      if (emptyCount > requirements.length * 0.1) {
-        console.warn(`[extract] WARNING: High empty rate (${emptyCount}/${beforeFilter}) - possible line mapping issue`);
-      }
+      console.log(`[extract] Filtered ${emptyCount} empty requirements`);
     }
 
     // ==========================================================================
