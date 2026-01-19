@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,17 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
+// Note: Middleware handles redirecting logged-in users to /dashboard
+// No client-side session check needed here
+
 export default function SignupPage() {
   const router = useRouter();
-  const { status } = useSession();
   const [name, setName] = useState("");
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (status === "authenticated") {
-      router.replace("/dashboard");
-    }
-  }, [status, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [acceptTermsAndPrivacy, setAcceptTermsAndPrivacy] = useState(false);
