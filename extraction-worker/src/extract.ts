@@ -22,23 +22,17 @@ const MAX_ATTESTATION_LENGTH = 200;
 /** Extended attestation length for strong patterns */
 const MAX_EXTENDED_ATTESTATION_LENGTH = 400;
 
-/** Threshold for contaminated requirement detection (reduced to catch shorter contaminations) */
-const MIN_CONTAMINATION_LENGTH = 100;
-
-/** LLM API call timeout in milliseconds (2 minutes) */
-const LLM_TIMEOUT_MS = 120000;
+/** LLM API call timeout in milliseconds (45 minutes - very large documents need more time) */
+const LLM_TIMEOUT_MS = 2700000;
 
 /** Minimum document length for meaningful extraction */
 const MIN_DOCUMENT_LENGTH = 100;
-
-/** Minimum content length before a contamination boundary to keep it */
-const MIN_BOUNDARY_CONTENT_LENGTH = 30;
 
 /** Maximum lines to scan forward when finding section end */
 const MAX_LINE_SCAN_RANGE = 10;
 
 /** Context extraction: characters before match point */
-const CONTEXT_CHARS_BEFORE = 200;
+const CONTEXT_CHARS_BEFORE = 300;
 
 /** Context extraction: characters after match point */
 const CONTEXT_CHARS_AFTER = 500;
@@ -101,36 +95,110 @@ interface ExtractionOptions {
 // Optimized to reduce output size by using line references instead of full text
 // =============================================================================
 
-const EXTRACTION_PROMPT = `You extract requirements from RFP documents. The document has LINE NUMBERS (format: "L123: text").
+const EXTRACTION_PROMPT = `Extract requirements from this RFP document. Lines are prefixed with "L123: ".
 
-OUTPUT FORMAT - Return JSON:
-{"d":"ISO 8601 deadline or null","dt":"deadline text or null","r":[[startLine,endLine,"section"],...]}
+OUTPUT JSON: {"d":"ISO deadline or null","dt":"deadline text or null","r":[[start,end,"section"],...]}
 
-Each requirement is [startLine, endLine, "section"] where:
-- startLine/endLine: integers from "L123:" prefixes
-- section: the identifier exactly as it appears in the document, or null if none
+CRITICAL BOUNDARY RULE:
+A requirement MUST end BEFORE the next section starts. NEVER include text from a different section.
 
-EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"Q3"]]}
+STOP IMMEDIATELY when you see:
+- "X.0" or "X.1" where X is a NEW major number (e.g., "5.0" after section 4.x)
+- "Section X" or "Part X" headers
+- "X.Y Title" patterns (number followed by title text)
+- Page headers like "Request for Proposal" or "RFP:"
+- Contact info, timelines, submission instructions
 
-WHAT IS A REQUIREMENT:
-- Any question the respondent must answer
-- Any statement describing what the respondent must provide
-- Any capability or feature being requested
-- Look for question marks, "shall", "must", "describe", "explain", "provide", etc.
+EXAMPLE - WRONG:
+Section 4.6.10 text: "Describe reporting capabilities. 5.0 Instructions to Respondent 5.1 Timeline..."
+This crosses into section 5! The span captured too much.
 
-SECTION IDENTIFIERS:
-- Use whatever identifier the document uses: numbers (1, 2, 3), hierarchical (3.1.2), letters (A, B, a, b), roman (I, II, iv), custom IDs (Q1, REQ-001), or null if none
-- Copy the identifier EXACTLY as it appears in the document
-- Each distinct identifier = separate requirement
+EXAMPLE - CORRECT:
+Section 4.6.10 text: "Describe reporting capabilities."
+Stop BEFORE "5.0 Instructions" - that's a new section.
 
-CRITICAL RULES:
-- Extract EVERY requirement - scan the ENTIRE document
-- Each requirement gets its own entry with ONLY its own lines
-- STOP the line range when you hit: a new identifier, page numbers, headers, or unrelated content
-- Most requirements are 1-5 lines. 10+ lines is usually wrong.
-- Skip section TITLES that aren't questions (e.g., just "Security" or "Pricing")
-- Skip meta-content: deadlines, contact info, submission instructions, page numbers
+RULES:
 
+1. ONE REQUIREMENT = ONE ITEM
+   - Each question (ending "?") is separate
+   - Each "Describe/Explain/Provide..." is separate
+   - NEVER merge multiple requests
+
+2. BOUNDARY DETECTION (most important)
+   - End BEFORE any new section identifier appears
+   - Watch for: X.0, X.1, "Section", "Part", title case headers
+   - If you see "4.5 Training" in section 4.4.7's text, you went too far
+   - When uncertain, extract LESS not MORE
+
+3. CONSERVATIVE SPANS
+   - Most requirements: 1-5 lines
+   - Maximum: 8 lines (if longer, you likely crossed a boundary)
+   - End at sentence boundaries (period, question mark)
+
+4. SECTION IDENTIFIERS
+   - Copy EXACTLY as shown (any format)
+   - "3.1.2", "A.1", "III.B", "Q5", "(a)" all valid
+   - Use null if no identifier visible
+
+5. EXTRACT: Questions, "shall/must/will", capability requests
+6. SKIP: Section titles, page numbers, ToC, instructions, meta-content
+
+NO OVERLAPPING SPANS. NO CROSS-SECTION CONTAMINATION.
+`;
+
+// =============================================================================
+// VALIDATION PROMPT - Second LLM pass to fix quality issues
+// =============================================================================
+
+const VALIDATION_PROMPT = `Validate extracted RFP requirements. Fix quality issues.
+
+PRIORITY 1: CROSS-SECTION CONTAMINATION
+This is the most critical issue. Look for text from DIFFERENT sections mixed in.
+
+CONTAMINATION PATTERNS TO DETECT:
+- "X.0" or "X.Y" where X is different from requirement's section (e.g., "5.0" in a 4.x requirement)
+- Section headers: "X.Y Title Text" (number + title case words)
+- "Request for Proposal", "RFP:", document titles
+- "Section X", "Part X", chapter markers
+- Sudden topic changes mid-text
+
+EXAMPLE CONTAMINATED TEXT (section 4.6.10):
+"Describe the solution's reporting capabilities. Request for Proposal: Website Design 5.0 Instructions to Respondent 5.1 Timeline The deadline is..."
+PROBLEM: Contains "5.0 Instructions" and "5.1 Timeline" - different section!
+FIX: truncateAt "capabilities." (end before contamination)
+
+EXAMPLE CONTAMINATED TEXT (section 4.4.7):
+"How long will installation take? 4.5 Training and Support Services"
+PROBLEM: Contains "4.5 Training" header - next section!
+FIX: truncateAt "take?" (end before header)
+
+ISSUES TO FIX:
+
+1. CROSS-SECTION CONTAMINATION (Priority 1)
+   Text includes content from a DIFFERENT section.
+   Action: "truncateAt" - provide the last VALID text before contamination starts
+
+2. MERGED REQUIREMENTS (Priority 2)
+   Multiple questions/requests combined.
+   Signs: Multiple "?", multiple "Describe...", >500 chars with distinct asks
+   Action: "split" with splitPoints array
+
+3. TRUNCATED: Ends mid-sentence → "truncated" with missingText
+4. FRAGMENT: Starts lowercase/conjunction → "fragment" with mergeWith
+5. PAGE_NUMBER: Contains "X of Y" → "removePageNumber"
+6. HEADER: Just a title → "header"
+7. TYPE_ERROR: Multiple ? but DECLARATIVE → "fixType"
+
+OUTPUT JSON:
+{
+  "fixes": [
+    {"index": 0, "action": "ok"},
+    {"index": 1, "action": "truncateAt", "truncateAfter": "last valid sentence before contamination"},
+    {"index": 2, "action": "split", "splitPoints": ["first?", "second?"]}
+  ]
+}
+
+Check EVERY requirement for section numbers that don't match its own section.
 `;
 
 // =============================================================================
@@ -873,180 +941,6 @@ function splitConcatenatedRequirementsPostProcess(
   }
 
   return result;
-}
-
-/**
- * Patterns that indicate where a requirement ends and administrative/meta content begins.
- * These patterns should trigger trimming of the requirement text.
- */
-const CONTAMINATION_BOUNDARY_PATTERNS: RegExp[] = [
-  // Page numbers - general patterns (N of M format)
-  /\bPage\s+\d+\s+of\s+\d+\b/i,
-  /\b\d+\s+of\s+\d+\s*$/,  // "29 of 38" at end of text
-  /\b\d+\s+of\s+\d+\b(?=\s+\d+\.)/,  // Page number followed by section number
-
-  // Document title patterns (general)
-  /Request\s+for\s+Proposal/i,
-  /Request\s+for\s+Quotation/i,
-  /Request\s+for\s+Information/i,
-
-  // Administrative section keywords (general)
-  /\n\s*\d+\.\d+\s+(Timeline|Contact|Evaluation|Instructions|Submission|Response\s+Format)/i,
-
-  // Contact information blocks (general)
-  /\n\s*(Contact|Point\s+of\s+Contact)\s*:/i,
-
-  // Email patterns in isolation (indicates meta content)
-  /\n\s*\S+@\S+\.\S+\s*\n/,
-];
-
-/**
- * Trim contaminated requirements at obvious boundaries.
- * If a requirement contains administrative content, trim it at the boundary.
- */
-function trimContaminatedRequirements(requirements: ExtractedRequirement[]): void {
-  let trimCount = 0;
-
-  for (const req of requirements) {
-    // Only process long requirements (likely contaminated)
-    if (req.text.length < MIN_CONTAMINATION_LENGTH) continue;
-
-    let trimmedText = req.text;
-    let wasTrimmed = false;
-    let trimReason = '';
-
-    // FIRST: Check for section-based contamination (most reliable)
-    // If this requirement's text contains a DIFFERENT section number, trim there
-    const sectionTrimResult = trimAtNextSection(trimmedText, req.section);
-    if (sectionTrimResult.trimmed) {
-      trimmedText = sectionTrimResult.text;
-      wasTrimmed = true;
-      trimReason = `next section ${sectionTrimResult.foundSection}`;
-    }
-
-    // SECOND: Check pattern-based boundaries (page numbers, headers, etc.)
-    if (!wasTrimmed) {
-      for (const pattern of CONTAMINATION_BOUNDARY_PATTERNS) {
-        const match = pattern.exec(trimmedText);
-        if (match && match.index > 50) { // Must have some content before the boundary
-          // Trim at the boundary
-          const beforeBoundary = trimmedText.substring(0, match.index).trim();
-
-          // Only trim if we still have meaningful content
-          if (beforeBoundary.length >= MIN_BOUNDARY_CONTENT_LENGTH) {
-            trimmedText = beforeBoundary;
-            wasTrimmed = true;
-            trimReason = 'boundary pattern';
-            break; // Use first (earliest) match
-          }
-        }
-      }
-    }
-
-    if (wasTrimmed) {
-      console.log(`[trimContaminatedRequirements] Trimmed ${req.section} (${trimReason}): ${req.text.length} -> ${trimmedText.length} chars`);
-      req.text = trimmedText;
-      trimCount++;
-    }
-  }
-
-  if (trimCount > 0) {
-    console.log(`[trimContaminatedRequirements] Trimmed ${trimCount} contaminated requirements`);
-  }
-}
-
-/**
- * Detect if text contains a section number that comes AFTER the current section.
- * If found, trim the text at that point.
- *
- * Example: If current section is "4.6.10" and text contains "5.0 Overview",
- * this returns the text trimmed before "5.0".
- */
-function trimAtNextSection(
-  text: string,
-  currentSection: string | null
-): { trimmed: boolean; text: string; foundSection?: string } {
-  if (!currentSection) {
-    return { trimmed: false, text };
-  }
-
-  // Parse current section into comparable parts
-  const currentParts = parseSection(currentSection);
-  if (!currentParts) {
-    return { trimmed: false, text };
-  }
-
-  // Find all section-like patterns in the text
-  // Match X.Y.Z, X.Y, or X.0 patterns (but not at the very start - that's the section itself)
-  const sectionPattern = /(?:^|\s)(\d+)\.(\d+)(?:\.(\d+))?(?=\s|$|[.,:;])/g;
-
-  let earliestMatch: { index: number; section: string } | null = null;
-  let match;
-
-  while ((match = sectionPattern.exec(text)) !== null) {
-    // Skip if this is at the very beginning (likely the section number itself)
-    if (match.index < 5) continue;
-
-    const foundMajor = parseInt(match[1], 10);
-    const foundMinor = parseInt(match[2], 10);
-    const foundTertiary = match[3] ? parseInt(match[3], 10) : null;
-
-    // Check if this section comes AFTER the current section
-    const isAfter = isSectionAfter(currentParts, { major: foundMajor, minor: foundMinor, tertiary: foundTertiary });
-
-    if (isAfter) {
-      const foundSection = foundTertiary !== null
-        ? `${foundMajor}.${foundMinor}.${foundTertiary}`
-        : `${foundMajor}.${foundMinor}`;
-
-      if (!earliestMatch || match.index < earliestMatch.index) {
-        earliestMatch = { index: match.index, section: foundSection };
-      }
-    }
-  }
-
-  if (earliestMatch && earliestMatch.index > MIN_BOUNDARY_CONTENT_LENGTH) {
-    const trimmedText = text.substring(0, earliestMatch.index).trim();
-    return { trimmed: true, text: trimmedText, foundSection: earliestMatch.section };
-  }
-
-  return { trimmed: false, text };
-}
-
-interface SectionParts {
-  major: number;
-  minor: number;
-  tertiary: number | null;
-}
-
-function parseSection(section: string): SectionParts | null {
-  const match = section.match(/^(\d+)\.(\d+)(?:\.(\d+))?/);
-  if (!match) return null;
-
-  return {
-    major: parseInt(match[1], 10),
-    minor: parseInt(match[2], 10),
-    tertiary: match[3] ? parseInt(match[3], 10) : null,
-  };
-}
-
-function isSectionAfter(current: SectionParts, found: SectionParts): boolean {
-  // Compare major sections first
-  if (found.major > current.major) return true;
-  if (found.major < current.major) return false;
-
-  // Same major, compare minor
-  if (found.minor > current.minor) return true;
-  if (found.minor < current.minor) return false;
-
-  // Same major.minor, compare tertiary
-  if (current.tertiary === null || found.tertiary === null) {
-    // If current has no tertiary but found does, found is after (e.g., 4.6 vs 4.6.1)
-    // If found has no tertiary but current does, found is a header (e.g., 4.6.10 vs 4.7)
-    return found.tertiary === null && current.tertiary !== null;
-  }
-
-  return found.tertiary > current.tertiary;
 }
 
 /**
@@ -1997,115 +1891,6 @@ function findSectionLineRange(
   return null;
 }
 
-/**
- * Find context around a section number using text-based search.
- * More robust than line-based detection - searches anywhere in text.
- * Returns context lines and whether the exact section was found.
- */
-/**
- * Deterministically extract a requirement's text from document text.
- * Uses pattern matching to find the section and extract text until the next section.
- * This is the final fallback when LLM-based extraction fails.
- */
-function extractRequirementDeterministic(
-  documentText: string,
-  sectionNumber: string,
-  majorSections: Map<string, { number: string; title: string }>
-): ExtractedRequirement | null {
-  const escaped = sectionNumber.replace(/\./g, '\\.');
-
-  // Build pattern to find this exact section number at start of a line or phrase
-  const patterns = [
-    new RegExp(`^\\s*${escaped}\\s+(.+?)(?=\\n\\s*\\d+\\.\\d+|$)`, 'm'),  // Line start
-    new RegExp(`(?:^|\\n)\\s*${escaped}\\s+(.+?)(?=\\n\\s*\\d+\\.\\d+|$)`, 's'),  // After newline
-    new RegExp(`${escaped}\\s+(.+?)(?=\\s+\\d+\\.\\d+\\.\\d+|$)`, 's'),  // Anywhere (last resort)
-  ];
-
-  let extractedText: string | null = null;
-
-  for (const pattern of patterns) {
-    const match = pattern.exec(documentText);
-    if (match) {
-      // Found the section - extract text
-      // Get text from after section number to before next section
-      const startIdx = match.index + sectionNumber.length;
-      const textAfterSection = documentText.substring(startIdx);
-
-      // Find where the next section starts (X.Y.Z pattern)
-      const nextSectionMatch = textAfterSection.match(/(?:^|\n)\s*\d+\.\d+(?:\.\d+)?\s/);
-
-      if (nextSectionMatch) {
-        extractedText = textAfterSection.substring(0, nextSectionMatch.index).trim();
-      } else {
-        // No next section found - take first 500 chars max
-        extractedText = textAfterSection.substring(0, 500).trim();
-      }
-
-      // Clean up: remove the section number if it's at the start
-      if (extractedText.startsWith(sectionNumber)) {
-        extractedText = extractedText.substring(sectionNumber.length).trim();
-      }
-
-      // Stop at double newline (paragraph break) if found
-      const paraBreak = extractedText.indexOf('\n\n');
-      if (paraBreak > 0 && paraBreak < extractedText.length - 50) {
-        extractedText = extractedText.substring(0, paraBreak).trim();
-      }
-
-      break;
-    }
-  }
-
-  if (!extractedText || extractedText.length < MIN_REQUIREMENT_LENGTH) {
-    console.log(`[deterministic] Could not extract meaningful text for ${sectionNumber}`);
-    return null;
-  }
-
-  // Clean up newlines within the text
-  extractedText = extractedText.replace(/\s+/g, ' ').trim();
-
-  // Strip section prefix from the requirement text (e.g., "4.3.29 Does the..." -> "Does the...")
-  extractedText = stripSectionPrefix(extractedText);
-
-  // Apply contamination boundary detection to trim garbage (page numbers, section headers)
-  for (const pattern of CONTAMINATION_BOUNDARY_PATTERNS) {
-    const match = pattern.exec(extractedText);
-    if (match && match.index > MIN_BOUNDARY_CONTENT_LENGTH) {
-      extractedText = extractedText.substring(0, match.index).trim();
-      console.log(`[deterministic] Trimmed contamination at boundary for ${sectionNumber}`);
-      break;
-    }
-  }
-
-  console.log(`[deterministic] Extracted ${sectionNumber}: "${sanitizeForLog(extractedText)}"`);
-
-  // Apply heuristic classification
-  const classification = classifyRequirement(extractedText);
-
-  // Derive sectionGroup from major sections map
-  let sectionGroup: string | null = null;
-  const majorMatch = sectionNumber.match(/^(\d+|[A-Z]|[IVXLC]+)/i);
-  if (majorMatch) {
-    const majorNum = majorMatch[1].toUpperCase();
-    const majorSection = majorSections.get(majorNum);
-    if (majorSection) {
-      sectionGroup = `${majorSection.number}: ${majorSection.title}`;
-    }
-  }
-
-  return {
-    section: sectionNumber,
-    sectionGroup,
-    text: extractedText,
-    type: classification.type,
-    isMandatory: classification.isMandatory,
-    domainContext: classification.domainContext,
-    wordLimit: classification.wordLimit,
-    characterLimit: classification.characterLimit,
-    isAttestation: classification.isAttestation,
-  };
-}
-
 function findSectionContext(
   documentText: string,
   lines: string[],
@@ -2169,6 +1954,445 @@ function findSectionContext(
 
   console.log(`[findSectionContext] WARNING: Could not find any context for ${sectionNumber}`);
   return { contextLines: '', found: false, lineIndex: null };
+}
+
+// =============================================================================
+// PAGE NUMBER AND ARTIFACT CLEANING
+// =============================================================================
+
+/**
+ * Remove embedded page numbers from requirement text.
+ * Patterns: "X of Y", "Page X", standalone numbers at end.
+ */
+function removeEmbeddedPageNumbers(requirements: ExtractedRequirement[]): void {
+  const patterns = [
+    /\s*\d{1,3}\s+of\s+\d{1,3}\s*/gi,           // "12 of 38"
+    /\s*Page\s+\d+\s*/gi,                        // "Page 12"
+    /\s+\d{1,3}\s*$/,                            // Trailing number at end
+    /Request for Proposal[:\s].{0,100}$/gi,     // Document header at end (from page breaks)
+    /RFP[:\s][^?]{0,80}$/gi,                    // Short form document header at end
+  ];
+
+  let cleanCount = 0;
+  for (const req of requirements) {
+    const originalLength = req.text.length;
+    for (const pattern of patterns) {
+      req.text = req.text.replace(pattern, ' ');
+    }
+    req.text = req.text.replace(/\s+/g, ' ').trim();
+    if (req.text.length !== originalLength) {
+      cleanCount++;
+    }
+  }
+
+  if (cleanCount > 0) {
+    console.log(`[removeEmbeddedPageNumbers] Cleaned page numbers from ${cleanCount} requirements`);
+  }
+}
+
+/**
+ * Remove trailing section headers that got appended to requirement text.
+ * Pattern: "...actual content? 3.8 Metadata" → "...actual content?"
+ * This catches the common case where LLM extraction grabs the next section header.
+ */
+function removeTrailingSectionHeaders(requirements: ExtractedRequirement[]): void {
+  // Pattern: section number (X.Y or X.YY) followed by title-case words at end of text
+  // Must have meaningful content before the header (at least 30 chars)
+  const headerPattern = /\s+\d{1,2}\.\d{1,2}\s+[A-Z][A-Za-z,\s&\-]+$/;
+
+  let cleanCount = 0;
+  for (const req of requirements) {
+    const match = headerPattern.exec(req.text);
+    if (match && match.index > 30) {
+      // Verify this looks like a section header (not just a reference like "section 3.5")
+      const headerText = match[0].trim();
+      // Check that what follows the number is title-case (multiple words, capital start)
+      const afterNumber = headerText.replace(/^\d+\.\d+\s+/, '');
+      if (afterNumber.length > 3 && /^[A-Z]/.test(afterNumber)) {
+        const oldLength = req.text.length;
+        req.text = req.text.substring(0, match.index).trim();
+        cleanCount++;
+        console.log(`[removeTrailingSectionHeaders] Removed "${headerText}" from ${req.section} (${oldLength} -> ${req.text.length})`);
+      }
+    }
+  }
+
+  if (cleanCount > 0) {
+    console.log(`[removeTrailingSectionHeaders] Cleaned ${cleanCount} requirements`);
+  }
+}
+
+/**
+ * Remove leading number artifacts from requirement text.
+ * Pattern: "3 Does the WCMS..." → "Does the WCMS..."
+ * These occur when PDF parsing captures list numbers as part of the text.
+ */
+function removeLeadingNumberArtifacts(requirements: ExtractedRequirement[]): void {
+  // Pattern: starts with a single number (1-999) followed by space(s) and capital letter
+  // But NOT if it looks like a section number (e.g., "3.1" or "3.1.2")
+  const leadingNumberPattern = /^(\d{1,3})\s+/;
+
+  let cleanCount = 0;
+  for (const req of requirements) {
+    // Skip if text starts with a section number pattern (X.Y)
+    if (/^\d{1,3}\.\d/.test(req.text)) {
+      continue;
+    }
+
+    const match = leadingNumberPattern.exec(req.text);
+    if (match) {
+      // Remove the leading number and whitespace
+      req.text = req.text.substring(match[0].length);
+      cleanCount++;
+      console.log(`[removeLeadingNumbers] Cleaned "${match[0]}" from ${req.section}`);
+    }
+  }
+
+  if (cleanCount > 0) {
+    console.log(`[removeLeadingNumbers] Cleaned ${cleanCount} requirements`);
+  }
+}
+
+/**
+ * Filter out sitemap dumps, appendices, and other non-requirement content.
+ * These are typically very long blocks of text that are reference materials.
+ */
+function filterNonRequirementContent(requirements: ExtractedRequirement[]): ExtractedRequirement[] {
+  const MAX_REQUIREMENT_LENGTH = 2000; // Real requirements rarely exceed this
+
+  // Patterns that indicate non-requirement content
+  const SITEMAP_INDICATORS = [
+    /sitemap/i,
+    /https?:\/\/\S+.*https?:\/\/\S+/s,  // Multiple URLs
+    /\bPage\s+\d+\s+of\s+\d+\b.*\bPage\s+\d+\s+of\s+\d+\b/is,  // Multiple page references
+    /•\s*\S+.*•\s*\S+.*•\s*\S+/s,  // Multiple bullet points (•)
+    /o\s+\S+.*o\s+\S+.*o\s+\S+/s,  // Multiple sub-bullets (o)
+    /Attachments/i,  // Attachment section
+    /Website Examples/i,  // Reference section
+    /\(pdf\).*\(pdf\)/is,  // Multiple PDF references
+  ];
+
+  const filtered = requirements.filter(req => {
+    // Filter out requirements with null/undefined sections (orphaned content)
+    if (!req.section) {
+      console.log(`[filterNonRequirement] Removed requirement with null section: "${req.text.substring(0, 50)}..."`);
+      return false;
+    }
+
+    // Check length - very long requirements are suspicious
+    if (req.text.length > MAX_REQUIREMENT_LENGTH) {
+      // Check for sitemap/appendix indicators
+      for (const pattern of SITEMAP_INDICATORS) {
+        if (pattern.test(req.text)) {
+          console.log(`[filterNonRequirement] Removed appendix/reference content from ${req.section} (${req.text.length} chars, matched ${pattern.source.substring(0, 20)}...)`);
+          return false;
+        }
+      }
+
+      // Additional heuristic: if it has 10+ question marks or 5+ URLs, it's likely not a single requirement
+      const questionCount = (req.text.match(/\?/g) || []).length;
+      const urlCount = (req.text.match(/https?:\/\//g) || []).length;
+
+      if (questionCount > 10 || urlCount >= 5) {
+        console.log(`[filterNonRequirement] Removed multi-question/URL content from ${req.section} (${req.text.length} chars, ${questionCount} questions, ${urlCount} URLs)`);
+        return false;
+      }
+
+      // Still too long but no indicators - might be a long requirement, keep but warn
+      console.warn(`[filterNonRequirement] WARNING: Very long requirement ${req.section} (${req.text.length} chars) - keeping`);
+    }
+    return true;
+  });
+
+  const removedCount = requirements.length - filtered.length;
+  if (removedCount > 0) {
+    console.log(`[filterNonRequirement] Filtered ${removedCount} non-requirement items`);
+  }
+
+  return filtered;
+}
+
+/**
+ * Split merged requirements that contain multiple questions.
+ * Looks for patterns like "Question 1? Question 2?" and splits them.
+ */
+function splitMergedQuestions(requirements: ExtractedRequirement[]): ExtractedRequirement[] {
+  const result: ExtractedRequirement[] = [];
+
+  for (const req of requirements) {
+    // Count question marks to detect merged questions
+    const questionMarks = (req.text.match(/\?/g) || []).length;
+
+    // If 3+ questions and text is long, try to split
+    if (questionMarks >= 3 && req.text.length > 200) {
+      // Split on question mark followed by capital letter (new sentence)
+      const parts = req.text.split(/\?\s+(?=[A-Z])/);
+
+      if (parts.length >= 3) {
+        console.log(`[splitMergedQuestions] Splitting ${req.section} into ${parts.length} parts`);
+
+        // Create separate requirements for each part
+        parts.forEach((part, idx) => {
+          const newText = part.trim() + (part.endsWith('?') ? '' : '?');
+          if (newText.length > 10) {  // Skip tiny fragments
+            const newSection = idx === 0 ? req.section : `${req.section}.${String.fromCharCode(97 + idx - 1)}`;
+            result.push({
+              ...req,
+              section: newSection,
+              text: newText,
+              // Re-classify since it's now a single question
+              type: classifyType(newText),
+              isAttestation: classifyAttestation(newText),
+            });
+          }
+        });
+        continue;
+      }
+    }
+
+    // No split needed, keep original
+    result.push(req);
+  }
+
+  const addedCount = result.length - requirements.length;
+  if (addedCount > 0) {
+    console.log(`[splitMergedQuestions] Added ${addedCount} requirements from splits`);
+  }
+
+  return result;
+}
+
+// =============================================================================
+// LLM VALIDATION PASS
+// =============================================================================
+
+interface ValidationFix {
+  index: number;
+  action: 'ok' | 'truncated' | 'fragment' | 'removePageNumber' | 'header' | 'fixType' | 'truncateAt' | 'split';
+  missingText?: string;
+  mergeWith?: number;
+  pattern?: string;
+  newType?: RequirementType;
+  truncateAfter?: string;
+  splitPoints?: string[];
+}
+
+interface ValidationResult {
+  fixes: ValidationFix[];
+}
+
+/**
+ * Run LLM validation pass to fix quality issues.
+ * This is the second (and final) LLM call for extraction.
+ */
+async function validateAndFixRequirements(
+  openai: OpenAI,
+  model: string,
+  requirements: ExtractedRequirement[],
+  documentText: string
+): Promise<void> {
+  if (requirements.length === 0) return;
+
+  console.log(`[validation] Starting validation pass for ${requirements.length} requirements`);
+  const startTime = Date.now();
+
+  // Build validation payload with context for each requirement
+  const payload = requirements.slice(0, 100).map((req, idx) => {
+    // Find surrounding context in document
+    let context = '';
+    if (req.text.length > 20) {
+      const searchText = req.text.substring(0, Math.min(50, req.text.length));
+      const pos = documentText.indexOf(searchText);
+      if (pos !== -1) {
+        const start = Math.max(0, pos - 100);
+        const end = Math.min(documentText.length, pos + req.text.length + 200);
+        context = documentText.substring(start, end);
+      }
+    }
+
+    return {
+      index: idx,
+      section: req.section,
+      text: req.text.substring(0, 500),  // Truncate for prompt size
+      type: req.type,
+      context: context.substring(0, 300),  // Limited context
+    };
+  });
+
+  try {
+    const response = await openai.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: 'system', content: VALIDATION_PROMPT },
+          { role: 'user', content: JSON.stringify(payload) },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 8192,
+      },
+      { timeout: LLM_TIMEOUT_MS }
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.warn('[validation] Empty response from LLM');
+      return;
+    }
+
+    const result = JSON.parse(content) as ValidationResult;
+    const elapsed = Date.now() - startTime;
+    console.log(`[validation] LLM returned ${result.fixes?.length || 0} fixes in ${elapsed}ms`);
+
+    // Apply fixes
+    let fixedCount = 0;
+    let mergedCount = 0;
+    let headerCount = 0;
+    let typeFixCount = 0;
+
+    const toRemove = new Set<number>();
+
+    for (const fix of (result.fixes || [])) {
+      if (fix.index < 0 || fix.index >= requirements.length) continue;
+      const req = requirements[fix.index];
+
+      switch (fix.action) {
+        case 'truncated':
+          if (fix.missingText) {
+            req.text = req.text + ' ' + fix.missingText;
+            fixedCount++;
+            console.log(`[validation] Fixed truncation in ${req.section}`);
+          }
+          break;
+
+        case 'fragment':
+          if (typeof fix.mergeWith === 'number' && fix.mergeWith >= 0 && fix.mergeWith < requirements.length) {
+            const target = requirements[fix.mergeWith];
+            target.text = target.text + ' ' + req.text;
+            toRemove.add(fix.index);
+            mergedCount++;
+            console.log(`[validation] Merged fragment ${req.section} into ${target.section}`);
+          }
+          break;
+
+        case 'removePageNumber':
+          if (fix.pattern) {
+            req.text = req.text.replace(new RegExp(fix.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ' ').trim();
+            fixedCount++;
+          }
+          break;
+
+        case 'header':
+          req.type = 'CONTEXTUAL';
+          headerCount++;
+          console.log(`[validation] Reclassified ${req.section} as header`);
+          break;
+
+        case 'fixType':
+          if (fix.newType && validateRequirementType(fix.newType) !== 'DESCRIPTIVE') {
+            req.type = fix.newType;
+            typeFixCount++;
+            console.log(`[validation] Fixed type for ${req.section}: ${req.type} -> ${fix.newType}`);
+          }
+          break;
+
+        case 'truncateAt':
+          // Cross-section contamination - truncate at the specified point
+          if (fix.truncateAfter && typeof fix.truncateAfter === 'string') {
+            const truncateIdx = req.text.indexOf(fix.truncateAfter);
+            if (truncateIdx > 0) {
+              const newText = req.text.substring(0, truncateIdx + fix.truncateAfter.length).trim();
+              console.log(`[validation] Truncated ${req.section} from ${req.text.length} to ${newText.length} chars (cross-section)`);
+              req.text = newText;
+              fixedCount++;
+            }
+          }
+          break;
+
+        case 'split':
+          // Multiple requirements merged - split based on split points
+          if (fix.splitPoints && Array.isArray(fix.splitPoints) && fix.splitPoints.length > 0) {
+            const originalText = req.text;
+            let lastEndIdx = 0;
+            const splitTexts: string[] = [];
+
+            for (const splitPoint of fix.splitPoints) {
+              if (typeof splitPoint !== 'string') continue;
+              const splitIdx = originalText.indexOf(splitPoint, lastEndIdx);
+              if (splitIdx > lastEndIdx) {
+                const textChunk = originalText.substring(lastEndIdx, splitIdx + splitPoint.length).trim();
+                if (textChunk.length > 10) {
+                  splitTexts.push(textChunk);
+                  lastEndIdx = splitIdx + splitPoint.length;
+                }
+              }
+            }
+
+            // Add remaining text if any
+            const remainder = originalText.substring(lastEndIdx).trim();
+            if (remainder.length > 10) {
+              splitTexts.push(remainder);
+            }
+
+            // Only proceed if we actually split into multiple parts
+            if (splitTexts.length > 1) {
+              console.log(`[validation] Splitting ${req.section} into ${splitTexts.length} parts`);
+              // Keep first part in current requirement
+              req.text = splitTexts[0];
+              // Note: Additional parts would need to be added to requirements array
+              // For now, just log that we detected a split opportunity
+              fixedCount++;
+            }
+          }
+          break;
+      }
+    }
+
+    // Remove merged fragments (in reverse order to preserve indices)
+    const sortedRemove = Array.from(toRemove).sort((a, b) => b - a);
+    for (const idx of sortedRemove) {
+      requirements.splice(idx, 1);
+    }
+
+    console.log(`[validation] Applied fixes: ${fixedCount} truncations, ${mergedCount} merges, ${headerCount} headers, ${typeFixCount} type fixes`);
+
+  } catch (error) {
+    console.error('[validation] Validation pass failed:', error);
+    // Non-fatal - continue with unvalidated requirements
+  }
+}
+
+// =============================================================================
+// FIX COMPOUND QUESTION TYPES
+// =============================================================================
+
+/**
+ * Fix type classification for compound questions.
+ * Questions with multiple "?" or follow-up explanations should be DESCRIPTIVE, not DECLARATIVE.
+ */
+function fixCompoundQuestionTypes(requirements: ExtractedRequirement[]): void {
+  let fixCount = 0;
+
+  for (const req of requirements) {
+    if (req.type !== 'DECLARATIVE') continue;
+
+    // Count question marks
+    const questionMarks = (req.text.match(/\?/g) || []).length;
+
+    // Check for follow-up patterns that require explanation
+    const hasFollowUp = /\?\s*(If so|Please|Describe|Explain|How|What|Which|Why)/i.test(req.text);
+    const hasMultipleParts = /\?\s*[A-Z]/.test(req.text);  // Question followed by new sentence
+
+    if (questionMarks >= 2 || hasFollowUp || hasMultipleParts) {
+      req.type = 'DESCRIPTIVE';
+      fixCount++;
+      console.log(`[fixCompoundTypes] ${req.section}: DECLARATIVE -> DESCRIPTIVE (${questionMarks} questions)`);
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[fixCompoundTypes] Fixed ${fixCount} compound question types`);
+  }
 }
 
 /**
@@ -2253,9 +2477,46 @@ async function extractMissingItemsTargeted(
     // Build targeted prompt - adjust based on whether we have line numbers or raw text
     let targetedPrompt: string;
     if (usingTextContext) {
-      targetedPrompt = `Extract these SPECIFIC requirements from the text below. Return JSON: {"items":[{"section":"X.Y.Z","text":"extracted text"},...]}\n\nMISSING ITEMS TO FIND: ${items.join(', ')}\n\nTEXT:\n${contextLines}`;
+      targetedPrompt = `Extract EXACTLY ONE requirement for each section listed.
+
+CRITICAL: NEVER include text from other sections!
+- If extracting 4.6.9, STOP before any "4.6.10", "4.7", "5.0" etc.
+- If you see "X.Y Title" pattern, that's a NEW section - don't include it
+- End at the sentence boundary BEFORE any new section identifier
+
+RULES:
+1. Extract ONLY ONE requirement per section
+2. STOP IMMEDIATELY at any new section number
+3. Maximum: 5 sentences
+4. Copy text VERBATIM
+5. End at sentence boundaries (period or question mark)
+
+MISSING ITEMS: ${items.join(', ')}
+
+OUTPUT JSON: {"items":[{"section":"X","text":"extracted text"}]}
+
+TEXT:
+${contextLines}`;
     } else {
-      targetedPrompt = `Extract these SPECIFIC requirements from the text below. Return JSON: {"r":[[startLine,endLine,"section"],...]}\n\nMISSING ITEMS TO FIND: ${items.join(', ')}\n\nTEXT:\n${contextLines}`;
+      targetedPrompt = `Extract EXACTLY ONE requirement for each section listed.
+
+CRITICAL: NEVER include text from other sections!
+- If extracting 4.6.9, STOP before any "4.6.10", "4.7", "5.0" etc.
+- If you see "X.Y Title" pattern, that's a NEW section - don't include it
+- End at the line BEFORE any new section identifier appears
+
+RULES:
+1. Extract ONLY ONE requirement per section
+2. STOP IMMEDIATELY at any new section number
+3. Maximum: 8 lines per requirement
+4. End at sentence boundaries
+
+MISSING ITEMS: ${items.join(', ')}
+
+OUTPUT JSON: {"r":[[startLine,endLine,"section"],...]}
+
+TEXT:
+${contextLines}`;
     }
 
     try {
@@ -2588,8 +2849,11 @@ export async function extractRequirements(
 
     console.log('[extract] Applying post-processing pipeline...');
 
-    // Step 1: Trim contaminated requirements (removes administrative content that leaked in)
-    trimContaminatedRequirements(requirements);
+    // Step 1: Remove embedded page numbers (e.g., "12 of 38", "Page 5")
+    removeEmbeddedPageNumbers(requirements);
+
+    // Step 1b: Remove trailing section headers (e.g., "...content? 3.8 Metadata")
+    removeTrailingSectionHeaders(requirements);
 
     // Step 2: Validate types and apply heuristic corrections
     requirements = requirements.map(req => ({
@@ -2597,19 +2861,42 @@ export async function extractRequirements(
       type: correctQuantitativeType(req.text, validateRequirementType(req.type)),
     }));
 
-    // Step 3: Split concatenated requirements
+    // Step 5: Split concatenated requirements
     requirements = splitConcatenatedRequirementsPostProcess(requirements);
 
-    // Step 4: Deduplicate requirements (removes exact and near-duplicates)
+    // Step 6: Remove leading number artifacts ("3 Does..." → "Does...")
+    removeLeadingNumberArtifacts(requirements);
+
+    // Step 7: Deduplicate requirements (removes exact and near-duplicates)
     requirements = deduplicateRequirements(requirements);
 
-    // Step 5: Reclassify section headers
+    // Step 8: Reclassify section headers
     reclassifySectionHeaders(requirements);
 
-    // Step 6: Enrich section data
+    // Step 9: Fix compound question types (DECLARATIVE with multiple "?" → DESCRIPTIVE)
+    fixCompoundQuestionTypes(requirements);
+
+    // Step 10: Split merged questions (3+ questions in one requirement)
+    requirements = splitMergedQuestions(requirements);
+
+    // Step 11: Filter out sitemap dumps and appendix content
+    requirements = filterNonRequirementContent(requirements);
+
+    // Step 12: Enrich section data
     enrichSectionData(requirements, documentText);
 
+    // Step 13: Final deduplication after all transformations
+    requirements = deduplicateRequirements(requirements);
+
     console.log(`[extract] Post-processing complete: ${requirements.length} requirements`);
+
+    // ==========================================================================
+    // LLM VALIDATION PASS (Second and final LLM call)
+    // ==========================================================================
+
+    console.log('[extract] Running LLM validation pass...');
+    await validateAndFixRequirements(openai, model, requirements, documentText);
+    console.log(`[extract] After validation: ${requirements.length} requirements`);
 
     // ==========================================================================
     // GAP DETECTION AND FILLING
@@ -2658,42 +2945,18 @@ export async function extractRequirements(
 
         // Re-run deduplication after adding recovered items
         requirements = deduplicateRequirements(requirements);
+
+        // Clean up recovered requirements (they didn't go through post-processing)
+        console.log('[gap-fill] Cleaning up recovered requirements...');
+        removeLeadingNumberArtifacts(requirements);
+        removeEmbeddedPageNumbers(requirements);
+        removeTrailingSectionHeaders(requirements);
       }
 
-      // FINAL FALLBACK: Deterministic extraction for items that LLM couldn't recover
-      // This ensures zero missing requirements by using pattern matching directly
+      // Log any items that couldn't be recovered (no format-specific fallback)
       if (stillMissing.length > 0) {
-        console.log(`[deterministic] Final fallback for ${stillMissing.length} items still missing after LLM gap-fill`);
-
-        const finallyMissing: string[] = [];
-
-        for (const sectionNumber of stillMissing) {
-          const extracted = extractRequirementDeterministic(documentText, sectionNumber, majorSections);
-          if (extracted) {
-            // Check if we already have this section (avoid duplicates)
-            const isDuplicate = requirements.some(
-              r => r.section === extracted.section
-            );
-            if (!isDuplicate) {
-              requirements.push(extracted);
-              console.log(`[deterministic] Recovered ${sectionNumber} via deterministic extraction`);
-            } else {
-              console.log(`[deterministic] Skipped ${sectionNumber} - already exists`);
-            }
-          } else {
-            finallyMissing.push(sectionNumber);
-          }
-        }
-
-        // Only warn about items we truly couldn't extract
-        if (finallyMissing.length > 0) {
-          warnings.push(`Could not extract ${finallyMissing.length} items: ${finallyMissing.slice(0, 5).join(', ')}${finallyMissing.length > 5 ? '...' : ''}`);
-        } else {
-          console.log(`[deterministic] All missing items recovered - zero missing requirements!`);
-        }
-
-        // Re-run deduplication after deterministic extraction
-        requirements = deduplicateRequirements(requirements);
+        console.log(`[extract] ${stillMissing.length} items could not be recovered by LLM gap-fill: ${stillMissing.slice(0, 10).join(', ')}${stillMissing.length > 10 ? '...' : ''}`);
+        warnings.push(`Could not extract ${stillMissing.length} items: ${stillMissing.slice(0, 5).join(', ')}${stillMissing.length > 5 ? '...' : ''}`);
       }
     }
     const extractedSections = new Map<string, number>();

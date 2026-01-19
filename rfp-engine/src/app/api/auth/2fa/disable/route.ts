@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting - sensitive action
-    const rateLimit = rateLimiters.twoFactorDisable(session.user.id);
+    const rateLimit = await rateLimiters.twoFactorDisable(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },

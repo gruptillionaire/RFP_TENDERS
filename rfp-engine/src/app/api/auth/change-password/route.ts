@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting - sensitive action
-    const rateLimit = rateLimiters.passwordChange(session.user.id);
+    const rateLimit = await rateLimiters.passwordChange(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many password change attempts. Please try again later." },

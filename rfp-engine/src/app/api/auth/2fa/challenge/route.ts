@@ -15,32 +15,7 @@ import { decryptTOTPSecret } from "@/lib/crypto";
 import * as OTPAuth from "otpauth";
 import bcrypt from "bcryptjs";
 import { verifyPendingSession, clearPendingSession } from "@/app/api/auth/pre-login/route";
-
-// Rate limiting for 2FA attempts
-const challengeAttempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
-
-function checkRateLimit(userId: string): { allowed: boolean; remainingAttempts?: number } {
-  const now = Date.now();
-  const record = challengeAttempts.get(userId);
-
-  if (!record || record.resetAt < now) {
-    challengeAttempts.set(userId, { count: 1, resetAt: now + LOCKOUT_DURATION });
-    return { allowed: true, remainingAttempts: MAX_ATTEMPTS - 1 };
-  }
-
-  if (record.count >= MAX_ATTEMPTS) {
-    return { allowed: false };
-  }
-
-  record.count++;
-  return { allowed: true, remainingAttempts: MAX_ATTEMPTS - record.count };
-}
-
-function clearRateLimit(userId: string) {
-  challengeAttempts.delete(userId);
-}
+import { check2FARateLimit, clear2FARateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,8 +40,8 @@ export async function POST(request: NextRequest) {
 
     const pendingUserId = pendingSession.userId;
 
-    // Rate limiting
-    const rateLimit = checkRateLimit(pendingUserId);
+    // Rate limiting (Redis-based)
+    const rateLimit = await check2FARateLimit(pendingUserId);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many failed attempts. Please try again in 15 minutes." },
@@ -150,7 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Clear rate limit and pending session on success
-    clearRateLimit(pendingUserId);
+    await clear2FARateLimit(pendingUserId);
     await clearPendingSession(pendingToken);
 
     return NextResponse.json({

@@ -17,42 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-
-// Rate limiting (mirrors auth.ts)
-const loginAttempts = new Map<string, { count: number; resetAt: number; lockedUntil?: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
-
-function checkLoginRateLimit(email: string): { allowed: boolean; message?: string } {
-  const now = Date.now();
-  const key = email.toLowerCase().trim();
-  const record = loginAttempts.get(key);
-
-  if (record?.lockedUntil && record.lockedUntil > now) {
-    const remainingMinutes = Math.ceil((record.lockedUntil - now) / 60000);
-    return {
-      allowed: false,
-      message: `Account temporarily locked. Try again in ${remainingMinutes} minutes.`,
-    };
-  }
-
-  if (!record || record.resetAt < now) {
-    loginAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return { allowed: true };
-  }
-
-  if (record.count >= MAX_LOGIN_ATTEMPTS) {
-    record.lockedUntil = now + LOCKOUT_DURATION_MS;
-    return {
-      allowed: false,
-      message: "Too many failed attempts. Account temporarily locked for 15 minutes.",
-    };
-  }
-
-  record.count++;
-  return { allowed: true };
-}
+import { checkLoginRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,8 +33,8 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check rate limit
-    const rateLimit = checkLoginRateLimit(normalizedEmail);
+    // Check rate limit (Redis-based)
+    const rateLimit = await checkLoginRateLimit(normalizedEmail);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { success: false, error: rateLimit.message },

@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import crypto from "crypto";
-import { deadlineReminderEmail } from "./email-templates";
+import { deadlineReminderEmail, emailVerificationEmail } from "./email-templates";
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@rfpmatrix.com";
 const APP_NAME = "RFP Matrix";
@@ -132,6 +132,30 @@ ${APP_NAME}
     subject: `${APP_NAME}: Password reset request`,
     html,
     text,
+  });
+}
+
+export interface SendVerificationEmailParams {
+  email: string;
+  userName?: string | null;
+  verificationToken: string;
+}
+
+export async function sendVerificationEmail(params: SendVerificationEmailParams) {
+  // Use APP_URL for emails (always production domain), strip trailing slashes
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || APP_URL).replace(/\/+$/, "");
+  const verificationUrl = `${baseUrl}/verify-email?token=${params.verificationToken}`;
+
+  const template = emailVerificationEmail({
+    userName: params.userName || "there",
+    verificationUrl,
+  });
+
+  return sendEmail({
+    to: params.email,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
 }
 

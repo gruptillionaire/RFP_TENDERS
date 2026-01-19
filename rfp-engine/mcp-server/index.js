@@ -18,6 +18,18 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 
+// Load .env file from same directory as this script
+const envPath = path.join(__dirname, ".env");
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const [key, ...valueParts] = line.split("=");
+    if (key && valueParts.length > 0) {
+      process.env[key.trim()] = valueParts.join("=").trim();
+    }
+  }
+}
+
 // Configuration
 const API_URL = process.env.RFP_API_URL || "https://rfp-matrix.vercel.app";
 const WORKER_URL = process.env.RFP_WORKER_URL || "https://extraction-worker.fly.dev";

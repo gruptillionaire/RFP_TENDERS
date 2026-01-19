@@ -418,6 +418,33 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Free Resources */}
+        <section className="mt-20">
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-2xl p-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <p className="text-sm font-medium text-blue-600 mb-1">Free Resource</p>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Not sure if you should respond to an RFP?</h3>
+                <p className="text-gray-600">
+                  Use our Go/No-Go Decision Framework to evaluate opportunities before committing resources.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+                <Link href="/blog/go-no-go-decision-framework">
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    Read the Guide
+                  </Button>
+                </Link>
+                <Link href="/tools/go-no-go">
+                  <Button className="w-full sm:w-auto">
+                    Try the Free Tool
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Final CTA */}
         <section className="mt-32 text-center p-12 bg-blue-50 rounded-2xl">
           <p className="text-xl text-gray-700 max-w-xl mx-auto">

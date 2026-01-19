@@ -28,7 +28,7 @@ export async function PATCH(request: Request) {
     }
 
     // Rate limiting
-    const rateLimit = rateLimiters.requirements(session.user.id);
+    const rateLimit = await rateLimiters.requirements(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
     }
 
     // Rate limiting
-    const rateLimit = rateLimiters.requirements(session.user.id);
+    const rateLimit = await rateLimiters.requirements(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },

@@ -332,6 +332,19 @@ model PasswordResetToken {
   @@index([expiresAt]) // For cleanup queries
 }
 
+// Email verification tokens (24-hour expiry)
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  email     String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime? // Set when token is used to prevent reuse
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt]) // For cleanup queries
+}
+
 // =============================================================================
 // 2FA PENDING SESSIONS
 // =============================================================================

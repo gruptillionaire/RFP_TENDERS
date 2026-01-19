@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { logConsent, logAudit, AuditAction, AuditResource } from "@/lib/audit";
+import { rateLimiters } from "@/lib/rate-limit";
+import { sendVerificationEmail } from "@/lib/email";
 
 // Current policy versions - increment when policies change
 const TERMS_VERSION = "1.0";
@@ -12,28 +15,6 @@ const MAX_EMAIL_LENGTH = 255;
 const MAX_NAME_LENGTH = 100;
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
-
-// Simple in-memory rate limiter for signup
-const signupAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_SIGNUP_ATTEMPTS = 5;
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = signupAttempts.get(ip);
-
-  if (!record || record.resetAt < now) {
-    signupAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-
-  if (record.count >= MAX_SIGNUP_ATTEMPTS) {
-    return false;
-  }
-
-  record.count++;
-  return true;
-}
 
 // Password strength validation
 function validatePassword(password: string): { valid: boolean; error?: string } {
@@ -82,11 +63,12 @@ function validateEmail(email: string): { valid: boolean; normalized?: string; er
 
 export async function POST(request: Request) {
   try {
-    // Rate limiting - get IP from headers
+    // Rate limiting - get IP from headers (Redis-based)
     const forwardedFor = request.headers.get("x-forwarded-for");
     const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
 
-    if (!checkRateLimit(ip)) {
+    const rateLimit = await rateLimiters.signup(ip);
+    if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many signup attempts. Please try again later." },
         { status: 429 }
@@ -198,10 +180,33 @@ export async function POST(request: Request) {
       }),
     ].filter(Boolean));
 
+    // Generate email verification token (32 bytes = 64 hex chars)
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Create verification token in database
+    await prisma.emailVerificationToken.create({
+      data: {
+        email: normalizedEmail,
+        token: verificationToken,
+        expiresAt: tokenExpiresAt,
+      },
+    });
+
+    // Send verification email (non-blocking, don't fail signup if email fails)
+    sendVerificationEmail({
+      email: normalizedEmail,
+      userName: user.name,
+      verificationToken,
+    }).catch((error) => {
+      console.error("Failed to send verification email:", error);
+    });
+
     return NextResponse.json({
       id: user.id,
       email: user.email,
       name: user.name,
+      emailVerificationSent: true,
     });
   } catch (error) {
     console.error("Signup error:", error);

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting (5 per hour)
-    const rateLimit = rateLimiters.twoFactorRegenerate(session.user.id);
+    const rateLimit = await rateLimiters.twoFactorRegenerate(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },

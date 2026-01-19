@@ -59,6 +59,9 @@ export const AuditAction = {
   USER_2FA_ENABLED: "user.2fa.enabled",
   USER_2FA_DISABLED: "user.2fa.disabled",
   USER_2FA_BACKUP_CODES_REGENERATED: "user.2fa.backup_codes_regenerated",
+
+  // Email Verification
+  USER_EMAIL_VERIFIED: "user.email_verified",
 } as const;
 
 // Alias for easier imports

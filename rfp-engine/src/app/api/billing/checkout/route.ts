@@ -7,7 +7,7 @@
  * - Requires authenticated user
  * - Validates plan parameter against allowed values
  * - Links checkout to authenticated user's email
- * - Rate limited to prevent abuse
+ * - Rate limited to prevent abuse (Redis-based)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,26 +22,7 @@ import {
   type PlanType,
 } from "@/lib/stripe";
 import { logAudit, AuditAction, AuditResource } from "@/lib/audit";
-
-// Rate limiting: max 5 checkout attempts per user per hour
-const checkoutAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(userId: string): boolean {
-  const now = Date.now();
-  const record = checkoutAttempts.get(userId);
-
-  if (!record || now > record.resetAt) {
-    checkoutAttempts.set(userId, { count: 1, resetAt: now + 3600000 }); // 1 hour
-    return true;
-  }
-
-  if (record.count >= 5) {
-    return false;
-  }
-
-  record.count++;
-  return true;
-}
+import { rateLimiters } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,8 +31,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Rate limiting
-    if (!checkRateLimit(session.user.id)) {
+    // Rate limiting (Redis-based)
+    const rateLimit = await rateLimiters.checkout(session.user.id);
+    if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many checkout attempts. Please try again later." },
         { status: 429 }

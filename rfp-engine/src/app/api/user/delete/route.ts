@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Rate limiting (3 per hour)
-    const rateLimit = rateLimiters.delete(session.user.id);
+    const rateLimit = await rateLimiters.delete(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },

@@ -163,6 +163,101 @@ ${APP_NAME}
   return { subject, html, text };
 }
 
+interface EmailVerificationData {
+  userName: string;
+  verificationUrl: string;
+}
+
+/**
+ * Generate email verification email
+ */
+export function emailVerificationEmail(data: EmailVerificationData): { subject: string; html: string; text: string } {
+  const { userName, verificationUrl } = data;
+  const displayName = userName || "there";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Email</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f3f4f6;">
+        <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <div style="background: #2563eb; padding: 24px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">
+              Verify Your Email Address
+            </h1>
+          </div>
+
+          <!-- Content -->
+          <div style="padding: 32px;">
+            <p style="color: #374151; margin-bottom: 24px; font-size: 16px;">
+              Hi ${displayName},
+            </p>
+
+            <p style="color: #374151; margin-bottom: 24px; font-size: 16px;">
+              Thank you for signing up for ${APP_NAME}! Please verify your email address by clicking the button below.
+            </p>
+
+            <a href="${verificationUrl}"
+               style="display: block; background: #2563eb; color: white; text-decoration: none; padding: 14px 24px; border-radius: 6px; font-weight: 500; text-align: center; margin-bottom: 24px;">
+              Verify Email Address
+            </a>
+
+            <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 12px; margin-bottom: 24px;">
+              <p style="color: #92400e; font-size: 14px; margin: 0;">
+                <strong>Note:</strong> This link will expire in 24 hours. If you didn't create an account with ${APP_NAME}, you can safely ignore this email.
+              </p>
+            </div>
+
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 8px;">
+              If the button doesn't work, copy and paste this link into your browser:
+            </p>
+            <p style="color: #2563eb; font-size: 14px; word-break: break-all; margin: 0;">
+              <a href="${verificationUrl}" style="color: #2563eb;">${verificationUrl}</a>
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+              This is an automated message from ${APP_NAME}. Please do not reply.
+            </p>
+          </div>
+        </div>
+
+        <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 24px;">
+          &copy; ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.
+        </p>
+      </body>
+    </html>
+  `;
+
+  const text = `
+Verify Your Email Address
+
+Hi ${displayName},
+
+Thank you for signing up for ${APP_NAME}! Please verify your email address by clicking the link below.
+
+Verify your email: ${verificationUrl}
+
+This link will expire in 24 hours. If you didn't create an account with ${APP_NAME}, you can safely ignore this email.
+
+---
+${APP_NAME}
+  `.trim();
+
+  return {
+    subject: `${APP_NAME}: Please verify your email address`,
+    html,
+    text,
+  };
+}
+
 interface WelcomeEmailData {
   userName: string;
   loginUrl: string;

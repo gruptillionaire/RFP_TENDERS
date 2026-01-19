@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting - prevent brute force attacks on TOTP codes
-    const rateLimit = rateLimiters.twoFactorVerify(session.user.id);
+    const rateLimit = await rateLimiters.twoFactorVerify(session.user.id);
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: "Too many verification attempts. Please try again later." },

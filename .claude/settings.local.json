@@ -37,7 +37,19 @@
       "mcp__rfp-extraction__extract_pdf",
       "Bash(node -e:*)",
       "Bash(dir \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\APPS\\\\RFP_TENDERS\" /s /b)",
-      "Bash(timeout /t 100 /nobreak)"
+      "Bash(timeout /t 100 /nobreak)",
+      "Bash(fly logs:*)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Gamer\\\\AppData\\\\*claude*\")",
+      "mcp__rfp-extraction__get_extraction_summary",
+      "Bash(fly deploy:*)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Gamer\\\\Desktop\\\\*.pdf\")",
+      "Bash(powershell -Command:*)",
+      "Bash(git -C /c/Users/Gamer/Desktop/APPS/RFP_TENDERS log --oneline -1 -- rfp-engine/.env)",
+      "Bash(git -C /c/Users/Gamer/Desktop/APPS/RFP_TENDERS status --porcelain rfp-engine/.env rfp-engine/mcp-server/.env)",
+      "Bash(git -C /c/Users/Gamer/Desktop/APPS/RFP_TENDERS ls-files:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(sort:*)"
     ]
   }
 }

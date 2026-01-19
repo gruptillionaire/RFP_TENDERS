@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProjectCard } from "@/components/ProjectCard";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -75,6 +76,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Email Verification Banner */}
+      <EmailVerificationBanner emailVerified={session?.user?.emailVerified} />
+
       {/* Header */}
       <header className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">

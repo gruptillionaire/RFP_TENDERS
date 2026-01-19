@@ -36,6 +36,26 @@ function verifyOrigin(request: Request): boolean {
   }
 }
 
+// Routes that require email verification to access
+const EMAIL_VERIFICATION_REQUIRED_ROUTES = [
+  "/projects",
+  "/library",
+  "/api/projects",
+  "/api/requirements",
+  "/api/export",
+];
+
+// Routes that unverified users CAN access (auth-related, settings, etc.)
+const UNVERIFIED_ALLOWED_ROUTES = [
+  "/dashboard",
+  "/settings",
+  "/verify-email",
+  "/api/auth",
+  "/api/billing",
+  "/api/settings",
+  "/api/user",
+];
+
 export default auth((req) => {
   // CSRF protection for API routes (skip webhooks which use signature verification)
   if (req.nextUrl.pathname.startsWith("/api/") &&
@@ -53,6 +73,7 @@ export default auth((req) => {
                      req.nextUrl.pathname.startsWith("/signup") ||
                      req.nextUrl.pathname.startsWith("/forgot-password") ||
                      req.nextUrl.pathname.startsWith("/reset-password");
+  const isVerifyEmailPage = req.nextUrl.pathname.startsWith("/verify-email");
   const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard") ||
                           req.nextUrl.pathname.startsWith("/projects") ||
                           req.nextUrl.pathname.startsWith("/settings") ||
@@ -72,6 +93,33 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
+  // Check email verification for protected routes
+  if (isLoggedIn && !isVerifyEmailPage) {
+    const emailVerified = req.auth?.user?.emailVerified;
+
+    // Check if this route requires email verification
+    const requiresVerification = EMAIL_VERIFICATION_REQUIRED_ROUTES.some(
+      (route) => req.nextUrl.pathname.startsWith(route)
+    );
+
+    // If route requires verification and user is not verified, redirect
+    if (requiresVerification && !emailVerified) {
+      // For API routes, return 403
+      if (req.nextUrl.pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "Email verification required. Please verify your email to access this feature." },
+          { status: 403 }
+        );
+      }
+
+      // For page routes, redirect to verify-email page
+      const url = req.nextUrl.clone();
+      url.pathname = "/verify-email";
+      url.searchParams.set("redirect", req.nextUrl.pathname);
+      return NextResponse.redirect(url);
+    }
+  }
+
   return NextResponse.next();
 });
 
@@ -81,6 +129,7 @@ export const config = {
     "/projects/:path*",
     "/settings/:path*",
     "/library/:path*",
+    "/verify-email",
     "/login",
     "/signup",
     "/forgot-password",
