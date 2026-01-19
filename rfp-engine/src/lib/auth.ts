@@ -5,14 +5,13 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { checkLoginRateLimit, resetLoginAttempts } from "./rate-limit";
 
-// Extend the Session type to include emailVerified
+// Extend the Session type to include user id
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
       email: string;
       name?: string | null;
-      emailVerified?: Date | null;
     };
   }
 }
@@ -79,51 +78,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name,
-          emailVerified: user.emailVerified,
           rememberMe,
         };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.emailVerified = (user as { emailVerified?: Date | null }).emailVerified;
         // Set extended expiry for "Remember Me" sessions (30 days vs 24 hours)
         if ((user as { rememberMe?: boolean }).rememberMe) {
           token.rememberMe = true;
-          // Extend token expiry to 30 days
           const thirtyDays = 30 * 24 * 60 * 60;
           token.exp = Math.floor(Date.now() / 1000) + thirtyDays;
         }
       }
-
-      // Refresh emailVerified from database when:
-      // 1. Explicit update trigger, OR
-      // 2. User is currently unverified (so we can detect when they verify)
-      // Note: Only run when !user (not initial sign-in) to avoid login issues
-      const shouldRefresh = token.id && !user && (trigger === "update" || !token.emailVerified);
-      if (shouldRefresh) {
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: { emailVerified: true },
-          });
-          if (dbUser) {
-            token.emailVerified = dbUser.emailVerified;
-          }
-        } catch (error) {
-          console.error("[auth] Failed to refresh emailVerified:", error);
-        }
-      }
-
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.emailVerified = token.emailVerified as Date | null;
       }
       return session;
     },

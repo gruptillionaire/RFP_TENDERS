@@ -27,6 +27,18 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check email verification
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { emailVerified: true },
+    });
+    if (!user?.emailVerified) {
+      return NextResponse.json(
+        { error: "Please verify your email to update requirements." },
+        { status: 403 }
+      );
+    }
+
     // Rate limiting
     const rateLimit = await rateLimiters.requirements(session.user.id);
     if (!rateLimit.success) {
@@ -154,6 +166,18 @@ export async function POST(request: Request) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check email verification
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { emailVerified: true },
+    });
+    if (!user?.emailVerified) {
+      return NextResponse.json(
+        { error: "Please verify your email to access this feature." },
+        { status: 403 }
+      );
     }
 
     // Rate limiting

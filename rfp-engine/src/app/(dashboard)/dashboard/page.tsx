@@ -15,10 +15,10 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Fetch user plan and quota status
+  // Fetch user plan, quota status, and email verification
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { plan: true },
+    select: { plan: true, emailVerified: true },
   });
   const userPlan = user?.plan || "FREE";
   const quota = await getQuotaStatus(session.user.id);
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Email Verification Banner */}
-      <EmailVerificationBanner emailVerified={session?.user?.emailVerified} />
+      <EmailVerificationBanner emailVerified={user?.emailVerified} />
 
       {/* Header */}
       <header className="bg-white border-b">

@@ -33,7 +33,17 @@ export default async function ProjectPage({ params }: Props) {
     redirect("/login");
   }
 
+  // Check email verification from database
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { emailVerified: true },
+  });
+
   const { id } = await params;
+
+  if (!user?.emailVerified) {
+    redirect(`/verify-email?redirect=/projects/${id}`);
+  }
 
   const project = await prisma.project.findUnique({
     where: { id },

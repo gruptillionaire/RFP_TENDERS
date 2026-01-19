@@ -27,6 +27,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check email verification (query DB directly - JWT may be stale)
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { emailVerified: true },
+    });
+    if (!user?.emailVerified) {
+      return NextResponse.json(
+        { error: "Please verify your email to create projects." },
+        { status: 403 }
+      );
+    }
+
     // Set RLS context for database-level user isolation
     await setRLSContext(session.user.id);
 
