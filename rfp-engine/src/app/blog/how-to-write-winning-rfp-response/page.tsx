@@ -300,28 +300,28 @@ export default function WinningRfpResponsePost() {
                 <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded mr-3">S</span>
                 <div>
                   <span className="font-medium text-gray-900">Situation</span>
-                  <span className="text-gray-600 ml-2">— What was the client&apos;s challenge?</span>
+                  <span className="text-gray-600 ml-2">: What was the client&apos;s challenge?</span>
                 </div>
               </div>
               <div className="flex items-start">
                 <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded mr-3">T</span>
                 <div>
                   <span className="font-medium text-gray-900">Task</span>
-                  <span className="text-gray-600 ml-2">— What were you hired to do?</span>
+                  <span className="text-gray-600 ml-2">: What were you hired to do?</span>
                 </div>
               </div>
               <div className="flex items-start">
                 <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded mr-3">A</span>
                 <div>
                   <span className="font-medium text-gray-900">Action</span>
-                  <span className="text-gray-600 ml-2">— What specific steps did you take?</span>
+                  <span className="text-gray-600 ml-2">: What specific steps did you take?</span>
                 </div>
               </div>
               <div className="flex items-start">
                 <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded mr-3">R</span>
                 <div>
                   <span className="font-medium text-gray-900">Result</span>
-                  <span className="text-gray-600 ml-2">— What measurable outcomes did you achieve?</span>
+                  <span className="text-gray-600 ml-2">: What measurable outcomes did you achieve?</span>
                 </div>
               </div>
             </div>
@@ -463,7 +463,7 @@ export default function WinningRfpResponsePost() {
               <span className="w-6 h-6 bg-red-200 text-red-800 rounded-full flex items-center justify-center text-sm font-medium mr-3 flex-shrink-0">{item.num}</span>
               <div>
                 <span className="font-medium text-red-900">{item.title}</span>
-                <span className="text-red-700 ml-2">— {item.desc}</span>
+                <span className="text-red-700 ml-2">: {item.desc}</span>
               </div>
             </div>
           ))}
@@ -490,7 +490,7 @@ export default function WinningRfpResponsePost() {
         </div>
 
         <p className="mt-6 text-gray-700">
-          And increasingly, they use tools to handle the tedious parts—extracting requirements, generating first drafts, tracking compliance—so humans can focus on strategy and storytelling.
+          And increasingly, they use tools to handle the tedious parts (extracting requirements, generating first drafts, tracking compliance) so humans can focus on strategy and storytelling.
         </p>
       </div>
 

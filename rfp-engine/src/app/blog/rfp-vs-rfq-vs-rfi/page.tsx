@@ -233,35 +233,35 @@ export default function RfpVsRfqVsRfiPost() {
             <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-semibold text-sm mr-3">1</div>
             <div className="flex-1 bg-blue-50 rounded-lg px-4 py-3">
               <span className="font-medium text-blue-900">RFI Phase</span>
-              <span className="text-blue-700 ml-2">— Buyer explores market, identifies potential vendors</span>
+              <span className="text-blue-700 ml-2">: Buyer explores market, identifies potential vendors</span>
             </div>
           </div>
           <div className="flex items-center">
             <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-semibold text-sm mr-3">2</div>
             <div className="flex-1 bg-blue-50 rounded-lg px-4 py-3">
               <span className="font-medium text-blue-900">RFP Phase</span>
-              <span className="text-blue-700 ml-2">— Shortlisted vendors submit detailed proposals</span>
+              <span className="text-blue-700 ml-2">: Shortlisted vendors submit detailed proposals</span>
             </div>
           </div>
           <div className="flex items-center">
             <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-semibold text-sm mr-3">3</div>
             <div className="flex-1 bg-blue-50 rounded-lg px-4 py-3">
               <span className="font-medium text-blue-900">Evaluation</span>
-              <span className="text-blue-700 ml-2">— Buyer scores and compares proposals</span>
+              <span className="text-blue-700 ml-2">: Buyer scores and compares proposals</span>
             </div>
           </div>
           <div className="flex items-center">
             <div className="w-8 h-8 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-semibold text-sm mr-3">4</div>
             <div className="flex-1 bg-gray-50 rounded-lg px-4 py-3">
               <span className="font-medium text-gray-700">RFQ Phase</span>
-              <span className="text-gray-600 ml-2">— (Sometimes) Final pricing negotiations with finalists</span>
+              <span className="text-gray-600 ml-2">: (Sometimes) Final pricing negotiations with finalists</span>
             </div>
           </div>
           <div className="flex items-center">
             <div className="w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center font-semibold text-sm mr-3">5</div>
             <div className="flex-1 bg-green-50 rounded-lg px-4 py-3">
               <span className="font-medium text-green-900">Award</span>
-              <span className="text-green-700 ml-2">— Contract awarded</span>
+              <span className="text-green-700 ml-2">: Contract awarded</span>
             </div>
           </div>
         </div>

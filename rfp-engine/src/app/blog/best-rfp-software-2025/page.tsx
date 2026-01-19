@@ -378,7 +378,7 @@ export default function BestRfpSoftwarePost() {
       <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Summary</h2>
 
       <p>
-        The RFP software market has split into enterprise solutions (Loopio, Responsive, Qvidian) and more accessible options (RFP Matrix, Proposify, PandaDoc). There&apos;s no universal &quot;best&quot; tool—the right choice depends on your team size, RFP volume, and budget.
+        The RFP software market has split into enterprise solutions (Loopio, Responsive, Qvidian) and more accessible options (RFP Matrix, Proposify, PandaDoc). There&apos;s no universal &quot;best&quot; tool. The right choice depends on your team size, RFP volume, and budget.
       </p>
 
       <p>

@@ -94,7 +94,7 @@ export default function GoNoGoFrameworkPost() {
             </tr>
             <tr>
               <td className="border border-gray-300 px-4 py-2 font-medium">10</td>
-              <td className="border border-gray-300 px-4 py-2">Neutral—not strategic, but not a distraction either</td>
+              <td className="border border-gray-300 px-4 py-2">Neutral: not strategic, but not a distraction either</td>
             </tr>
             <tr className="bg-gray-50">
               <td className="border border-gray-300 px-4 py-2 font-medium">5</td>
@@ -464,7 +464,7 @@ export default function GoNoGoFrameworkPost() {
       </div>
 
       <p>
-        Document the decision and reasoning. A no-go decision has value too—you&apos;ve freed up resources for better opportunities.
+        Document the decision and reasoning. A no-go decision has value too: you&apos;ve freed up resources for better opportunities.
       </p>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 my-6">

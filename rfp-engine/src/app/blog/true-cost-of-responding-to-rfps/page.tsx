@@ -28,7 +28,7 @@ export default function TrueCostRfpsPost() {
       </p>
 
       <p>
-        This is one of the most common—and costly—misconceptions about RFP responses. The true cost extends well beyond logged hours. When you account for hidden expenses, that &quot;free&quot; response might be costing $15,000, $25,000, or more.
+        This is one of the most common, and costly, misconceptions about RFP responses. The true cost extends well beyond logged hours. When you account for hidden expenses, that &quot;free&quot; response might be costing $15,000, $25,000, or more.
       </p>
 
       <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">What RFP Responses Actually Cost</h2>
@@ -98,7 +98,7 @@ export default function TrueCostRfpsPost() {
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 my-6">
         <p className="font-medium text-amber-900 mb-2">What it looks like in practice:</p>
         <p className="text-amber-800 text-sm">
-          A software company pulled their lead architect for 60 hours on an RFP they didn&apos;t win. During that time, two existing customers escalated issues that went unaddressed. One churned—a customer worth $180,000 ARR. The RFP they lost was worth $50,000.
+          A software company pulled their lead architect for 60 hours on an RFP they didn&apos;t win. During that time, two existing customers escalated issues that went unaddressed. One churned, a customer worth $180,000 ARR. The RFP they lost was worth $50,000.
         </p>
       </div>
 
@@ -198,7 +198,7 @@ export default function TrueCostRfpsPost() {
         <div className="border-l-4 border-purple-500 pl-4">
           <p className="font-medium text-gray-900">Build a content library</p>
           <p className="text-sm text-gray-600">
-            Most RFPs ask similar questions. Teams with mature content libraries reuse 60–80% of content across responses, reduce SME involvement in routine questions, and respond faster to time-sensitive opportunities. The key is keeping the library current—outdated content creates more problems than it solves.
+            Most RFPs ask similar questions. Teams with mature content libraries reuse 60–80% of content across responses, reduce SME involvement in routine questions, and respond faster to time-sensitive opportunities. The key is keeping the library current; outdated content creates more problems than it solves.
           </p>
         </div>
 
@@ -254,7 +254,7 @@ export default function TrueCostRfpsPost() {
       </div>
 
       <p>
-        Positive expected value? Pursue it. Negative? Walk away. The challenge is honestly estimating win probability—most teams are overly optimistic. Track historical win rates by opportunity type to calibrate your estimates.
+        Positive expected value? Pursue it. Negative? Walk away. The challenge is honestly estimating win probability. Most teams are overly optimistic. Track historical win rates by opportunity type to calibrate your estimates.
       </p>
 
       <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">What to Remember</h2>
@@ -264,13 +264,13 @@ export default function TrueCostRfpsPost() {
           <p className="text-gray-900">True cost is 2–3× the visible cost when you include opportunity cost and quality impact.</p>
         </div>
         <div className="p-4">
-          <p className="text-gray-900">Selectivity beats volume—fewer, higher-quality responses yield better ROI.</p>
+          <p className="text-gray-900">Selectivity beats volume. Fewer, higher-quality responses yield better ROI.</p>
         </div>
         <div className="p-4">
           <p className="text-gray-900">Automation pays off quickly; AI extraction and drafting can cut costs 30–50%.</p>
         </div>
         <div className="p-4">
-          <p className="text-gray-900">Process discipline matters—templates, timelines, and clear ownership reduce waste.</p>
+          <p className="text-gray-900">Process discipline matters. Templates, timelines, and clear ownership reduce waste.</p>
         </div>
         <div className="p-4">
           <p className="text-gray-900">Track your numbers. You can&apos;t improve what you don&apos;t measure.</p>

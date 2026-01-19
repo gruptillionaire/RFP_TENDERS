@@ -268,7 +268,7 @@ export function GoNoGoTool() {
               href="/signup"
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-center"
             >
-              Try RFP Matrix Free
+              Try RFP Matrix
             </Link>
           </div>
 
