@@ -146,6 +146,9 @@ export async function sendVerificationEmail(params: SendVerificationEmailParams)
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || APP_URL).replace(/\/+$/, "");
   const verificationUrl = `${baseUrl}/verify-email?token=${params.verificationToken}`;
 
+  console.log("[sendVerificationEmail] URL:", verificationUrl);
+  console.log("[sendVerificationEmail] Token length:", params.verificationToken.length);
+
   const template = emailVerificationEmail({
     userName: params.userName || "there",
     verificationUrl,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -19,49 +19,62 @@ function VerifyEmailContent() {
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
 
-  // Verify token if present
-  const verifyToken = useCallback(async () => {
+  // Verify token on mount (only once per token)
+  useEffect(() => {
     if (!token) return;
 
+    // Check if we've already attempted this specific token (survives re-renders)
+    const storageKey = `verify-attempted-${token}`;
+    if (sessionStorage.getItem(storageKey)) {
+      // Already attempted, check if it was successful
+      if (sessionStorage.getItem(`verify-success-${token}`)) {
+        setStatus("success");
+        setMessage("Your email has been verified successfully!");
+        setTimeout(() => router.replace(redirectUrl), 1000);
+      }
+      return;
+    }
+
+    // Mark as attempted before making the request
+    sessionStorage.setItem(storageKey, "true");
     setStatus("verifying");
 
-    try {
-      const res = await fetch("/api/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
+    const verifyToken = async () => {
+      try {
+        const res = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (data.success) {
-        setStatus("success");
-        setMessage(data.alreadyVerified
-          ? "Your email was already verified."
-          : "Your email has been verified successfully!");
+        if (data.success) {
+          sessionStorage.setItem(`verify-success-${token}`, "true");
+          setStatus("success");
+          setMessage(data.alreadyVerified
+            ? "Your email was already verified."
+            : "Your email has been verified successfully!");
 
-        // Update the session to reflect verified status
-        await updateSession();
+          // Update the session to reflect verified status
+          await updateSession();
 
-        // Redirect after a short delay
-        setTimeout(() => {
-          router.push(redirectUrl);
-        }, 2000);
-      } else {
+          // Redirect after a short delay (use replace to prevent back-nav issues)
+          setTimeout(() => {
+            router.replace(redirectUrl);
+          }, 2000);
+        } else {
+          setStatus("error");
+          setMessage(data.error || "Verification failed. Please try again.");
+        }
+      } catch {
         setStatus("error");
-        setMessage(data.error || "Verification failed. Please try again.");
+        setMessage("Something went wrong. Please try again.");
       }
-    } catch {
-      setStatus("error");
-      setMessage("Something went wrong. Please try again.");
-    }
-  }, [token, redirectUrl, router, updateSession]);
+    };
 
-  useEffect(() => {
-    if (token) {
-      verifyToken();
-    }
-  }, [token, verifyToken]);
+    verifyToken();
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleResend = async () => {
     setResending(true);
