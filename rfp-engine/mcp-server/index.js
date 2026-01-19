@@ -20,6 +20,10 @@ const readline = require("readline");
 const API_URL = process.env.RFP_API_URL || "https://rfp-matrix.vercel.app";
 const API_KEY = process.env.RFP_TEST_API_KEY || "";
 
+// Polling configuration
+const POLL_INTERVAL_MS = 3000; // 3 seconds
+const MAX_POLL_TIME_MS = 10 * 60 * 1000; // 10 minutes max
+
 // MCP Protocol implementation
 class MCPServer {
   constructor() {
@@ -194,6 +198,8 @@ class MCPServer {
       url += `?debug=${encodeURIComponent(debug)}`;
     }
 
+    console.error(`[MCP] Calling ${url}`);
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -209,80 +215,155 @@ class MCPServer {
     }
 
     const result = await response.json();
+
+    // Handle async mode - poll for results
+    if (result.mode === "async" && result.jobId) {
+      console.error(`[MCP] Async extraction started, jobId=${result.jobId}`);
+      console.error(`[MCP] Polling for results...`);
+
+      const finalResult = await this.pollForResults(result.jobId);
+      this.lastResult = finalResult;
+      return this.formatExtractionResult(finalResult, fileName);
+    }
+
     this.lastResult = result;
 
-    // Format summary for display
-    if (result.success) {
-      // Handle heuristic debug mode
-      if (result.mode === "heuristic_debug") {
-        return {
-          mode: "heuristic_debug",
-          meta: result.meta,
-          stats: result.stats,
-          majorSections: result.majorSections,
-          sampleCandidates: result.sampleCandidates,
-          _note: "This is heuristic extraction only (no LLM classification). Check sampleCandidates for section numbers.",
-        };
-      }
-
-      // Handle heuristic classified mode
-      if (result.mode === "heuristic_classified") {
-        return {
-          mode: "heuristic_classified",
-          meta: result.meta,
-          stats: result.stats,
-          typeCounts: result.typeCounts,
-          domainCounts: result.domainCounts,
-          attestationCount: result.attestationCount,
-          writtenResponseCount: result.writtenResponseCount,
-          avgConfidenceByType: result.avgConfidenceByType,
-          lowConfidenceCount: result.lowConfidenceCount,
-          samplesByType: result.samplesByType,
-          attestationSamples: result.attestationSamples,
-          lowConfidenceSamples: result.lowConfidenceSamples,
-          _note: "This is heuristic classification (no LLM). Check typeCounts for distribution and samplesByType for examples.",
-        };
-      }
-
-      // Handle heuristic + LLM refinement mode
-      if (result.mode === "heuristic_refined") {
-        return {
-          mode: "heuristic_refined",
-          meta: result.meta,
-          before: result.before,
-          after: result.after,
-          typeCounts: result.typeCounts,
-          attestationCount: result.attestationCount,
-          refinedSamples: result.refinedSamples,
-          _note: result._note,
-        };
-      }
-
-      // Normal extraction response
+    // Format based on mode
+    if (result.mode === "heuristic_debug") {
       return {
-        summary: {
-          fileName: result.meta.fileName,
-          totalRequirements: result.stats.totalRequirements,
-          mandatory: result.stats.mandatory,
-          optional: result.stats.optional,
-          extractionTimeMs: result.meta.extractTimeMs,
-          deadline: result.stats.deadline,
-        },
-        typeCounts: result.typeCounts,
-        sectionGroups: result.sectionGroups,
-        sampleRequirements: result.requirements.slice(0, 5).map((r) => ({
-          section: r.section,
-          sectionGroup: r.sectionGroup,
-          type: r.type,
-          isMandatory: r.isMandatory,
-          textPreview: r.text.substring(0, 150) + (r.text.length > 150 ? "..." : ""),
-        })),
-        // Full requirements available in lastResult
-        _note: `Full results cached. Use get_extraction_summary for details or check lastResult for all ${result.requirements.length} requirements.`,
+        mode: "heuristic_debug",
+        meta: result.meta,
+        stats: result.stats,
+        majorSections: result.majorSections,
+        sampleCandidates: result.sampleCandidates,
+        _note: "This is heuristic extraction only (no LLM classification). Check sampleCandidates for section numbers.",
       };
-    } else {
-      throw new Error(result.error || "Extraction failed");
     }
+
+    if (result.mode === "heuristic_classified") {
+      return {
+        mode: "heuristic_classified",
+        meta: result.meta,
+        stats: result.stats,
+        typeCounts: result.typeCounts,
+        domainCounts: result.domainCounts,
+        attestationCount: result.attestationCount,
+        writtenResponseCount: result.writtenResponseCount,
+        avgConfidenceByType: result.avgConfidenceByType,
+        lowConfidenceCount: result.lowConfidenceCount,
+        samplesByType: result.samplesByType,
+        attestationSamples: result.attestationSamples,
+        lowConfidenceSamples: result.lowConfidenceSamples,
+        _note: "This is heuristic classification (no LLM). Check typeCounts for distribution and samplesByType for examples.",
+      };
+    }
+
+    if (result.mode === "heuristic_refined") {
+      return {
+        mode: "heuristic_refined",
+        meta: result.meta,
+        before: result.before,
+        after: result.after,
+        typeCounts: result.typeCounts,
+        attestationCount: result.attestationCount,
+        refinedSamples: result.refinedSamples,
+        _note: result._note,
+      };
+    }
+
+    // Normal extraction response (shouldn't happen with async, but just in case)
+    return this.formatExtractionResult(result, fileName);
+  }
+
+  async pollForResults(jobId) {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_POLL_TIME_MS) {
+      // Wait before polling
+      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      console.error(`[MCP] Polling... (${elapsed}s elapsed)`);
+
+      try {
+        const statusUrl = `${API_URL}/api/test/extract/status?jobId=${encodeURIComponent(jobId)}`;
+        const response = await fetch(statusUrl, {
+          headers: {
+            Authorization: `Bearer ${API_KEY}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Status check failed (${response.status}): ${errorText}`);
+        }
+
+        const status = await response.json();
+
+        if (status.status === "complete") {
+          console.error(`[MCP] Extraction complete! (${status.elapsedMs}ms)`);
+          return status.result;
+        }
+
+        if (status.status === "failed") {
+          throw new Error(`Extraction failed: ${status.error || "Unknown error"}`);
+        }
+
+        // Still processing, continue polling
+      } catch (error) {
+        // If it's a network error, keep trying
+        if (error.message.includes("fetch")) {
+          console.error(`[MCP] Network error, retrying...`);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error(`Extraction timed out after ${MAX_POLL_TIME_MS / 1000}s`);
+  }
+
+  formatExtractionResult(result, fileName) {
+    if (!result.requirements) {
+      return result; // Return as-is if not a standard extraction result
+    }
+
+    return {
+      summary: {
+        fileName: fileName || result.meta?.fileName,
+        totalRequirements: result.requirements?.length || 0,
+        mandatory: result.stats?.mandatory || result.requirements?.filter(r => r.isMandatory).length || 0,
+        optional: result.stats?.optional || result.requirements?.filter(r => !r.isMandatory).length || 0,
+        deadline: result.deadline || result.stats?.deadline,
+      },
+      typeCounts: result.typeCounts || this.countTypes(result.requirements),
+      sectionGroups: result.sectionGroups || this.countSectionGroups(result.requirements),
+      sampleRequirements: (result.requirements || []).slice(0, 5).map((r) => ({
+        section: r.section,
+        sectionGroup: r.sectionGroup,
+        type: r.type,
+        isMandatory: r.isMandatory,
+        textPreview: r.text.substring(0, 150) + (r.text.length > 150 ? "..." : ""),
+      })),
+      _note: `Full results cached. Use get_extraction_summary for details or check lastResult for all ${result.requirements?.length || 0} requirements.`,
+    };
+  }
+
+  countTypes(requirements) {
+    const counts = {};
+    for (const req of requirements || []) {
+      counts[req.type] = (counts[req.type] || 0) + 1;
+    }
+    return counts;
+  }
+
+  countSectionGroups(requirements) {
+    const counts = {};
+    for (const req of requirements || []) {
+      const group = req.sectionGroup || "No Section Group";
+      counts[group] = (counts[group] || 0) + 1;
+    }
+    return counts;
   }
 
   getExtractionSummary() {
@@ -291,23 +372,30 @@ class MCPServer {
     }
 
     const r = this.lastResult;
-    return {
-      meta: r.meta,
-      stats: r.stats,
-      typeCounts: r.typeCounts,
-      sectionGroups: r.sectionGroups,
-      requirementCount: r.requirements.length,
-      requirements: r.requirements.map((req) => ({
-        section: req.section,
-        sectionGroup: req.sectionGroup,
-        type: req.type,
-        isMandatory: req.isMandatory,
-        text: req.text,
-        wordLimit: req.wordLimit,
-        characterLimit: req.characterLimit,
-        isAttestation: req.isAttestation,
-      })),
-    };
+
+    // Handle async results
+    if (r.requirements) {
+      return {
+        meta: r.meta,
+        stats: r.stats,
+        typeCounts: r.typeCounts || this.countTypes(r.requirements),
+        sectionGroups: r.sectionGroups || this.countSectionGroups(r.requirements),
+        requirementCount: r.requirements.length,
+        requirements: r.requirements.map((req) => ({
+          section: req.section,
+          sectionGroup: req.sectionGroup,
+          type: req.type,
+          isMandatory: req.isMandatory,
+          text: req.text,
+          wordLimit: req.wordLimit,
+          characterLimit: req.characterLimit,
+          isAttestation: req.isAttestation,
+        })),
+      };
+    }
+
+    // Return as-is for debug modes
+    return r;
   }
 }
 

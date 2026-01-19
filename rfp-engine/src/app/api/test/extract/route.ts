@@ -7,26 +7,36 @@
  * Auth: Bearer token in Authorization header must match TEST_API_KEY env var
  *
  * Request: multipart/form-data with 'file' field containing PDF
- * Response: JSON with extraction results and stats
+ * Response: JSON with jobId for polling (async) or immediate results (debug modes)
  *
- * Debug modes:
- * - ?debug=heuristic: Raw heuristic extraction (no classification)
+ * Debug modes (fast, run locally):
+ * - ?debug=heuristic: Raw heuristic extraction (no LLM)
  * - ?debug=classified: Heuristic extraction + classification (no LLM)
  * - ?debug=refined: Heuristic + LLM refinement for low-confidence items
+ *
+ * Normal mode (async via Fly.io):
+ * - Returns { jobId } immediately
+ * - Poll /api/test/extract/status?jobId=xxx for results
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { parsePDF } from "@/lib/parsers/pdf";
-import { extractRequirements, refineLowConfidenceRequirements, ExtractedRequirement } from "@/lib/openai";
+import { refineLowConfidenceRequirements, ExtractedRequirement } from "@/lib/openai";
 import { extractCandidatesHeuristically, extractAndClassifyHeuristically } from "@/lib/parsers/heuristic-extractor";
 import { sanitizeForLLM } from "@/lib/security";
-import { detectDomainContext } from "@/lib/domain-context";
-import { classifyAttestation } from "@/lib/attestation";
+import { EXTRACTION_CONFIG } from "@/lib/constants";
+import { createTestJob } from "@/lib/test-job-store";
 
-export const maxDuration = 300; // 5 minutes
+// Keep short - we return quickly for async mode
+export const maxDuration = 60;
 
 // SECURITY: Maximum file size for test uploads (10MB)
 const MAX_TEST_FILE_SIZE = 10 * 1024 * 1024;
+
+function generateJobId(): string {
+  return `test_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+}
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -36,7 +46,6 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get("Authorization");
     const testApiKey = process.env.TEST_API_KEY;
 
-    // SECURITY: Require TEST_API_KEY to be configured
     if (!testApiKey) {
       console.error("SECURITY: TEST_API_KEY not configured - test endpoint disabled");
       return NextResponse.json(
@@ -52,12 +61,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // SECURITY: Use constant-time comparison to prevent timing attacks
     const providedKey = authHeader.replace("Bearer ", "");
     const keyBuffer = Buffer.from(providedKey);
     const expectedBuffer = Buffer.from(testApiKey);
     if (keyBuffer.length !== expectedBuffer.length ||
-        !require("crypto").timingSafeEqual(keyBuffer, expectedBuffer)) {
+        !crypto.timingSafeEqual(keyBuffer, expectedBuffer)) {
       return NextResponse.json(
         { error: "Invalid API key" },
         { status: 401 }
@@ -75,7 +83,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // SECURITY: Validate file size to prevent DoS
     if (file.size > MAX_TEST_FILE_SIZE) {
       return NextResponse.json(
         { error: `File too large. Maximum size is ${MAX_TEST_FILE_SIZE / 1024 / 1024}MB.` },
@@ -102,25 +109,16 @@ export async function POST(request: NextRequest) {
 
     // Check for debug mode
     const debugMode = request.nextUrl.searchParams.get("debug");
-    console.log(`[test/extract] Debug mode parameter: "${debugMode}"`);
 
-    // Debug mode: return just heuristic extraction results
+    // =========================================================================
+    // DEBUG MODE: HEURISTIC (fast, local)
+    // =========================================================================
     if (debugMode === "heuristic") {
       console.log(`[test/extract] Debug mode: heuristic only`);
       const sanitizedText = sanitizeForLLM(text);
       const heuristicStart = Date.now();
       const heuristicResult = extractCandidatesHeuristically(sanitizedText);
       const heuristicTime = Date.now() - heuristicStart;
-
-      // Debug: Check for X.Y.Z patterns directly in the text
-      const xyzPattern = /\d+\.\d+\.\d+/g;
-      const xyzMatches = sanitizedText.match(xyzPattern) || [];
-
-      // Find first occurrence of "3.1.1" or similar
-      const firstXyzIndex = sanitizedText.search(/\d+\.\d+\.\d+/);
-      const xyzContext = firstXyzIndex >= 0
-        ? sanitizedText.substring(Math.max(0, firstXyzIndex - 20), firstXyzIndex + 50)
-        : "NOT FOUND";
 
       return NextResponse.json({
         success: true,
@@ -139,12 +137,6 @@ export async function POST(request: NextRequest) {
           questionCandidates: heuristicResult.stats.questionCandidates,
           majorSectionsDetected: heuristicResult.stats.majorSectionsDetected,
         },
-        regexDebug: {
-          xyzPatternsFound: xyzMatches.length,
-          sampleXyzMatches: xyzMatches.slice(0, 10),
-          firstXyzContext: xyzContext,
-          textSample: sanitizedText.substring(0, 500),
-        },
         majorSections: Array.from(heuristicResult.majorSections.entries()).map(([k, v]) => ({
           key: k,
           number: v.number,
@@ -158,7 +150,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Debug mode: return heuristic extraction WITH classification (no LLM)
+    // =========================================================================
+    // DEBUG MODE: CLASSIFIED (fast, local)
+    // =========================================================================
     if (debugMode === "classified") {
       console.log(`[test/extract] Debug mode: heuristic + classification (no LLM)`);
       const sanitizedText = sanitizeForLLM(text);
@@ -166,26 +160,19 @@ export async function POST(request: NextRequest) {
       const classifiedResult = extractAndClassifyHeuristically(sanitizedText);
       const classifyTime = Date.now() - classifyStart;
 
-      // Generate type counts
       const typeCounts: Record<string, number> = {};
       const confidenceByType: Record<string, number[]> = {};
       const domainCounts: Record<string, number> = { FEATURE: 0, PROCESS: 0, LEGAL: 0 };
-      let mandatoryCount = 0;
       let attestationCount = 0;
-      let totalTypeConfidence = 0;
 
       for (const req of classifiedResult.requirements) {
         typeCounts[req.type] = (typeCounts[req.type] || 0) + 1;
         if (!confidenceByType[req.type]) confidenceByType[req.type] = [];
         confidenceByType[req.type].push(req.typeConfidence);
-        totalTypeConfidence += req.typeConfidence;
-        if (req.isMandatory) mandatoryCount++;
         if (req.isAttestation) attestationCount++;
-        // Count domain contexts
         domainCounts[req.domainContext] = (domainCounts[req.domainContext] || 0) + 1;
       }
 
-      // Calculate average confidence per type
       const avgConfidenceByType: Record<string, number> = {};
       for (const [type, confidences] of Object.entries(confidenceByType)) {
         avgConfidenceByType[type] = Math.round(
@@ -196,7 +183,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         mode: "heuristic_classified",
-        _version: "2026-01-16-v2", // For debugging deployment
         meta: {
           fileName: file.name,
           fileSize: file.size,
@@ -207,10 +193,8 @@ export async function POST(request: NextRequest) {
         typeCounts,
         domainCounts,
         attestationCount,
-        writtenResponseCount: classifiedResult.requirements.length - attestationCount,
         avgConfidenceByType,
         lowConfidenceCount: classifiedResult.lowConfidenceIds.length,
-        // Sample of requirements by type
         samplesByType: Object.keys(typeCounts).reduce((acc, type) => {
           acc[type] = classifiedResult.requirements
             .filter(r => r.type === type)
@@ -219,185 +203,153 @@ export async function POST(request: NextRequest) {
               section: r.sectionNumber,
               text: r.text.substring(0, 200),
               confidence: r.typeConfidence,
-              pattern: r.typePattern,
               domain: r.domainContext,
               isAttestation: r.isAttestation,
             }));
           return acc;
-        }, {} as Record<string, Array<{ section: string; text: string; confidence: number; pattern?: string; domain: string; isAttestation: boolean }>>),
-        // Sample attestation-eligible requirements
-        attestationSamples: classifiedResult.requirements
-          .filter(r => r.isAttestation)
-          .slice(0, 10)
-          .map(r => ({
-            section: r.sectionNumber,
-            text: r.text.substring(0, 200),
-            type: r.type,
-            domain: r.domainContext,
-          })),
-        // Low confidence samples
-        lowConfidenceSamples: classifiedResult.requirements
-          .filter(r => r.typeConfidence < 70)
-          .slice(0, 10)
-          .map(r => ({
-            section: r.sectionNumber,
-            text: r.text.substring(0, 200),
-            type: r.type,
-            confidence: r.typeConfidence,
-            pattern: r.typePattern,
-            domain: r.domainContext,
-            isAttestation: r.isAttestation,
-          })),
+        }, {} as Record<string, unknown[]>),
       });
     }
 
-    // Debug mode: heuristic extraction + LLM refinement for low-confidence items
+    // =========================================================================
+    // DEBUG MODE: REFINED (uses LLM for low-confidence only)
+    // =========================================================================
     if (debugMode === "refined") {
-      try {
-        console.log(`[test/extract] Debug mode: heuristic + LLM refinement (v2026-01-16b)`);
-        const sanitizedText = sanitizeForLLM(text);
+      console.log(`[test/extract] Debug mode: heuristic + LLM refinement`);
+      const sanitizedText = sanitizeForLLM(text);
 
-        // Step 1: Heuristic classification
-        const classifyStart = Date.now();
-        const classifiedResult = extractAndClassifyHeuristically(sanitizedText);
-        const classifyTime = Date.now() - classifyStart;
+      const classifyStart = Date.now();
+      const classifiedResult = extractAndClassifyHeuristically(sanitizedText);
+      const classifyTime = Date.now() - classifyStart;
 
-        // Step 2: Convert to ExtractedRequirement format
-        const requirements: ExtractedRequirement[] = classifiedResult.requirements.map(req => ({
-          section: req.sectionNumber,
-          sectionGroup: req.sectionGroup,
-          text: req.text,
-          type: req.type,
-          isMandatory: req.isMandatory,
-          domainContext: req.domainContext,
-          wordLimit: null,
-          characterLimit: null,
-          isAttestation: req.isAttestation,
-          typeConfidence: req.typeConfidence,
-          mandatoryConfidence: req.mandatoryConfidence,
-        }));
+      const requirements: ExtractedRequirement[] = classifiedResult.requirements.map(req => ({
+        section: req.sectionNumber,
+        sectionGroup: req.sectionGroup,
+        text: req.text,
+        type: req.type,
+        isMandatory: req.isMandatory,
+        domainContext: req.domainContext,
+        wordLimit: null,
+        characterLimit: null,
+        isAttestation: req.isAttestation,
+        typeConfidence: req.typeConfidence,
+        mandatoryConfidence: req.mandatoryConfidence,
+      }));
 
-        // Step 3: Identify low-confidence items for refinement
-        const lowConfidenceReqs = requirements.filter(
-          r => (r.typeConfidence && r.typeConfidence < 70) ||
-               (r.mandatoryConfidence && r.mandatoryConfidence < 70)
-        );
+      const lowConfidenceReqs = requirements.filter(
+        r => (r.typeConfidence && r.typeConfidence < 70) ||
+             (r.mandatoryConfidence && r.mandatoryConfidence < 70)
+      );
 
-        console.log(`[test/extract] Found ${lowConfidenceReqs.length} low-confidence items for refinement`);
+      const refineStart = Date.now();
+      const refinedReqs = await refineLowConfidenceRequirements(lowConfidenceReqs);
+      const refineTime = Date.now() - refineStart;
 
-        // Step 4: Refine low-confidence items with LLM
-        const refineStart = Date.now();
-        const refinedReqs = await refineLowConfidenceRequirements(lowConfidenceReqs);
-        const refineTime = Date.now() - refineStart;
-
-      // Step 5: Merge refined items back into full list
       const refinedMap = new Map(refinedReqs.map(r => [r.section, r]));
       const finalRequirements = requirements.map(req =>
         refinedMap.has(req.section) ? refinedMap.get(req.section)! : req
       );
 
-      // Calculate stats after refinement
       const typeCounts: Record<string, number> = {};
-      let mandatoryCount = 0;
       let attestationCount = 0;
-      let highConfidenceCount = 0;
 
       for (const req of finalRequirements) {
         typeCounts[req.type] = (typeCounts[req.type] || 0) + 1;
-        if (req.isMandatory) mandatoryCount++;
         if (req.isAttestation) attestationCount++;
-        if ((req.typeConfidence || 0) >= 70) highConfidenceCount++;
       }
 
       return NextResponse.json({
         success: true,
         mode: "heuristic_refined",
-        _version: "2026-01-16b",
         meta: {
           fileName: file.name,
           fileSize: file.size,
           textLength: text.length,
           classifyTimeMs: classifyTime,
           refineTimeMs: refineTime,
-          totalTimeMs: classifyTime + refineTime,
         },
         before: {
           total: classifiedResult.requirements.length,
           lowConfidenceCount: classifiedResult.lowConfidenceIds.length,
-          avgTypeConfidence: classifiedResult.stats.avgTypeConfidence,
         },
         after: {
           total: finalRequirements.length,
-          highConfidenceCount,
-          lowConfidenceCount: finalRequirements.length - highConfidenceCount,
           refinedCount: refinedReqs.length,
         },
         typeCounts,
         attestationCount,
-        // Sample of refined requirements
         refinedSamples: refinedReqs.slice(0, 10).map(r => ({
           section: r.section,
           text: r.text.substring(0, 200),
           type: r.type,
-          typeConfidence: r.typeConfidence,
-          isMandatory: r.isMandatory,
         })),
-        _note: `Heuristic extraction + LLM refinement for ${refinedReqs.length} low-confidence items.`,
       });
-      } catch (refineError) {
-        console.error(`[test/extract] Refinement error:`, refineError);
-        return NextResponse.json({
-          success: false,
-          mode: "heuristic_refined",
-          error: refineError instanceof Error ? refineError.message : "Refinement failed",
-        }, { status: 500 });
+    }
+
+    // =========================================================================
+    // NORMAL MODE: ASYNC VIA FLY.IO
+    // =========================================================================
+    console.log(`[test/extract] Normal mode: async extraction via Fly.io`);
+
+    // Generate job ID and create job in memory
+    const jobId = generateJobId();
+    createTestJob(jobId);
+
+    // Build webhook URL
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
+    const webhookUrl = `${baseUrl}/api/test/extract/webhook`;
+
+    // Call Fly.io worker async
+    const workerUrl = `${EXTRACTION_CONFIG.WORKER_URL}/extract-async`;
+    console.log(`[test/extract] Calling worker at ${workerUrl}, jobId=${jobId}`);
+
+    const sanitizedText = sanitizeForLLM(text);
+
+    try {
+      const workerResponse = await fetch(workerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Worker-Key": process.env.EXTRACTION_WORKER_KEY || "",
+        },
+        body: JSON.stringify({
+          documentText: sanitizedText,
+          jobId,
+          webhookUrl,
+          model: EXTRACTION_CONFIG.EXTRACTION_MODEL,
+        }),
+      });
+
+      if (!workerResponse.ok) {
+        const errorText = await workerResponse.text();
+        throw new Error(`Worker returned ${workerResponse.status}: ${errorText}`);
       }
+
+      const workerResult = await workerResponse.json();
+      console.log(`[test/extract] Worker accepted job: ${workerResult.accepted}`);
+
+      return NextResponse.json({
+        success: true,
+        mode: "async",
+        jobId,
+        message: "Extraction started. Poll /api/test/extract/status?jobId=... for results.",
+        meta: {
+          fileName: file.name,
+          fileSize: file.size,
+          textLength: sanitizedText.length,
+          parseTimeMs: parseTime,
+        },
+      });
+    } catch (workerError) {
+      console.error("[test/extract] Worker call failed:", workerError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: workerError instanceof Error ? workerError.message : "Worker call failed",
+        },
+        { status: 500 }
+      );
     }
-
-    // Extract requirements
-    const extractStart = Date.now();
-    const result = await extractRequirements(text);
-    const extractTime = Date.now() - extractStart;
-
-    console.log(`[test/extract] Extracted ${result.requirements.length} requirements in ${extractTime}ms`);
-
-    // Generate stats
-    const typeCounts: Record<string, number> = {};
-    const sectionGroups: Record<string, number> = {};
-    let mandatoryCount = 0;
-
-    for (const req of result.requirements) {
-      typeCounts[req.type] = (typeCounts[req.type] || 0) + 1;
-      const group = req.sectionGroup || "No Section Group";
-      sectionGroups[group] = (sectionGroups[group] || 0) + 1;
-      if (req.isMandatory) mandatoryCount++;
-    }
-
-    const totalTime = Date.now() - startTime;
-
-    return NextResponse.json({
-      success: true,
-      _debugModeReceived: debugMode, // For debugging deployment issues
-      meta: {
-        fileName: file.name,
-        fileSize: file.size,
-        textLength: text.length,
-        parseTimeMs: parseTime,
-        extractTimeMs: extractTime,
-        totalTimeMs: totalTime,
-      },
-      stats: {
-        totalRequirements: result.requirements.length,
-        mandatory: mandatoryCount,
-        optional: result.requirements.length - mandatoryCount,
-        deadline: result.deadline,
-        deadlineText: result.deadlineText,
-      },
-      typeCounts,
-      sectionGroups,
-      // Include all requirements
-      requirements: result.requirements,
-    });
   } catch (error) {
     console.error("[test/extract] Error:", error);
     return NextResponse.json(
