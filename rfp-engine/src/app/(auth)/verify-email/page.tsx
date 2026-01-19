@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { data: session, update: updateSession } = useSession();
+  const { data: session } = useSession();
   const token = searchParams.get("token");
   const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
@@ -30,7 +29,7 @@ function VerifyEmailContent() {
       if (sessionStorage.getItem(`verify-success-${token}`)) {
         setStatus("success");
         setMessage("Your email has been verified successfully!");
-        setTimeout(() => router.replace(redirectUrl), 1000);
+        setTimeout(() => { window.location.href = redirectUrl; }, 1000);
       }
       return;
     }
@@ -56,12 +55,9 @@ function VerifyEmailContent() {
             ? "Your email was already verified."
             : "Your email has been verified successfully!");
 
-          // Update the session to reflect verified status
-          await updateSession();
-
-          // Redirect after a short delay (use replace to prevent back-nav issues)
+          // Hard redirect to force fresh session fetch (router.replace uses cached data)
           setTimeout(() => {
-            router.replace(redirectUrl);
+            window.location.href = redirectUrl;
           }, 2000);
         } else {
           setStatus("error");
