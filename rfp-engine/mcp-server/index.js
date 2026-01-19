@@ -2,27 +2,27 @@
 /**
  * RFP Extraction MCP Server
  *
- * Provides tools to test PDF extraction against the deployed app.
+ * Provides tools to test PDF extraction.
  *
  * Tools:
  * - extract_pdf: Upload a PDF and get extraction results
  *
  * Configuration required:
- * - RFP_API_URL: Base URL of the deployed app (e.g., https://rfp-matrix.vercel.app)
- * - RFP_TEST_API_KEY: The TEST_API_KEY configured on the server
+ * - RFP_API_URL: Vercel app URL (for debug modes only)
+ * - RFP_WORKER_URL: Fly.io worker URL (for LLM extraction)
+ * - RFP_TEST_API_KEY: Test API key for Vercel
+ * - RFP_WORKER_KEY: Worker key for Fly.io
  */
 
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 
-// Configuration from environment
+// Configuration
 const API_URL = process.env.RFP_API_URL || "https://rfp-matrix.vercel.app";
+const WORKER_URL = process.env.RFP_WORKER_URL || "https://extraction-worker.fly.dev";
 const API_KEY = process.env.RFP_TEST_API_KEY || "";
-
-// Polling configuration
-const POLL_INTERVAL_MS = 3000; // 3 seconds
-const MAX_POLL_TIME_MS = 10 * 60 * 1000; // 10 minutes max
+const WORKER_KEY = process.env.RFP_WORKER_KEY || "";
 
 // MCP Protocol implementation
 class MCPServer {
@@ -31,7 +31,7 @@ class MCPServer {
       extract_pdf: {
         name: "extract_pdf",
         description:
-          "Extract requirements from a PDF file using the RFP extraction system. Returns statistics, type counts, section groups, and all extracted requirements. Use debug='heuristic' to test heuristic extraction only.",
+          "Extract requirements from a PDF file. Debug modes (heuristic, classified) run fast via Vercel. Normal extraction calls Fly.io directly.",
         inputSchema: {
           type: "object",
           properties: {
@@ -42,7 +42,7 @@ class MCPServer {
             debug: {
               type: "string",
               enum: ["heuristic", "classified", "refined"],
-              description: "Debug mode: 'heuristic' returns only heuristic extraction results without LLM classification. 'classified' returns full heuristic classification with type distribution and confidence scores. 'refined' runs heuristic extraction + LLM refinement for low-confidence items.",
+              description: "Debug mode: 'heuristic' or 'classified' for fast local extraction (no LLM).",
             },
           },
           required: ["file_path"],
@@ -50,8 +50,7 @@ class MCPServer {
       },
       get_extraction_summary: {
         name: "get_extraction_summary",
-        description:
-          "Get a summary of the last extraction results (if cached). Useful for reviewing results without re-extracting.",
+        description: "Get full details of the last extraction results.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -72,13 +71,8 @@ class MCPServer {
           id,
           result: {
             protocolVersion: "2024-11-05",
-            capabilities: {
-              tools: {},
-            },
-            serverInfo: {
-              name: "rfp-extraction",
-              version: "1.0.0",
-            },
+            capabilities: { tools: {} },
+            serverInfo: { name: "rfp-extraction", version: "2.0.0" },
           },
         };
 
@@ -86,9 +80,7 @@ class MCPServer {
         return {
           jsonrpc: "2.0",
           id,
-          result: {
-            tools: Object.values(this.tools),
-          },
+          result: { tools: Object.values(this.tools) },
         };
 
       case "tools/call":
@@ -98,10 +90,7 @@ class MCPServer {
         return {
           jsonrpc: "2.0",
           id,
-          error: {
-            code: -32601,
-            message: `Method not found: ${method}`,
-          },
+          error: { code: -32601, message: `Method not found: ${method}` },
         };
     }
   }
@@ -116,19 +105,14 @@ class MCPServer {
         case "extract_pdf":
           result = await this.extractPdf(args.file_path, args.debug);
           break;
-
         case "get_extraction_summary":
           result = this.getExtractionSummary();
           break;
-
         default:
           return {
             jsonrpc: "2.0",
             id,
-            error: {
-              code: -32602,
-              message: `Unknown tool: ${name}`,
-            },
+            error: { code: -32602, message: `Unknown tool: ${name}` },
           };
       }
 
@@ -136,34 +120,23 @@ class MCPServer {
         jsonrpc: "2.0",
         id,
         result: {
-          content: [
-            {
-              type: "text",
-              text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-            },
-          ],
+          content: [{
+            type: "text",
+            text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+          }],
         },
       };
     } catch (error) {
       return {
         jsonrpc: "2.0",
         id,
-        error: {
-          code: -32000,
-          message: error.message,
-        },
+        error: { code: -32000, message: error.message },
       };
     }
   }
 
   async extractPdf(filePath, debug = null) {
-    if (!API_KEY) {
-      throw new Error(
-        "RFP_TEST_API_KEY environment variable not set. Add it to your MCP config."
-      );
-    }
-
-    // Resolve path
+    // Resolve and validate file
     const resolvedPath = path.isAbsolute(filePath)
       ? filePath
       : path.resolve(process.cwd(), filePath);
@@ -176,29 +149,36 @@ class MCPServer {
       throw new Error("Only PDF files are supported");
     }
 
-    // Read file
-    const fileBuffer = fs.readFileSync(resolvedPath);
     const fileName = path.basename(resolvedPath);
 
-    // Create form data
+    // Debug modes go through Vercel (fast, no LLM)
+    if (debug) {
+      return await this.extractViaVercel(resolvedPath, fileName, debug);
+    }
+
+    // Normal extraction goes directly to Fly.io
+    return await this.extractViaFlyio(resolvedPath, fileName);
+  }
+
+  async extractViaVercel(filePath, fileName, debug) {
+    if (!API_KEY) {
+      throw new Error("RFP_TEST_API_KEY not set");
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
     const boundary = "----MCPFormBoundary" + Math.random().toString(36).slice(2);
     const body = Buffer.concat([
       Buffer.from(
         `--${boundary}\r\n` +
-          `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-          `Content-Type: application/pdf\r\n\r\n`
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+        `Content-Type: application/pdf\r\n\r\n`
       ),
       fileBuffer,
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
 
-    // Make request
-    let url = `${API_URL}/api/test/extract`;
-    if (debug) {
-      url += `?debug=${encodeURIComponent(debug)}`;
-    }
-
-    console.error(`[MCP] Calling ${url}`);
+    const url = `${API_URL}/api/test/extract?debug=${encodeURIComponent(debug)}`;
+    console.error(`[MCP] Debug mode: ${debug} via Vercel`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -211,147 +191,108 @@ class MCPServer {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`API request failed (${response.status}): ${errorText}`);
+      throw new Error(`Vercel error (${response.status}): ${errorText}`);
     }
 
     const result = await response.json();
+    this.lastResult = result;
+    return result;
+  }
 
-    // Handle async mode - poll for results
-    if (result.mode === "async" && result.jobId) {
-      console.error(`[MCP] Async extraction started, jobId=${result.jobId}`);
-      console.error(`[MCP] Polling for results...`);
-
-      const finalResult = await this.pollForResults(result.jobId);
-      this.lastResult = finalResult;
-      return this.formatExtractionResult(finalResult, fileName);
+  async extractViaFlyio(filePath, fileName) {
+    if (!WORKER_KEY) {
+      throw new Error("RFP_WORKER_KEY not set. Add it to your MCP config.");
     }
+
+    // First, parse PDF via Vercel (quick operation)
+    const documentText = await this.parsePdfViaVercel(filePath, fileName);
+
+    console.error(`[MCP] Calling Fly.io worker directly...`);
+    console.error(`[MCP] Document: ${documentText.length} chars`);
+
+    const response = await fetch(`${WORKER_URL}/extract`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Worker-Key": WORKER_KEY,
+      },
+      body: JSON.stringify({
+        documentText,
+        model: "gpt-4o-mini",
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Fly.io error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.error(`[MCP] Extracted ${result.requirements?.length || 0} requirements`);
 
     this.lastResult = result;
 
-    // Format based on mode
-    if (result.mode === "heuristic_debug") {
-      return {
-        mode: "heuristic_debug",
-        meta: result.meta,
-        stats: result.stats,
-        majorSections: result.majorSections,
-        sampleCandidates: result.sampleCandidates,
-        _note: "This is heuristic extraction only (no LLM classification). Check sampleCandidates for section numbers.",
-      };
-    }
-
-    if (result.mode === "heuristic_classified") {
-      return {
-        mode: "heuristic_classified",
-        meta: result.meta,
-        stats: result.stats,
-        typeCounts: result.typeCounts,
-        domainCounts: result.domainCounts,
-        attestationCount: result.attestationCount,
-        writtenResponseCount: result.writtenResponseCount,
-        avgConfidenceByType: result.avgConfidenceByType,
-        lowConfidenceCount: result.lowConfidenceCount,
-        samplesByType: result.samplesByType,
-        attestationSamples: result.attestationSamples,
-        lowConfidenceSamples: result.lowConfidenceSamples,
-        _note: "This is heuristic classification (no LLM). Check typeCounts for distribution and samplesByType for examples.",
-      };
-    }
-
-    if (result.mode === "heuristic_refined") {
-      return {
-        mode: "heuristic_refined",
-        meta: result.meta,
-        before: result.before,
-        after: result.after,
-        typeCounts: result.typeCounts,
-        attestationCount: result.attestationCount,
-        refinedSamples: result.refinedSamples,
-        _note: result._note,
-      };
-    }
-
-    // Normal extraction response (shouldn't happen with async, but just in case)
-    return this.formatExtractionResult(result, fileName);
-  }
-
-  async pollForResults(jobId) {
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < MAX_POLL_TIME_MS) {
-      // Wait before polling
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-
-      const elapsed = Math.round((Date.now() - startTime) / 1000);
-      console.error(`[MCP] Polling... (${elapsed}s elapsed)`);
-
-      try {
-        const statusUrl = `${API_URL}/api/test/extract/status?jobId=${encodeURIComponent(jobId)}`;
-        const response = await fetch(statusUrl, {
-          headers: {
-            Authorization: `Bearer ${API_KEY}`,
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Status check failed (${response.status}): ${errorText}`);
-        }
-
-        const status = await response.json();
-
-        if (status.status === "complete") {
-          console.error(`[MCP] Extraction complete! (${status.elapsedMs}ms)`);
-          return status.result;
-        }
-
-        if (status.status === "failed") {
-          throw new Error(`Extraction failed: ${status.error || "Unknown error"}`);
-        }
-
-        // Still processing, continue polling
-      } catch (error) {
-        // If it's a network error, keep trying
-        if (error.message.includes("fetch")) {
-          console.error(`[MCP] Network error, retrying...`);
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw new Error(`Extraction timed out after ${MAX_POLL_TIME_MS / 1000}s`);
-  }
-
-  formatExtractionResult(result, fileName) {
-    if (!result.requirements) {
-      return result; // Return as-is if not a standard extraction result
-    }
-
     return {
       summary: {
-        fileName: fileName || result.meta?.fileName,
+        fileName,
         totalRequirements: result.requirements?.length || 0,
-        mandatory: result.stats?.mandatory || result.requirements?.filter(r => r.isMandatory).length || 0,
-        optional: result.stats?.optional || result.requirements?.filter(r => !r.isMandatory).length || 0,
-        deadline: result.deadline || result.stats?.deadline,
+        mandatory: result.requirements?.filter(r => r.isMandatory).length || 0,
+        optional: result.requirements?.filter(r => !r.isMandatory).length || 0,
+        deadline: result.deadline,
       },
-      typeCounts: result.typeCounts || this.countTypes(result.requirements),
-      sectionGroups: result.sectionGroups || this.countSectionGroups(result.requirements),
-      sampleRequirements: (result.requirements || []).slice(0, 5).map((r) => ({
+      typeCounts: this.countTypes(result.requirements || []),
+      sectionGroups: this.countSectionGroups(result.requirements || []),
+      sampleRequirements: (result.requirements || []).slice(0, 5).map(r => ({
         section: r.section,
-        sectionGroup: r.sectionGroup,
         type: r.type,
-        isMandatory: r.isMandatory,
-        textPreview: r.text.substring(0, 150) + (r.text.length > 150 ? "..." : ""),
+        textPreview: r.text?.substring(0, 150) + (r.text?.length > 150 ? "..." : ""),
       })),
-      _note: `Full results cached. Use get_extraction_summary for details or check lastResult for all ${result.requirements?.length || 0} requirements.`,
+      _note: `Use get_extraction_summary for all ${result.requirements?.length || 0} requirements.`,
     };
+  }
+
+  async parsePdfViaVercel(filePath, fileName) {
+    if (!API_KEY) {
+      throw new Error("RFP_TEST_API_KEY not set");
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
+    const boundary = "----MCPFormBoundary" + Math.random().toString(36).slice(2);
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+        `Content-Type: application/pdf\r\n\r\n`
+      ),
+      fileBuffer,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+
+    const url = `${API_URL}/api/test/parse`;
+    console.error(`[MCP] Parsing PDF via Vercel...`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`PDF parse error (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.error(`[MCP] Parsed ${result.textLength} chars from ${result.fileName}`);
+    return result.text;
   }
 
   countTypes(requirements) {
     const counts = {};
-    for (const req of requirements || []) {
+    for (const req of requirements) {
       counts[req.type] = (counts[req.type] || 0) + 1;
     }
     return counts;
@@ -359,7 +300,7 @@ class MCPServer {
 
   countSectionGroups(requirements) {
     const counts = {};
-    for (const req of requirements || []) {
+    for (const req of requirements) {
       const group = req.sectionGroup || "No Section Group";
       counts[group] = (counts[group] || 0) + 1;
     }
@@ -373,33 +314,25 @@ class MCPServer {
 
     const r = this.lastResult;
 
-    // Handle async results
     if (r.requirements) {
       return {
-        meta: r.meta,
-        stats: r.stats,
-        typeCounts: r.typeCounts || this.countTypes(r.requirements),
-        sectionGroups: r.sectionGroups || this.countSectionGroups(r.requirements),
         requirementCount: r.requirements.length,
-        requirements: r.requirements.map((req) => ({
+        requirements: r.requirements.map(req => ({
           section: req.section,
           sectionGroup: req.sectionGroup,
           type: req.type,
           isMandatory: req.isMandatory,
           text: req.text,
-          wordLimit: req.wordLimit,
-          characterLimit: req.characterLimit,
           isAttestation: req.isAttestation,
         })),
       };
     }
 
-    // Return as-is for debug modes
     return r;
   }
 }
 
-// Main: Run as stdio server
+// Main
 async function main() {
   const server = new MCPServer();
 
@@ -415,22 +348,16 @@ async function main() {
       const response = await server.handleRequest(request);
       console.log(JSON.stringify(response));
     } catch (error) {
-      console.log(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          error: {
-            code: -32700,
-            message: `Parse error: ${error.message}`,
-          },
-        })
-      );
+      console.log(JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32700, message: `Parse error: ${error.message}` },
+      }));
     }
   });
 
-  // Log to stderr for debugging (doesn't interfere with protocol)
-  console.error("[RFP MCP Server] Started");
-  console.error(`[RFP MCP Server] API URL: ${API_URL}`);
-  console.error(`[RFP MCP Server] API Key: ${API_KEY ? "configured" : "NOT SET"}`);
+  console.error("[RFP MCP Server] Started v2.0.0");
+  console.error(`[RFP MCP Server] Vercel: ${API_URL}`);
+  console.error(`[RFP MCP Server] Fly.io: ${WORKER_URL}`);
 }
 
 main();
