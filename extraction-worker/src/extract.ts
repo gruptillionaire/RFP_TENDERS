@@ -1355,6 +1355,15 @@ function detectSectionFromText(text: string): string | null {
   const alphaXYMatch = trimmed.match(/^([A-Z]\.\d+)\b/i);
   if (alphaXYMatch) return alphaXYMatch[1].toUpperCase();
 
+  // Pattern 5: Roman.X.Y format (e.g., "IV.1.2", "II.3")
+  const romanMatch = trimmed.match(/^((?:M{0,3})(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{1,3}))\.(\d+)(?:\.(\d+))?\b/i);
+  if (romanMatch) {
+    const roman = romanMatch[1].toUpperCase();
+    const minor = romanMatch[2];
+    const tertiary = romanMatch[3];
+    return tertiary ? `${roman}.${minor}.${tertiary}` : `${roman}.${minor}`;
+  }
+
   return null;
 }
 
