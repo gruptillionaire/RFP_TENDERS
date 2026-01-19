@@ -112,6 +112,12 @@ Each requirement is [startLine, endLine, "section"] where:
 
 EXAMPLE: {"d":"2025-02-14T17:00:00","dt":"5pm Friday 14 February","r":[[12,12,"1.0"],[45,48,"3.1.2"],[52,52,"3.1.3"]]}
 
+COMPLETENESS IS CRITICAL:
+- Extract EVERY numbered item you find - do not skip any
+- If you see X.Y.1 and X.Y.3 but not X.Y.2, search for and include X.Y.2
+- Scan the ENTIRE document from start to finish
+- Requirements may use different numbering schemes in different sections
+
 SECTION FORMAT EXAMPLES:
 - Numeric: 3.1.2, 3.1, 3 (stop at 3.1.3, 3.2, or 4)
 - Alpha-numeric: A.1.2, A.1, A (stop at A.1.3, A.2, or B)
@@ -134,13 +140,13 @@ RULES:
 
 CRITICAL - LINE RANGE BOUNDARIES:
 - endLine MUST be the LAST line of the requirement text itself
-- STOP the line range when you encounter:
+- STOP the line range IMMEDIATELY when you encounter:
   * A new section number (e.g., "5.0", "5.1", "A.2", "3.1.4")
-  * Page numbers or headers (e.g., "Page 29 of 38", "Request for Proposal")
+  * Page numbers (e.g., "29 of 38", "Page 29")
+  * Document headers (e.g., "Request for Proposal")
   * Administrative sections (Timeline, Contact, Evaluation Criteria, Instructions)
-  * A blank line followed by unrelated content
-- Most requirements are 1-5 lines. If a range spans 10+ lines, verify it's actually one requirement
-- NEVER include RFP meta-content (deadlines, contact info, submission instructions) in requirement ranges
+- Most requirements are 1-5 lines. If a range spans 10+ lines, it's likely wrong - shorten it
+- NEVER include RFP meta-content (deadlines, contact info, page numbers) in requirement ranges
 
 WHAT TO EXTRACT:
 - Extract individual questions/requirements (formats vary: X.Y.Z, X.Y, A.1, IV.2, etc.)
@@ -898,41 +904,24 @@ function splitConcatenatedRequirementsPostProcess(
  * These patterns should trigger trimming of the requirement text.
  */
 const CONTAMINATION_BOUNDARY_PATTERNS: RegExp[] = [
-  // Page numbers and document titles
-  /\d+\s+of\s+\d+\s+Request\s+for\s+Proposal/i,
-  /Page\s+\d+\s+of\s+\d+/i,
-  /\n\s*\d+\s+of\s+\d+\s*$/,  // Just "29 of 38" at end of text
-  /\n\s*\d+\s+of\s+\d+\s*\n/,  // "29 of 38" on its own line
-  /Request\s+for\s+Proposal:/i,
+  // Page numbers - general patterns (N of M format)
+  /\bPage\s+\d+\s+of\s+\d+\b/i,
+  /\b\d+\s+of\s+\d+\s*$/,  // "29 of 38" at end of text
+  /\b\d+\s+of\s+\d+\b(?=\s+\d+\.)/,  // Page number followed by section number
 
-  // New major sections (X.0 format) - e.g., "3.0 Direct Query Questions"
-  /\n\s*\d+\.0\s+[A-Z]/,
+  // Document title patterns (general)
+  /Request\s+for\s+Proposal/i,
+  /Request\s+for\s+Quotation/i,
+  /Request\s+for\s+Information/i,
 
-  // X.Y subsection headers with title text (multiple title-case words)
-  // e.g., "3.3 Authoring, Editing, Personalization, Delivery, and Publication"
-  // Non-greedy pattern: X.Y followed by 1-6 capitalized words, stopping at newline
-  /\n\s*\d+\.\d+\s+[A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){1,6}\s*(?:\n|$)/,
-
-  // X.Y subsection headers at END of text (no newline prefix needed)
-  // e.g., "...maintenance of the solutions. 4.4 Application Hosting and Configuration"
-  /\s+\d+\.\d+\s+[A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){1,8}\s*$/,
-
-  // X.Y subsection headers (shorter titles) - e.g., "3.3 System Security"
-  /\n\s*\d+\.\d+\s+[A-Z][a-z]+\s+[A-Z][a-z]+\s*(?:\n|$)/,
-
-  // Administrative section headers
+  // Administrative section keywords (general)
   /\n\s*\d+\.\d+\s+(Timeline|Contact|Evaluation|Instructions|Submission|Response\s+Format)/i,
 
-  // Timeline tables
-  /\n\s*(Event|Date|Release|Questions\s+due|Deadline)\s+(Date|and\s+Time)/i,
+  // Contact information blocks (general)
+  /\n\s*(Contact|Point\s+of\s+Contact)\s*:/i,
 
-  // Contact information blocks
-  /\n\s*(Contact|Point\s+of\s+Contact)\s*\n/i,
-  /\n\s*[A-Z][a-z]+\s+[A-Z][a-z]+\s*\n\s*(Chief|Director|Manager|Officer)/i,
-
-  // Email/phone patterns in isolation
+  // Email patterns in isolation (indicates meta content)
   /\n\s*\S+@\S+\.\S+\s*\n/,
-  /\n\s*O:\s*\d{3}[-.]\d{3,4}/,
 ];
 
 /**
@@ -948,25 +937,38 @@ function trimContaminatedRequirements(requirements: ExtractedRequirement[]): voi
 
     let trimmedText = req.text;
     let wasTrimmed = false;
+    let trimReason = '';
 
-    // Check each boundary pattern
-    for (const pattern of CONTAMINATION_BOUNDARY_PATTERNS) {
-      const match = pattern.exec(trimmedText);
-      if (match && match.index > 50) { // Must have some content before the boundary
-        // Trim at the boundary
-        const beforeBoundary = trimmedText.substring(0, match.index).trim();
+    // FIRST: Check for section-based contamination (most reliable)
+    // If this requirement's text contains a DIFFERENT section number, trim there
+    const sectionTrimResult = trimAtNextSection(trimmedText, req.section);
+    if (sectionTrimResult.trimmed) {
+      trimmedText = sectionTrimResult.text;
+      wasTrimmed = true;
+      trimReason = `next section ${sectionTrimResult.foundSection}`;
+    }
 
-        // Only trim if we still have meaningful content
-        if (beforeBoundary.length >= MIN_BOUNDARY_CONTENT_LENGTH) {
-          trimmedText = beforeBoundary;
-          wasTrimmed = true;
-          break; // Use first (earliest) match
+    // SECOND: Check pattern-based boundaries (page numbers, headers, etc.)
+    if (!wasTrimmed) {
+      for (const pattern of CONTAMINATION_BOUNDARY_PATTERNS) {
+        const match = pattern.exec(trimmedText);
+        if (match && match.index > 50) { // Must have some content before the boundary
+          // Trim at the boundary
+          const beforeBoundary = trimmedText.substring(0, match.index).trim();
+
+          // Only trim if we still have meaningful content
+          if (beforeBoundary.length >= MIN_BOUNDARY_CONTENT_LENGTH) {
+            trimmedText = beforeBoundary;
+            wasTrimmed = true;
+            trimReason = 'boundary pattern';
+            break; // Use first (earliest) match
+          }
         }
       }
     }
 
     if (wasTrimmed) {
-      console.log(`[trimContaminatedRequirements] Trimmed requirement ${req.section} from ${req.text.length} to ${trimmedText.length} chars`);
+      console.log(`[trimContaminatedRequirements] Trimmed ${req.section} (${trimReason}): ${req.text.length} -> ${trimmedText.length} chars`);
       req.text = trimmedText;
       trimCount++;
     }
@@ -975,6 +977,100 @@ function trimContaminatedRequirements(requirements: ExtractedRequirement[]): voi
   if (trimCount > 0) {
     console.log(`[trimContaminatedRequirements] Trimmed ${trimCount} contaminated requirements`);
   }
+}
+
+/**
+ * Detect if text contains a section number that comes AFTER the current section.
+ * If found, trim the text at that point.
+ *
+ * Example: If current section is "4.6.10" and text contains "5.0 Overview",
+ * this returns the text trimmed before "5.0".
+ */
+function trimAtNextSection(
+  text: string,
+  currentSection: string | null
+): { trimmed: boolean; text: string; foundSection?: string } {
+  if (!currentSection) {
+    return { trimmed: false, text };
+  }
+
+  // Parse current section into comparable parts
+  const currentParts = parseSection(currentSection);
+  if (!currentParts) {
+    return { trimmed: false, text };
+  }
+
+  // Find all section-like patterns in the text
+  // Match X.Y.Z, X.Y, or X.0 patterns (but not at the very start - that's the section itself)
+  const sectionPattern = /(?:^|\s)(\d+)\.(\d+)(?:\.(\d+))?(?=\s|$|[.,:;])/g;
+
+  let earliestMatch: { index: number; section: string } | null = null;
+  let match;
+
+  while ((match = sectionPattern.exec(text)) !== null) {
+    // Skip if this is at the very beginning (likely the section number itself)
+    if (match.index < 5) continue;
+
+    const foundMajor = parseInt(match[1], 10);
+    const foundMinor = parseInt(match[2], 10);
+    const foundTertiary = match[3] ? parseInt(match[3], 10) : null;
+
+    // Check if this section comes AFTER the current section
+    const isAfter = isSectionAfter(currentParts, { major: foundMajor, minor: foundMinor, tertiary: foundTertiary });
+
+    if (isAfter) {
+      const foundSection = foundTertiary !== null
+        ? `${foundMajor}.${foundMinor}.${foundTertiary}`
+        : `${foundMajor}.${foundMinor}`;
+
+      if (!earliestMatch || match.index < earliestMatch.index) {
+        earliestMatch = { index: match.index, section: foundSection };
+      }
+    }
+  }
+
+  if (earliestMatch && earliestMatch.index > MIN_BOUNDARY_CONTENT_LENGTH) {
+    const trimmedText = text.substring(0, earliestMatch.index).trim();
+    return { trimmed: true, text: trimmedText, foundSection: earliestMatch.section };
+  }
+
+  return { trimmed: false, text };
+}
+
+interface SectionParts {
+  major: number;
+  minor: number;
+  tertiary: number | null;
+}
+
+function parseSection(section: string): SectionParts | null {
+  const match = section.match(/^(\d+)\.(\d+)(?:\.(\d+))?/);
+  if (!match) return null;
+
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    tertiary: match[3] ? parseInt(match[3], 10) : null,
+  };
+}
+
+function isSectionAfter(current: SectionParts, found: SectionParts): boolean {
+  // Compare major sections first
+  if (found.major > current.major) return true;
+  if (found.major < current.major) return false;
+
+  // Same major, compare minor
+  if (found.minor > current.minor) return true;
+  if (found.minor < current.minor) return false;
+
+  // Same major.minor, compare tertiary
+  if (current.tertiary === null || found.tertiary === null) {
+    // If current has no tertiary but found does, found is after (e.g., 4.6 vs 4.6.1)
+    // If found has no tertiary but current does, found is a header (e.g., 4.6.10 vs 4.7)
+    return found.tertiary === null && current.tertiary !== null;
+  }
+
+  return found.tertiary > current.tertiary;
 }
 
 /**
@@ -2368,10 +2464,15 @@ export async function extractRequirements(
     let requirements: ExtractedRequirement[] = (rawResult.r || []).map((arr, idx) => {
       const [startLine, endLine, llmSection] = arr;
 
-      const text = extractTextFromLines(lines, startLine, endLine);
+      let text = extractTextFromLines(lines, startLine, endLine);
 
       if (!text && startLine && endLine) {
         console.warn(`[extract] Empty text for requirement ${idx}: lines ${startLine}-${endLine}`);
+      }
+
+      // Strip section prefix from extracted text (e.g., "4.3.29 Does the..." -> "Does the...")
+      if (text) {
+        text = stripSectionPrefix(text);
       }
 
       // CRITICAL: Detect actual section from text to correct LLM mistakes
