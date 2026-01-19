@@ -1368,6 +1368,30 @@ function detectSectionFromText(text: string): string | null {
 }
 
 /**
+ * Validate that a section string looks like a real section identifier.
+ * Format-agnostic: just checks it's short, has no spaces, and isn't a common word.
+ *
+ * Valid: "3.1.2", "A.1", "IV.2", "(a)", "1)", "i."
+ * Invalid: "Reporting and Analytics", "section", "Executive Summary"
+ */
+function isValidSection(section: string | null): boolean {
+  if (!section) return false;
+
+  // Too long - real section IDs are short (e.g., "3.14.29" is 7 chars)
+  if (section.length > 15) return false;
+
+  // Contains spaces - real section IDs don't have spaces
+  if (section.includes(' ')) return false;
+
+  // Is a common English word (lowercase check)
+  const lower = section.toLowerCase();
+  const commonWords = ['section', 'chapter', 'part', 'item', 'appendix', 'exhibit', 'schedule', 'attachment'];
+  if (commonWords.includes(lower)) return false;
+
+  return true;
+}
+
+/**
  * Strip section number prefixes from requirement text.
  * Examples:
  *   "4.4.5 Is any software required..." → "Is any software required..."
@@ -2295,7 +2319,7 @@ async function extractMissingItemsTargeted(
           // Detect actual section from text BEFORE stripping prefix
           // Only use detected section if plausible (same major number or LLM gave none)
           const detectedSection = detectSectionFromText(text);
-          let section = llmSection;
+          let section: string | null = llmSection;
           if (detectedSection) {
             if (!llmSection) {
               section = detectedSection;
@@ -2309,6 +2333,12 @@ async function extractMissingItemsTargeted(
                 }
               }
             }
+          }
+
+          // Validate section format - reject garbage
+          if (section && !isValidSection(section)) {
+            console.log(`[gap-fill] Rejected invalid section: "${section}"`);
+            section = null;
           }
 
           // Strip section prefix after detection
@@ -2517,6 +2547,12 @@ export async function extractRequirements(
             }
           }
         }
+      }
+
+      // Validate section format - reject garbage like "Reporting and Analytics"
+      if (section && !isValidSection(section)) {
+        console.log(`[extract] Rejected invalid section: "${section}"`);
+        section = null;
       }
 
       // Strip section prefix from extracted text (e.g., "4.3.29 Does the..." -> "Does the...")
