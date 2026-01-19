@@ -99,106 +99,125 @@ const EXTRACTION_PROMPT = `Extract requirements from this RFP document. Lines ar
 
 OUTPUT JSON: {"d":"ISO deadline or null","dt":"deadline text or null","r":[[start,end,"section"],...]}
 
-CRITICAL BOUNDARY RULE:
-A requirement MUST end BEFORE the next section starts. NEVER include text from a different section.
+SEMANTIC EXTRACTION - Extract by CONTENT TYPE, not by section pattern.
 
-STOP IMMEDIATELY when you see:
-- "X.0" or "X.1" where X is a NEW major number (e.g., "5.0" after section 4.x)
-- "Section X" or "Part X" headers
-- "X.Y Title" patterns (number followed by title text)
-- Page headers like "Request for Proposal" or "RFP:"
-- Contact info, timelines, submission instructions
+WHAT TO EXTRACT (content patterns):
 
-EXAMPLE - WRONG:
-Section 4.6.10 text: "Describe reporting capabilities. 5.0 Instructions to Respondent 5.1 Timeline..."
-This crosses into section 5! The span captured too much.
+1. QUESTIONS - Any sentence ending with "?"
+   - "Does your solution support...?"
+   - "How will you handle...?"
+   - "What is your approach to...?"
 
-EXAMPLE - CORRECT:
-Section 4.6.10 text: "Describe reporting capabilities."
-Stop BEFORE "5.0 Instructions" - that's a new section.
+2. CAPABILITY REQUESTS - Sentences starting with:
+   - "Describe...", "Explain...", "Provide...", "List..."
+   - "Demonstrate...", "Detail...", "Outline..."
+   - "Include...", "Submit...", "Specify..."
 
-RULES:
+3. OBLIGATION STATEMENTS - Sentences containing:
+   - "shall", "must", "will", "should"
+   - "is required to", "are expected to"
+   - "The vendor/contractor/proposer shall..."
 
-1. ONE REQUIREMENT = ONE ITEM
-   - Each question (ending "?") is separate
-   - Each "Describe/Explain/Provide..." is separate
-   - NEVER merge multiple requests
+4. YES/NO ATTESTATIONS - Questions expecting yes/no:
+   - "Does the...", "Can the...", "Is the...", "Are there..."
+   - "Has the...", "Will the...", "Would the..."
 
-2. BOUNDARY DETECTION (most important)
-   - End BEFORE any new section identifier appears
-   - Watch for: X.0, X.1, "Section", "Part", title case headers
-   - If you see "4.5 Training" in section 4.4.7's text, you went too far
-   - When uncertain, extract LESS not MORE
+EXTRACTION RULES:
 
-3. CONSERVATIVE SPANS
-   - Most requirements: 1-5 lines
-   - Maximum: 8 lines (if longer, you likely crossed a boundary)
-   - End at sentence boundaries (period, question mark)
+1. ONE SENTENCE = ONE REQUIREMENT (usually)
+   - Each "?" ends a requirement
+   - Each imperative (Describe/Explain/etc.) is separate
+   - If one sentence has 2 questions, extract as 2 items
 
-4. SECTION IDENTIFIERS
-   - Copy EXACTLY as shown (any format)
-   - "3.1.2", "A.1", "III.B", "Q5", "(a)" all valid
-   - Use null if no identifier visible
+2. SECTION DETECTION (secondary)
+   - Look for section ID on the same line or 1-2 lines before
+   - Formats vary: "3.1.2", "A.1", "III.B", "(a)", "Q5"
+   - Use null if no identifier visible nearby
+   - Copy section exactly as written
 
-5. EXTRACT: Questions, "shall/must/will", capability requests
-6. SKIP: Section titles, page numbers, ToC, instructions, meta-content
+3. SPAN LENGTH
+   - Most requirements: 1-3 lines
+   - Stop at sentence boundaries (. or ?)
+   - If text changes topic, start new requirement
 
-NO OVERLAPPING SPANS. NO CROSS-SECTION CONTAMINATION.
+4. SKIP (not requirements):
+   - Section titles without questions/imperatives
+   - Page numbers, headers, footers
+   - Table of contents, timelines
+   - Instructions to vendors (meta-content)
+   - Contact information
+
+EXAMPLES:
+
+Line: "L45: 3.2.1 Describe your data backup procedures."
+Output: [45, 45, "3.2.1"]
+
+Line: "L78: Does the system support single sign-on? If yes, describe."
+Output: [78, 78, null] - Two requirements in one line, but extract together
+
+Lines: "L100: 4.1 Security\nL101: The vendor shall provide encryption."
+Output: [101, 101, "4.1"] - Skip header "4.1 Security", extract obligation
+
+NO OVERLAPPING SPANS.
 `;
 
 // =============================================================================
 // VALIDATION PROMPT - Second LLM pass to fix quality issues
 // =============================================================================
 
-const VALIDATION_PROMPT = `Validate extracted RFP requirements. Fix quality issues.
+const VALIDATION_PROMPT = `Validate extracted RFP requirements. Fix content quality issues.
 
-PRIORITY 1: CROSS-SECTION CONTAMINATION
-This is the most critical issue. Look for text from DIFFERENT sections mixed in.
+PRIORITY 1: MERGED REQUIREMENTS
+Multiple questions or requests combined into one item.
+Signs:
+- Multiple "?" in the text
+- Multiple imperative verbs (Describe X... Explain Y...)
+- Text >400 chars with distinct topics
+Action: "split" with splitPoints array
 
-CONTAMINATION PATTERNS TO DETECT:
-- "X.0" or "X.Y" where X is different from requirement's section (e.g., "5.0" in a 4.x requirement)
-- Section headers: "X.Y Title Text" (number + title case words)
-- "Request for Proposal", "RFP:", document titles
-- "Section X", "Part X", chapter markers
-- Sudden topic changes mid-text
+EXAMPLE MERGED:
+"Does your system support SSO? Describe your authentication approach."
+FIX: split at ["SSO?", "approach."]
 
-EXAMPLE CONTAMINATED TEXT (section 4.6.10):
-"Describe the solution's reporting capabilities. Request for Proposal: Website Design 5.0 Instructions to Respondent 5.1 Timeline The deadline is..."
-PROBLEM: Contains "5.0 Instructions" and "5.1 Timeline" - different section!
-FIX: truncateAt "capabilities." (end before contamination)
+PRIORITY 2: TRAILING CONTAMINATION
+Requirement text extends past the actual question/request.
+Signs:
+- Section headers after the question (e.g., "...procedures. 4.5 Training")
+- Document titles ("Request for Proposal", "RFP:")
+- Sudden topic change after sentence end
+Action: "truncateAt" with the last valid sentence
 
-EXAMPLE CONTAMINATED TEXT (section 4.4.7):
-"How long will installation take? 4.5 Training and Support Services"
-PROBLEM: Contains "4.5 Training" header - next section!
-FIX: truncateAt "take?" (end before header)
+EXAMPLE:
+"Describe backup procedures. 5.0 Instructions to Respondent"
+FIX: truncateAt "procedures."
 
-ISSUES TO FIX:
+OTHER ISSUES:
 
-1. CROSS-SECTION CONTAMINATION (Priority 1)
-   Text includes content from a DIFFERENT section.
-   Action: "truncateAt" - provide the last VALID text before contamination starts
+3. TRUNCATED: Ends mid-sentence, incomplete thought
+   Action: "truncated" with missingText if you can infer it
 
-2. MERGED REQUIREMENTS (Priority 2)
-   Multiple questions/requests combined.
-   Signs: Multiple "?", multiple "Describe...", >500 chars with distinct asks
-   Action: "split" with splitPoints array
+4. FRAGMENT: Starts with lowercase or "and/or/but"
+   Action: "fragment" with mergeWith (previous index)
 
-3. TRUNCATED: Ends mid-sentence → "truncated" with missingText
-4. FRAGMENT: Starts lowercase/conjunction → "fragment" with mergeWith
-5. PAGE_NUMBER: Contains "X of Y" → "removePageNumber"
-6. HEADER: Just a title → "header"
-7. TYPE_ERROR: Multiple ? but DECLARATIVE → "fixType"
+5. PAGE_NUMBER: Contains "X of Y" or "Page X"
+   Action: "removePageNumber"
+
+6. NOT_A_REQUIREMENT: Just a section header/title, no question or imperative
+   Action: "header"
+
+7. WRONG_TYPE: Classified incorrectly (e.g., has "?" but marked PROCEDURAL)
+   Action: "fixType" with newType
 
 OUTPUT JSON:
 {
   "fixes": [
     {"index": 0, "action": "ok"},
-    {"index": 1, "action": "truncateAt", "truncateAfter": "last valid sentence before contamination"},
-    {"index": 2, "action": "split", "splitPoints": ["first?", "second?"]}
+    {"index": 1, "action": "split", "splitPoints": ["first?", "second?"]},
+    {"index": 2, "action": "truncateAt", "truncateAfter": "actual requirement text."}
   ]
 }
 
-Check EVERY requirement for section numbers that don't match its own section.
+Mark "ok" for valid requirements. Focus on content quality, not section numbering.
 `;
 
 // =============================================================================
@@ -2023,6 +2042,41 @@ function removeTrailingSectionHeaders(requirements: ExtractedRequirement[]): voi
 }
 
 /**
+ * Truncate requirement text at major section breaks embedded in the text.
+ * Pattern: "...content. 5.0 Instructions to Respondent..." → "...content."
+ * This handles cases where LLM extraction captured entire sections.
+ */
+function truncateAtMajorSectionBreak(requirements: ExtractedRequirement[]): void {
+  // Pattern 1: X.0 followed by title-case words (major section header)
+  // Can have document titles or other text between sentence and section
+  const majorSectionPattern = /\d{1,2}\.0\s+[A-Z][A-Za-z\s]{5,}/;
+
+  let cleanCount = 0;
+  for (const req of requirements) {
+    const match = majorSectionPattern.exec(req.text);
+    if (match && match.index > 30) {
+      // Find the last sentence boundary before the section header
+      const textBefore = req.text.substring(0, match.index);
+      const lastSentenceEnd = Math.max(
+        textBefore.lastIndexOf('.'),
+        textBefore.lastIndexOf('?')
+      );
+
+      if (lastSentenceEnd > 30) {
+        const oldLength = req.text.length;
+        req.text = req.text.substring(0, lastSentenceEnd + 1).trim();
+        cleanCount++;
+        console.log(`[truncateAtMajorSection] Truncated at "${match[0].substring(0, 30)}..." in ${req.section} (${oldLength} -> ${req.text.length})`);
+      }
+    }
+  }
+
+  if (cleanCount > 0) {
+    console.log(`[truncateAtMajorSection] Truncated ${cleanCount} requirements`);
+  }
+}
+
+/**
  * Remove leading number artifacts from requirement text.
  * Pattern: "3 Does the WCMS..." → "Does the WCMS..."
  * These occur when PDF parsing captures list numbers as part of the text.
@@ -2474,44 +2528,46 @@ async function extractMissingItemsTargeted(
       console.log(`[gap-fill] Using text-based context for ${subsection} (${contextLines.length} chars)`);
     }
 
-    // Build targeted prompt - adjust based on whether we have line numbers or raw text
+    // Build targeted prompt - semantic-first extraction for missing items
     let targetedPrompt: string;
     if (usingTextContext) {
-      targetedPrompt = `Extract EXACTLY ONE requirement for each section listed.
+      targetedPrompt = `Find requirements in this text that match section numbers: ${items.join(', ')}
 
-CRITICAL: NEVER include text from other sections!
-- If extracting 4.6.9, STOP before any "4.6.10", "4.7", "5.0" etc.
-- If you see "X.Y Title" pattern, that's a NEW section - don't include it
-- End at the sentence boundary BEFORE any new section identifier
+LOOK FOR CONTENT PATTERNS near those section numbers:
+1. Questions ending with "?"
+2. Imperatives: "Describe...", "Explain...", "Provide...", "List..."
+3. Obligations: "shall", "must", "will", "should"
+4. Capability questions: "Does the...", "Can the...", "How will..."
 
 RULES:
-1. Extract ONLY ONE requirement per section
-2. STOP IMMEDIATELY at any new section number
-3. Maximum: 5 sentences
+1. ONE requirement per section
+2. End at sentence boundaries (. or ?)
+3. Maximum: 3 sentences per requirement
 4. Copy text VERBATIM
-5. End at sentence boundaries (period or question mark)
+5. Skip section titles - extract the actual question/request
 
-MISSING ITEMS: ${items.join(', ')}
+SECTIONS NEEDED: ${items.join(', ')}
 
-OUTPUT JSON: {"items":[{"section":"X","text":"extracted text"}]}
+OUTPUT JSON: {"items":[{"section":"X","text":"the question or requirement"}]}
 
 TEXT:
 ${contextLines}`;
     } else {
-      targetedPrompt = `Extract EXACTLY ONE requirement for each section listed.
+      targetedPrompt = `Find requirements in this text that match section numbers: ${items.join(', ')}
 
-CRITICAL: NEVER include text from other sections!
-- If extracting 4.6.9, STOP before any "4.6.10", "4.7", "5.0" etc.
-- If you see "X.Y Title" pattern, that's a NEW section - don't include it
-- End at the line BEFORE any new section identifier appears
+LOOK FOR CONTENT PATTERNS near those section numbers:
+1. Questions ending with "?"
+2. Imperatives: "Describe...", "Explain...", "Provide...", "List..."
+3. Obligations: "shall", "must", "will", "should"
+4. Capability questions: "Does the...", "Can the...", "How will..."
 
 RULES:
-1. Extract ONLY ONE requirement per section
-2. STOP IMMEDIATELY at any new section number
-3. Maximum: 8 lines per requirement
-4. End at sentence boundaries
+1. ONE requirement per section
+2. End at sentence boundaries (. or ?)
+3. Maximum: 5 lines per requirement
+4. Copy text VERBATIM
 
-MISSING ITEMS: ${items.join(', ')}
+SECTIONS NEEDED: ${items.join(', ')}
 
 OUTPUT JSON: {"r":[[startLine,endLine,"section"],...]}
 
@@ -2855,6 +2911,9 @@ export async function extractRequirements(
     // Step 1b: Remove trailing section headers (e.g., "...content? 3.8 Metadata")
     removeTrailingSectionHeaders(requirements);
 
+    // Step 1c: Truncate at major section breaks (e.g., "...content. 5.0 Instructions...")
+    truncateAtMajorSectionBreak(requirements);
+
     // Step 2: Validate types and apply heuristic corrections
     requirements = requirements.map(req => ({
       ...req,
@@ -2951,6 +3010,7 @@ export async function extractRequirements(
         removeLeadingNumberArtifacts(requirements);
         removeEmbeddedPageNumbers(requirements);
         removeTrailingSectionHeaders(requirements);
+        truncateAtMajorSectionBreak(requirements);
       }
 
       // Log any items that couldn't be recovered (no format-specific fallback)
