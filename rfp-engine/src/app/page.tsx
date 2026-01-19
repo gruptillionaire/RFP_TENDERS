@@ -31,6 +31,7 @@ export default async function Home() {
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <Link href="#features" className="text-gray-600 hover:text-gray-900">Features</Link>
             <Link href="#pricing" className="text-gray-600 hover:text-gray-900">Pricing</Link>
+            <Link href="/blog" className="text-gray-600 hover:text-gray-900">Blog</Link>
           </nav>
           <div className="flex gap-4">
             {isSignedIn ? (
@@ -476,6 +477,7 @@ export default async function Home() {
               <ul className="space-y-2 text-sm">
                 <li><Link href="/#features" className="text-gray-600 hover:text-gray-900">Features</Link></li>
                 <li><Link href="/pricing" className="text-gray-600 hover:text-gray-900">Pricing</Link></li>
+                <li><Link href="/blog" className="text-gray-600 hover:text-gray-900">Blog</Link></li>
               </ul>
             </div>
             <div>
