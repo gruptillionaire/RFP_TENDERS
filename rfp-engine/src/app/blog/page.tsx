@@ -136,7 +136,7 @@ export default function BlogPage() {
             href="/signup"
             className="inline-block bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
           >
-            Start Free Trial
+            Get Started
           </Link>
         </div>
       </main>

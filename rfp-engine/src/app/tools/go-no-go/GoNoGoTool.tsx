@@ -284,7 +284,7 @@ export function GoNoGoTool() {
               href="/signup"
               className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
             >
-              Start Free Trial
+              Get Started
             </Link>
           </div>
         </main>

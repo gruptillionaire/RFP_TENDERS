@@ -32,13 +32,13 @@ export default function GoNoGoFrameworkPost() {
       </p>
 
       <div className="bg-slate-100 border border-slate-200 rounded-lg p-5 my-6">
-        <p className="text-sm font-medium text-slate-600 uppercase tracking-wide mb-2">Free Tool</p>
+        <p className="text-sm font-medium text-slate-600 uppercase tracking-wide mb-2">Decision Tool</p>
         <p className="text-slate-800">
           Want to quickly assess an RFP opportunity? Use our <Link href="/tools/go-no-go" className="text-blue-600 hover:underline font-medium">Go/No-Go Decision Tool</Link> to get a recommendation in minutes.
         </p>
       </div>
 
-      <h2>Why Selectivity Matters</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Why Selectivity Matters</h2>
 
       <p>
         Responding to every RFP that crosses your desk has costs that aren&apos;t always obvious:
@@ -63,7 +63,7 @@ export default function GoNoGoFrameworkPost() {
         Consider the math: if your win rate is 20% and each response costs $15,000 in labor, you&apos;re effectively spending $75,000 to win each contract. Better selectivity improves this ratio.
       </p>
 
-      <h2>The Framework</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">The Framework</h2>
 
       <p>
         This framework evaluates opportunities across five dimensions. Score each honestly, then add them up. The total guides your decision.
@@ -313,7 +313,7 @@ export default function GoNoGoFrameworkPost() {
         </ul>
       </div>
 
-      <h2>Interpreting Your Score</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Interpreting Your Score</h2>
 
       <p>Add up scores across all five dimensions. The maximum is 100 points.</p>
 
@@ -355,7 +355,7 @@ export default function GoNoGoFrameworkPost() {
         </table>
       </div>
 
-      <h2>Automatic Disqualifiers</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Automatic Disqualifiers</h2>
 
       <p>
         Some factors should trigger a no-go regardless of overall score:
@@ -399,7 +399,7 @@ export default function GoNoGoFrameworkPost() {
         </div>
       </div>
 
-      <h2>When to Stretch</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">When to Stretch</h2>
 
       <p>
         Sometimes it&apos;s worth pursuing an opportunity even with a lower score:
@@ -436,7 +436,7 @@ export default function GoNoGoFrameworkPost() {
         </div>
       </div>
 
-      <h2>Who Should Make the Decision</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Who Should Make the Decision</h2>
 
       <p>
         Go/no-go decisions shouldn&apos;t be made in isolation. Involve the people who can provide different perspectives:
@@ -470,11 +470,11 @@ export default function GoNoGoFrameworkPost() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 my-6">
         <p className="font-medium text-blue-900 mb-2">Quick Assessment</p>
         <p className="text-blue-800">
-          Use our free <Link href="/tools/go-no-go" className="text-blue-600 hover:underline font-medium">Go/No-Go Decision Tool</Link> to run through this framework interactively and get a recommendation based on your inputs.
+          Use our <Link href="/tools/go-no-go" className="text-blue-600 hover:underline font-medium">Go/No-Go Decision Tool</Link> to run through this framework interactively and get a recommendation based on your inputs.
         </p>
       </div>
 
-      <h2>Track and Refine</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Track and Refine</h2>
 
       <p>
         Over time, compare your go/no-go decisions against outcomes. This data helps refine your framework:
@@ -493,7 +493,7 @@ export default function GoNoGoFrameworkPost() {
       <div className="bg-slate-100 border border-slate-200 rounded-lg p-5 mt-8">
         <p className="font-medium text-slate-900 mb-2">Already decided to GO?</p>
         <p className="text-slate-700">
-          RFP Matrix helps you respond faster with AI-powered requirement extraction and draft generation. <Link href="/signup" className="text-blue-600 hover:underline font-medium">Start free</Link> and see how much time you save on your next response.
+          RFP Matrix helps you respond faster with AI-powered requirement extraction and draft generation. <Link href="/signup" className="text-blue-600 hover:underline font-medium">Get started</Link> and see how much time you save on your next response.
         </p>
       </div>
     </BlogPostLayout>

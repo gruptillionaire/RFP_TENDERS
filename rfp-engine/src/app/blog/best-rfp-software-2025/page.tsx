@@ -31,7 +31,7 @@ export default function BestRfpSoftwarePost() {
         This guide compares the leading RFP software solutions in 2025, covering features, pricing, and which types of teams each tool serves best.
       </p>
 
-      <h2>What Matters When Choosing RFP Software</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">What Matters When Choosing RFP Software</h2>
 
       <p>Before looking at specific tools, here are the capabilities that matter most:</p>
 
@@ -62,7 +62,7 @@ export default function BestRfpSoftwarePost() {
         </div>
       </div>
 
-      <h2>The Top RFP Software Solutions</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">The Top RFP Software Solutions</h2>
 
       {/* RFP Matrix */}
       <div className="border border-blue-200 rounded-lg overflow-hidden my-8">
@@ -296,7 +296,7 @@ export default function BestRfpSoftwarePost() {
         </div>
       </div>
 
-      <h2>Feature Comparison</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Feature Comparison</h2>
 
       <div className="overflow-x-auto my-8">
         <table className="min-w-full border-collapse border border-gray-300 text-sm">
@@ -356,7 +356,7 @@ export default function BestRfpSoftwarePost() {
         </table>
       </div>
 
-      <h2>How to Choose</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">How to Choose</h2>
 
       <div className="space-y-4 my-6">
         <div className="border-l-4 border-blue-500 pl-4 py-2">
@@ -375,7 +375,7 @@ export default function BestRfpSoftwarePost() {
         </div>
       </div>
 
-      <h2>Summary</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Summary</h2>
 
       <p>
         The RFP software market has split into enterprise solutions (Loopio, Responsive, Qvidian) and more accessible options (RFP Matrix, Proposify, PandaDoc). There&apos;s no universal &quot;best&quot; tool—the right choice depends on your team size, RFP volume, and budget.
@@ -386,9 +386,9 @@ export default function BestRfpSoftwarePost() {
       </p>
 
       <div className="bg-slate-100 border border-slate-200 rounded-lg p-5 mt-8">
-        <p className="font-medium text-slate-900 mb-2">Try RFP Matrix Free</p>
+        <p className="font-medium text-slate-900 mb-2">Try RFP Matrix</p>
         <p className="text-slate-700">
-          See how AI-powered requirement extraction and draft generation can accelerate your RFP responses. <Link href="/signup" className="text-blue-600 hover:underline font-medium">Start your free trial</Link> or purchase a <Link href="/pricing" className="text-blue-600 hover:underline font-medium">single RFP for $100</Link>.
+          See how AI-powered requirement extraction and draft generation can accelerate your RFP responses. <Link href="/signup" className="text-blue-600 hover:underline font-medium">Get started</Link> or purchase a <Link href="/pricing" className="text-blue-600 hover:underline font-medium">single RFP for $100</Link>.
         </p>
       </div>
     </BlogPostLayout>

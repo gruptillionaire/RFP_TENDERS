@@ -418,12 +418,12 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Free Resources */}
+        {/* Go/No-Go Resource */}
         <section className="mt-20">
           <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-2xl p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
-                <p className="text-sm font-medium text-blue-600 mb-1">Free Resource</p>
+                <p className="text-sm font-medium text-blue-600 mb-1">Decision Framework</p>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Not sure if you should respond to an RFP?</h3>
                 <p className="text-gray-600">
                   Use our Go/No-Go Decision Framework to evaluate opportunities before committing resources.
@@ -437,7 +437,7 @@ export default async function Home() {
                 </Link>
                 <Link href="/tools/go-no-go">
                   <Button className="w-full sm:w-auto">
-                    Try the Free Tool
+                    Use the Tool
                   </Button>
                 </Link>
               </div>

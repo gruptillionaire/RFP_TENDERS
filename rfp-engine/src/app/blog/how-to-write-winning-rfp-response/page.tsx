@@ -501,7 +501,7 @@ export default function WinningRfpResponsePost() {
           RFP Matrix uses AI to extract requirements and generate draft responses in minutes. Free up your team to focus on the parts that actually win deals.
         </p>
         <Link href="/signup" className="inline-flex items-center text-blue-600 font-medium hover:text-blue-700">
-          Start your free trial
+          Get started
           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>

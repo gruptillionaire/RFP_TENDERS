@@ -31,9 +31,9 @@ export default function TrueCostRfpsPost() {
         This is one of the most common—and costly—misconceptions about RFP responses. The true cost extends well beyond logged hours. When you account for hidden expenses, that &quot;free&quot; response might be costing $15,000, $25,000, or more.
       </p>
 
-      <h2>What RFP Responses Actually Cost</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">What RFP Responses Actually Cost</h2>
 
-      <h3>Direct Labor</h3>
+      <h3 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Direct Labor</h3>
 
       <p>
         Most teams track this, but often undercount. A typical enterprise RFP response involves multiple roles over several weeks:
@@ -89,7 +89,7 @@ export default function TrueCostRfpsPost() {
         <p className="text-xs text-gray-500 mt-2">*Fully loaded cost including benefits and overhead</p>
       </div>
 
-      <h3>Opportunity Cost</h3>
+      <h3 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Opportunity Cost</h3>
 
       <p>
         This is where the real expense hides. Every hour spent on a low-probability RFP is an hour not spent on higher-value work. Your SMEs could be closing deals, supporting existing customers, building product, or generating new leads.
@@ -102,19 +102,19 @@ export default function TrueCostRfpsPost() {
         </p>
       </div>
 
-      <h3>Infrastructure and Tools</h3>
+      <h3 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Infrastructure and Tools</h3>
 
       <p>
         Running an RFP operation requires ongoing investment: RFP software ($15,000–100,000/year for enterprise tools), document storage, collaboration platforms, and design tools for polished deliverables. These costs spread across your response volume.
       </p>
 
-      <h3>Quality and Rework</h3>
+      <h3 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Quality and Rework</h3>
 
       <p>
         Rushed responses create downstream costs. Buyers follow up with clarification questions. If you shortlist, a weak response means more presentation prep. Vague language creates contract negotiation friction. Overpromising leads to delivery problems.
       </p>
 
-      <h3>Win Rate Erosion</h3>
+      <h3 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Win Rate Erosion</h3>
 
       <p>
         Teams that spread thin across too many RFPs see declining win rates. The math is counterintuitive but important:
@@ -154,7 +154,7 @@ export default function TrueCostRfpsPost() {
         By pursuing fewer opportunities with more investment per response, the selective team spends less per win despite spending more per response.
       </p>
 
-      <h2>Calculating Your True Cost</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Calculating Your True Cost</h2>
 
       <p>
         A simple framework for estimating what each RFP actually costs:
@@ -178,7 +178,7 @@ export default function TrueCostRfpsPost() {
         </div>
       </div>
 
-      <h2>How to Reduce RFP Costs</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">How to Reduce RFP Costs</h2>
 
       <div className="space-y-6 my-8">
         <div className="border-l-4 border-blue-500 pl-4">
@@ -231,7 +231,7 @@ export default function TrueCostRfpsPost() {
         </div>
       </div>
 
-      <h2>Framing RFPs as Investment Decisions</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">Framing RFPs as Investment Decisions</h2>
 
       <p>
         The question isn&apos;t &quot;can we afford to respond?&quot; but &quot;what&apos;s the expected return?&quot;
@@ -257,7 +257,7 @@ export default function TrueCostRfpsPost() {
         Positive expected value? Pursue it. Negative? Walk away. The challenge is honestly estimating win probability—most teams are overly optimistic. Track historical win rates by opportunity type to calibrate your estimates.
       </p>
 
-      <h2>What to Remember</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">What to Remember</h2>
 
       <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200 my-6">
         <div className="p-4">
@@ -280,7 +280,7 @@ export default function TrueCostRfpsPost() {
       <div className="bg-slate-100 border border-slate-200 rounded-lg p-5 mt-8">
         <p className="font-medium text-slate-900 mb-2">Reduce your cost per RFP</p>
         <p className="text-slate-700">
-          RFP Matrix uses AI to extract requirements and generate draft responses in minutes. Cut response time by 80% and focus human effort where it matters. <Link href="/signup" className="text-blue-600 hover:underline font-medium">Start your free trial</Link>.
+          RFP Matrix uses AI to extract requirements and generate draft responses in minutes. Cut response time by 80% and focus human effort where it matters. <Link href="/signup" className="text-blue-600 hover:underline font-medium">Get started</Link>.
         </p>
       </div>
     </BlogPostLayout>
