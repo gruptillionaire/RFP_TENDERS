@@ -1336,20 +1336,23 @@ function extractTextFromLines(lines: string[], startLine: number, endLine: numbe
 function detectSectionFromText(text: string): string | null {
   if (!text) return null;
 
+  // Trim leading whitespace for matching
+  const trimmed = text.trimStart();
+
   // Pattern 1: X.Y.Z format (e.g., "3.14.12")
-  const xyzMatch = text.match(/^(\d+\.\d+\.\d+)\b/);
+  const xyzMatch = trimmed.match(/^(\d+\.\d+\.\d+)\b/);
   if (xyzMatch) return xyzMatch[1];
 
   // Pattern 2: X.Y format (e.g., "3.14")
-  const xyMatch = text.match(/^(\d+\.\d+)\b/);
+  const xyMatch = trimmed.match(/^(\d+\.\d+)\b/);
   if (xyMatch) return xyMatch[1];
 
   // Pattern 3: A.X.Y format (e.g., "A.1.2")
-  const alphaMatch = text.match(/^([A-Z]\.\d+\.\d+)\b/i);
+  const alphaMatch = trimmed.match(/^([A-Z]\.\d+\.\d+)\b/i);
   if (alphaMatch) return alphaMatch[1].toUpperCase();
 
   // Pattern 4: A.X format (e.g., "A.1")
-  const alphaXYMatch = text.match(/^([A-Z]\.\d+)\b/i);
+  const alphaXYMatch = trimmed.match(/^([A-Z]\.\d+)\b/i);
   if (alphaXYMatch) return alphaXYMatch[1].toUpperCase();
 
   return null;
