@@ -2277,15 +2277,18 @@ async function extractMissingItemsTargeted(
         console.log(`[gap-fill] Found ${parsed.r.length} items for ${subsection} (line-based)`);
 
         for (const [startLine, endLine, llmSection] of parsed.r) {
-          const text = extractTextFromLines(lines, startLine, endLine);
+          let text = extractTextFromLines(lines, startLine, endLine);
           if (!text) continue;
 
-          // Detect actual section from text to correct LLM mistakes
+          // Detect actual section from text BEFORE stripping prefix
           const detectedSection = detectSectionFromText(text);
           const section = detectedSection || llmSection;
           if (detectedSection && detectedSection !== llmSection) {
             console.log(`[gap-fill] Corrected section ${llmSection} -> ${detectedSection}`);
           }
+
+          // Strip section prefix after detection
+          text = stripSectionPrefix(text);
 
           const classification = classifyRequirement(text);
           let sectionGroup: string | null = null;
@@ -2470,17 +2473,18 @@ export async function extractRequirements(
         console.warn(`[extract] Empty text for requirement ${idx}: lines ${startLine}-${endLine}`);
       }
 
-      // Strip section prefix from extracted text (e.g., "4.3.29 Does the..." -> "Does the...")
-      if (text) {
-        text = stripSectionPrefix(text);
-      }
-
-      // CRITICAL: Detect actual section from text to correct LLM mistakes
+      // CRITICAL: Detect actual section from text BEFORE stripping prefix
       // The LLM sometimes returns wrong section numbers for multi-line requirements
       const detectedSection = detectSectionFromText(text);
       const section = detectedSection || llmSection;
       if (detectedSection && detectedSection !== llmSection) {
         console.log(`[extract] Corrected section ${llmSection} -> ${detectedSection} based on text content`);
+      }
+
+      // Strip section prefix from extracted text (e.g., "4.3.29 Does the..." -> "Does the...")
+      // Must happen AFTER section detection
+      if (text) {
+        text = stripSectionPrefix(text);
       }
 
       // Apply heuristic classification based on extracted text
