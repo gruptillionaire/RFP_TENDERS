@@ -99,15 +99,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
       }
 
-      // Refresh emailVerified from database on update OR if currently null
-      // This ensures users who verify their email get updated status without re-login
-      if (trigger === "update" || (token.id && !token.emailVerified)) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: { emailVerified: true },
-        });
-        if (dbUser) {
-          token.emailVerified = dbUser.emailVerified;
+      // Refresh emailVerified from database on explicit update trigger only
+      // (not on every request to avoid performance issues)
+      if (trigger === "update" && token.id) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { emailVerified: true },
+          });
+          if (dbUser) {
+            token.emailVerified = dbUser.emailVerified;
+          }
+        } catch (error) {
+          console.error("[auth] Failed to refresh emailVerified:", error);
         }
       }
 
