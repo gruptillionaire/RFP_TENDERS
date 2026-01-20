@@ -1,6 +1,6 @@
 export const MODELS = {
-  EXTRACTION: "gemini-2.5-flash-preview-05-20", // Handled by extraction-worker
-  DRAFTING: "gemini-2.5-flash-preview-05-20",   // Used by rfp-engine for drafting
+  EXTRACTION: "gemini-2.5-flash-lite", // Handled by extraction-worker
+  DRAFTING: "gemini-2.5-flash-lite",   // Used by rfp-engine for drafting
 } as const;
 
 export const TOKEN_LIMITS = {

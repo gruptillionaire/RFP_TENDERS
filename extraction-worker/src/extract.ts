@@ -237,7 +237,7 @@ export async function extractRequirements(
   documentText: string,
   options: ExtractionOptions = {}
 ): Promise<ExtractionResult> {
-  const model = options.model || "gemini-2.5-flash-preview-05-20";
+  const model = options.model || "gemini-2.5-flash-lite";
   const startTime = Date.now();
 
   if (!process.env.GEMINI_API_KEY) {
@@ -273,6 +273,14 @@ export async function extractRequirements(
         maxOutputTokens: 65536,
       },
     });
+
+    // Log response metadata for debugging
+    console.log(`[extract] Response candidates:`, response.candidates?.length || 0);
+    if (response.candidates?.[0]) {
+      const candidate = response.candidates[0];
+      console.log(`[extract] Finish reason: ${candidate.finishReason}`);
+      console.log(`[extract] Token count:`, response.usageMetadata);
+    }
 
     const content = response.text;
     if (!content) {
