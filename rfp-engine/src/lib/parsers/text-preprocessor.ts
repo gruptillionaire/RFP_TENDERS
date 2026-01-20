@@ -104,22 +104,47 @@ function preserveNumberedLists(text: string): string {
 
 /**
  * Add visual markers around major sections to help LLM understand hierarchy
+ *
+ * IMPORTANT: Only marks TRUE section headers, not numbered list items.
+ * Section headers are: "3.0 Title", "Section 5: Title", "A. Title"
+ * NOT list items like: "1. States the conditions..." (part of bulleted content)
  */
 function addSectionMarkers(text: string): string {
   let result = text;
 
-  // Mark major sections (e.g., "3.0 Direct Query Questions")
-  // Add clear separator before major section headers
+  // Mark major sections with explicit indicators:
+  // - "3.0" (trailing zero indicates section, not list item)
+  // - "Section 5:" explicit section label
+  // - Single digit followed by ALL CAPS or very short title (likely section header)
+  //
+  // AVOID marking numbered list items like "1. States the conditions..."
+  // These are NOT section headers - they're inline list content
+
+  // Pattern 1: Explicit section numbers with ".0" (definitely sections)
+  // e.g., "3.0 Direct Query Questions", "1.0 Introduction"
   result = result.replace(
-    /\n(\s*)((?:\d+\.0?\s+|[A-Z]\.\s+|Section\s+\d+[.:]\s*))([A-Z][A-Za-z\s,&\-]{5,})/g,
+    /\n(\s*)(\d+\.0\s+)([A-Z][A-Z\s]{2,}|[A-Z][a-z]+(?:\s+[A-Za-z]+){0,4})(?=\s*\n)/g,
+    '\n\n════════════════════════════════════════════════════════════════════════════════\n$1$2$3\n════════════════════════════════════════════════════════════════════════════════\n'
+  );
+
+  // Pattern 2: "Section X:" or "SECTION X" explicitly labeled
+  result = result.replace(
+    /\n(\s*)(Section\s+\d+[.:]\s*)([A-Z][A-Za-z\s,&\-]{3,})/gi,
+    '\n\n════════════════════════════════════════════════════════════════════════════════\n$1$2$3\n════════════════════════════════════════════════════════════════════════════════\n'
+  );
+
+  // Pattern 3: ALL CAPS section titles that follow a number
+  // e.g., "5 SPECIFICATION", "2 SPECIAL CONDITIONS"
+  result = result.replace(
+    /\n(\s*)(\d+\s+)([A-Z]{2,}(?:\s+[A-Z]{2,})+)(?=\s*\n)/g,
     '\n\n════════════════════════════════════════════════════════════════════════════════\n$1$2$3\n════════════════════════════════════════════════════════════════════════════════\n'
   );
 
   // Mark subsections (e.g., "3.1 Design, Form, and Templates")
+  // Only mark if the title is short (likely a header, not a full sentence)
   // Use lighter marker to show it's a subsection header, not a requirement
-  // Updated regex: more flexible lookahead to handle various line ending patterns
   result = result.replace(
-    /\n(\s*)(\d+\.\d+\s+)([A-Z][A-Za-z\s,&\-:]{3,})(?=\s*(?:\n|$))/g,
+    /\n(\s*)(\d+\.\d+\s+)([A-Z][A-Za-z\s,&\-:]{3,40})(?=\s*\n)/g,
     '\n\n──────────────────────────────────────────────────────────\n[SUBSECTION] $1$2$3\n──────────────────────────────────────────────────────────\n'
   );
 

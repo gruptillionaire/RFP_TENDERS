@@ -240,6 +240,17 @@ function processTable(
     return "";
   }
 
+  // Check if this table contains multiple requirement numbers (e.g., 8.2.3 AND 8.2.4)
+  // If so, split into separate logical tables for better extraction
+  const tableText = rows.map((r) => r.join(" ")).join("\n");
+  const reqNumbers = tableText.match(/\b\d+\.\d+\.\d+\b/g);
+  const uniqueReqNumbers = [...new Set(reqNumbers || [])];
+
+  if (uniqueReqNumbers.length > 1) {
+    // Table contains multiple requirements - split by requirement number
+    return splitMultiRequirementTable(rows, uniqueReqNumbers);
+  }
+
   // Format the table as structured text
   const output: string[] = [];
   output.push("[TABLE START]");
@@ -252,7 +263,7 @@ function processTable(
     const rowText = row
       .map((cell, cellIndex) => {
         // Include column number for clarity
-        return `[Col ${cellIndex + 1}] ${cell}`;
+        return `[Col ${cellIndex + 1}] ${restoreBulletFormatting(cell)}`;
       })
       .join(" | ");
 
@@ -262,6 +273,126 @@ function processTable(
   output.push("[TABLE END]");
 
   return output.join("\n");
+}
+
+/**
+ * Split a table containing multiple requirements into separate logical tables.
+ * E.g., a table with rows for 8.2.3 and 8.2.4 becomes two separate tables.
+ */
+function splitMultiRequirementTable(
+  rows: string[][],
+  reqNumbers: string[]
+): string {
+  const output: string[] = [];
+
+  // Find rows belonging to each requirement
+  let currentReq = "";
+  let currentRows: string[][] = [];
+
+  for (const row of rows) {
+    const rowText = row.join(" ");
+    // Check if this row starts a new requirement
+    const matchedReq = reqNumbers.find((rn) => rowText.includes(rn));
+
+    if (matchedReq && matchedReq !== currentReq) {
+      // Emit previous requirement's table
+      if (currentRows.length > 0) {
+        output.push(formatSingleTable(currentRows));
+      }
+      currentReq = matchedReq;
+      currentRows = [row];
+    } else {
+      currentRows.push(row);
+    }
+  }
+
+  // Emit final requirement's table
+  if (currentRows.length > 0) {
+    output.push(formatSingleTable(currentRows));
+  }
+
+  return output.join("\n\n");
+}
+
+/**
+ * Format a single requirement table.
+ */
+function formatSingleTable(rows: string[][]): string {
+  const output: string[] = [];
+  output.push("[TABLE START]");
+
+  rows.forEach((row, index) => {
+    const prefix = `[ROW ${index + 1}] `;
+    const rowText = row
+      .map((cell, cellIndex) => `[Col ${cellIndex + 1}] ${restoreBulletFormatting(cell)}`)
+      .join(" | ");
+    output.push(prefix + rowText);
+  });
+
+  output.push("[TABLE END]");
+  return output.join("\n");
+}
+
+/**
+ * Restore bullet formatting in requirement text.
+ * DOCX tables often have lists without line breaks, e.g.:
+ * "Please cover:General EmailResponsive templates..." ->
+ * "Please cover:\n• General Email\n• Responsive templates..."
+ */
+function restoreBulletFormatting(text: string): string {
+  let result = text;
+
+  // Step 1: Split on ":" followed by capital letter (common in "Please provide...:")
+  // Require at least 2 lowercase letters to indicate a real word, not abbreviation
+  result = result.replace(/:([A-Z][a-z]{2,})/g, ":\n• $1");
+
+  // Step 2: Split on lowercase-to-uppercase transitions (concatenated list items)
+  // Pattern: lowercase letter followed by uppercase letter and at least 2 more lowercase
+  // This avoids splitting on abbreviations like "A/B" or "eCommerce"
+  // E.g., "Email MarketingResponsive templates" -> "Email Marketing\n• Responsive templates"
+  result = result.replace(
+    /([a-z])([A-Z][a-z]{2,})/g,
+    "$1\n• $2"
+  );
+
+  // Step 2b: Split before common abbreviation patterns that start list items
+  // These are abbreviations that commonly start their own list item
+  // E.g., "personalisationA/B testing" -> "personalisation\n• A/B testing"
+  result = result.replace(
+    /([a-z])(A\/B|B2B|B2C|SaaS|PaaS|IaaS|API|SDK|UI\/UX|ROI|KPI|SEO|SEM|CRM|ERP|CMS|CDN|SSL|TLS)/g,
+    "$1\n• $2"
+  );
+
+  // Step 3: Also split on ")" followed by capital and real word
+  result = result.replace(
+    /\)([A-Z][a-z]{2,})/g,
+    ")\n• $1"
+  );
+
+  // Step 4: Fix brand names that got incorrectly split internally
+  // These have internal camelCase that got split but shouldn't have
+  // Note: The split already happened, so fix the damage
+  const brandFixes: Array<[RegExp, string]> = [
+    [/Whats\n• App/g, "WhatsApp"],
+    [/You\n• Tube/g, "YouTube"],
+    [/Linked\n• In/g, "LinkedIn"],
+    [/Power\n• Point/g, "PowerPoint"],
+    [/Java\n• Script/g, "JavaScript"],
+    [/Type\n• Script/g, "TypeScript"],
+    [/Git\n• Hub/g, "GitHub"],
+    [/Drop\n• Box/g, "Dropbox"],
+    [/Face\n• Book/g, "Facebook"],
+    [/Pay\n• Pal/g, "PayPal"],
+  ];
+
+  for (const [pattern, replacement] of brandFixes) {
+    result = result.replace(pattern, replacement);
+  }
+
+  // Step 5: Clean up any double bullets or empty lines
+  result = result.replace(/\n•\s*\n•/g, "\n•");
+
+  return result;
 }
 
 /**
