@@ -15,34 +15,35 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Fetch user plan, quota status, and email verification
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { plan: true, emailVerified: true },
-  });
+  // Fetch all data in parallel for faster page load
+  const [user, quota, singleUseQuota, projects] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { plan: true, emailVerified: true },
+    }),
+    getQuotaStatus(session.user.id),
+    getSingleUseQuotaStatus(session.user.id),
+    prisma.project.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        fileName: true,
+        status: true,
+        deadline: true,
+        deadlineText: true,
+        createdAt: true,
+        _count: {
+          select: { requirements: true },
+        },
+        requirements: {
+          select: { status: true },
+        },
+      },
+    }),
+  ]);
   const userPlan = user?.plan || "FREE";
-  const quota = await getQuotaStatus(session.user.id);
-  const singleUseQuota = await getSingleUseQuotaStatus(session.user.id);
-
-  const projects = await prisma.project.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      fileName: true,
-      status: true,
-      deadline: true,
-      deadlineText: true,
-      createdAt: true,
-      _count: {
-        select: { requirements: true },
-      },
-      requirements: {
-        select: { status: true },
-      },
-    },
-  });
 
   // Auto-recovery: Fix projects marked FAILED that actually have requirements
   // This can happen when user navigates away during extraction but extraction succeeded
