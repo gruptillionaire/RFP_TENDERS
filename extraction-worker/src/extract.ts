@@ -204,33 +204,46 @@ Note: "optional" describing CONTENT (e.g., "optional features") ≠ optional req
 - Transmittal letter instructions
 - RFP timeline/process information
 
+CRITICAL - These are NOT requirements (do NOT extract):
+- "Preferred Qualifications" or "Desired Capabilities" sections - these describe what the buyer WANTS in a vendor, not questions to answer
+- Scope/background descriptions like "The organization requires..." or "This project will..." - these are context, not questions
+- Statements describing what the buyer needs (background info) vs questions asking vendors to respond
+- Only extract items that require a RESPONSE from the vendor (questions, requests for information, attestations)
+
 ## EXTRACTION RULES
 
-1. ONE requirement per question/imperative
-   - "Does X? Describe Y." = TWO requirements
-   - Split multi-part questions
+1. KEEP MULTI-PART QUESTIONS TOGETHER
+   - "Does X? How is this achieved? Why?" = ONE requirement (keep together under same section)
+   - Do NOT split questions that share the same section number
+   - The full text of a numbered item (e.g., 3.1.8) should be one requirement
 
 2. SECTION DETECTION
    - Look for section ID on same line or 1-2 lines before
    - Formats: "3.1.2", "A.1", "III.B", "(a)", "Q5"
    - Copy exactly as written, null if not found
 
-3. WORD/CHARACTER LIMITS
+3. SECTION GROUP DETECTION (g field)
+   - Find the parent section header for each requirement
+   - Example: If requirement is "3.5.2", look for header like "3.5 Integrations" or "3.0 Technical Questions"
+   - Format as "3.5: Integrations" or "3: Technical Questions"
+   - This provides context for what category the requirement belongs to
+
+4. WORD/CHARACTER LIMITS
    - Extract from: "maximum 500 words", "(2500 word limit)"
    - Set w for word limits, c for character limits
 
-4. NO DUPLICATES
+5. NO DUPLICATES
    - You have the complete document - extract each requirement once
    - Same text with different section numbers = extraction error, keep first
 
 ## EXAMPLE OUTPUT
 
 {"dl":"2024-03-15","dt":"Responses due by 5pm GMT on March 15, 2024","r":[
-  {"s":"3.1.1","g":"3: Technical Requirements","t":"Does your system support single sign-on (SSO)?","y":1,"m":1,"d":1,"a":1,"w":null,"c":null},
-  {"s":"3.1.2","g":"3: Technical Requirements","t":"Describe your approach to data encryption at rest and in transit.","y":2,"m":1,"d":1,"a":0,"w":500,"c":null},
-  {"s":"4.1","g":"4: Implementation","t":"Provide a detailed project timeline including key milestones.","y":3,"m":1,"d":2,"a":0,"w":null,"c":null},
-  {"s":"5.2.1","g":"5: Commercial","t":"Provide pricing for Year 1, Year 2, and Year 3 of the contract.","y":4,"m":1,"d":1,"a":0,"w":null,"c":null},
-  {"s":"6.1","g":"6: Compliance","t":"Confirm your organization is GDPR compliant.","y":1,"m":1,"d":3,"a":1,"w":null,"c":null}
+  {"s":"3.1.1","g":"3.1: Design and Templates","t":"Does your system support single sign-on (SSO)?","y":1,"m":1,"d":1,"a":1,"w":null,"c":null},
+  {"s":"3.1.2","g":"3.1: Design and Templates","t":"Describe your approach to data encryption at rest and in transit.","y":2,"m":1,"d":1,"a":0,"w":500,"c":null},
+  {"s":"3.5.4","g":"3.5: Integrations","t":"Does the system integrate with Salesforce? How is this configured? What data can be synchronized?","y":1,"m":1,"d":1,"a":0,"w":null,"c":null},
+  {"s":"4.1.1","g":"4.1: Technical Architecture","t":"Provide a detailed project timeline including key milestones.","y":3,"m":1,"d":2,"a":0,"w":null,"c":null},
+  {"s":"5.2.1","g":"5.2: Pricing","t":"Provide pricing for Year 1, Year 2, and Year 3 of the contract.","y":4,"m":1,"d":1,"a":0,"w":null,"c":null}
 ]}`;
 
 // =============================================================================
