@@ -231,7 +231,7 @@ function ResetPasswordForm() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+          <CardFooter className="flex flex-col space-y-4 pt-2">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Resetting..." : "Reset password"}
             </Button>

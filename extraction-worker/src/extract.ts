@@ -146,6 +146,12 @@ EXTRACTION RULES:
    - Table of contents, timelines
    - Instructions to vendors (meta-content)
    - Contact information
+   - Transmittal letter instructions
+   - Executive summary descriptions (how to write, not what to include)
+   - Proposal format instructions (font size, margins, page limits)
+   - Evaluation criteria descriptions (how responses will be scored)
+   - Award process descriptions (selection methodology, notification procedures)
+   - Terms and conditions (contract boilerplate)
 
 EXAMPLES:
 
@@ -598,12 +604,36 @@ function detectConcatenatedRequirements(text: string): string[] {
     }
   }
 
-  // Also detect X.Y patterns at the start of lines (likely section headers within text)
+  // Detect X.Y patterns at the start of lines (likely section headers within text)
   const lineStartPattern = /(?:^|\n)\s*(\d+\.\d+)\s+[A-Z]/gm;
   let match;
   while ((match = lineStartPattern.exec(text)) !== null) {
     if (!allMatches.includes(match[1])) {
       allMatches.push(match[1]);
+    }
+  }
+
+  // CRITICAL: Also detect INLINE section patterns followed by title text
+  // This catches PDFs that strip newlines: "...Respondent 6.2 Executive Summary"
+  const inlinePatterns = [
+    // X.Y followed by Title Case (allows lowercase articles): "6.2 Executive Summary", "6.3 Statement of Qualifications"
+    /\s(\d+\.\d+)\s+([A-Z][a-z]+(?:\s+(?:of|on|and|for|to|the|a|an|in|with|&|[A-Z][a-z]+))+)/gm,
+    // X.Y followed by ALL CAPS: "6.2 EXECUTIVE SUMMARY"
+    /\s(\d+\.\d+)\s+([A-Z]{2,}(?:\s+[A-Z]{2,})+)/gm,
+    // Roman.Roman or Roman.Number: "IV.ii Title", "III.1 Section"
+    /\s([IVXLC]+\.[ivxlc\d]+)\s+([A-Z][a-zA-Z]+(?:\s+[A-Za-z]+)*)/gm,
+    // Letter.Number: "A.1 Introduction"
+    /\s([A-Z]\.\d+)\s+([A-Z][a-z]+(?:\s+[A-Za-z]+)*)/gm,
+    // Simple number followed by ALL CAPS title: "1 INTRODUCTION" or "2 BACKGROUND"
+    /\s(\d+)\s+([A-Z]{3,}(?:\s+[A-Z]{2,})*)\s/gm,
+  ];
+
+  for (const inlinePattern of inlinePatterns) {
+    while ((match = inlinePattern.exec(text)) !== null) {
+      if (!allMatches.includes(match[1])) {
+        allMatches.push(match[1]);
+        console.log(`[detectConcatenatedRequirements] Found inline section: ${match[1]} "${match[2]}"`);
+      }
     }
   }
 
@@ -619,11 +649,36 @@ function splitConcatenatedRequirement(text: string): Array<{ section: string; te
 
   // Patterns to split on requirement numbers (multiple formats)
   // Important: Order matters - try more specific patterns first
+  // Note: PDFs often strip newlines, so we match inline section numbers followed by Title Case
   const splitPatterns = [
-    /(?:^|\n)\s*(\d+\.\d+\.\d+)[\s.]+/gm,    // X.Y.Z at start of line (3.1.1)
-    /(?:^|\n)\s*([A-Z]\.\d+\.\d+)[\s.]+/gm,  // A.X.Y at start of line (A.1.2)
-    /(?:^|\n)\s*(\d+\.\d+[a-z])[\s.)]+/gm,   // X.Ya at start of line (3.1a)
-    /(?:^|\n)\s*(\([a-z]\))[\s.]+/gm,        // (a) at start of line
+    // Numeric hierarchical formats - at line start
+    /(?:^|\n)\s*(\d+\.\d+\.\d+\.\d+)[\s.]+/gm,  // X.Y.Z.W (4 levels: 1.2.3.4)
+    /(?:^|\n)\s*(\d+\.\d+\.\d+)[\s.]+/gm,       // X.Y.Z (3 levels: 3.1.1)
+    /(?:^|\n)\s*(\d+\.\d+)[\s.]+(?=[A-Z])/gm,   // X.Y followed by capital letter (6.2 Executive)
+    // INLINE section numbers followed by Title Case or ALL CAPS (PDFs strip newlines)
+    // Match: "...word 6.2 Executive" but NOT "version 6.2" or "6.2 meters"
+    /\s(\d+\.\d+\.\d+)\s+(?=[A-Z])/gm,          // "...text 3.1.1 Title" (any caps start)
+    /\s(\d+\.\d+)\s+(?=[A-Z][a-z]+\s+(?:of|on|and|for|to|the|a|an|in|with|&|[A-Z]))/gm, // "...6.2 Statement of" or "...6.2 Executive S"
+    /\s(\d+\.\d+)\s+(?=[A-Z]{2,}\s+[A-Z])/gm,   // "...6.2 EXECUTIVE SUMMARY" (ALL CAPS)
+    /\s(\d+\.\d+)\s+(?=[A-Z][a-z]+$)/gm,        // "...text 6.2 Title" at end
+    // Mixed letter-number formats
+    /(?:^|\n)\s*([A-Z]\.\d+\.\d+)[\s.]+/gm,     // A.X.Y (A.1.2)
+    /(?:^|\n)\s*([A-Z]\.\d+)[\s.]+/gm,          // A.X (A.1)
+    /\s([A-Z]\.\d+)\s+(?=[A-Z][a-z])/gm,        // Inline: "...text A.1 Title"
+    /(?:^|\n)\s*(\d+\.[a-z])[\s.)]+/gm,         // X.a (1.a)
+    /(?:^|\n)\s*(\d+\.\d+[a-z])[\s.)]+/gm,      // X.Ya (3.1a)
+    // Roman numeral formats
+    /(?:^|\n)\s*([IVXLC]+\.[ivxlc]+)[\s.)]+/gm, // IV.ii (roman.roman)
+    /(?:^|\n)\s*([IVXLC]+\.\d+)[\s.)]+/gm,      // IV.1 (roman.number)
+    /(?:^|\n)\s*([ivxlc]+\.[ivxlc]+)[\s.)]+/gm, // iv.ii (lower roman)
+    /\s([IVXLC]+\.)\s+(?=[A-Z][a-z])/gm,        // Inline: "...text IV. Title"
+    // Parenthetical formats
+    /(?:^|\n)\s*(\([a-z]\))[\s.]+/gm,           // (a)
+    /(?:^|\n)\s*(\([ivxlc]+\))[\s.]+/gm,        // (iv) roman
+    /(?:^|\n)\s*(\(\d+\))[\s.]+/gm,             // (1)
+    // Simple letter/number with closing paren
+    /(?:^|\n)\s*([a-z]\))[\s.]+/gm,             // a)
+    /(?:^|\n)\s*(\d+\))[\s.]+/gm,               // 1)
   ];
 
   // Find all requirement number positions
@@ -646,42 +701,84 @@ function splitConcatenatedRequirement(text: string): Array<{ section: string; te
     }
   }
 
-  // Also detect X.Y SECTION HEADERS (not questions) - these are boundaries to STOP at
-  // Pattern: X.Y followed by title-case words (not question words like Is, Does, Can, etc.)
-  const headerPattern = /(?:^|\n)\s*(\d+\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+[A-Za-z]+){2,})/gm;
-  headerPattern.lastIndex = 0; // Reset regex state for safety
-  let headerMatch;
-  while ((headerMatch = headerPattern.exec(text)) !== null) {
-    const followingText = headerMatch[2];
-    // Skip if it starts with a question word (then it's a question, not a header)
-    if (/^(Is|Are|Does|Do|Can|Will|Has|Have|Should|Would|Could|What|How|Why|When|Where|Describe|Explain|Provide|List|Detail|Please|Indicate|Specify|State|Clarify|Confirm|Outline|Summarize)\b/i.test(followingText)) {
-      continue;
-    }
-    // Check if we already have this position
-    const existingIndex = parts.findIndex(p => Math.abs(p.index - headerMatch!.index) < 5);
-    if (existingIndex === -1) {
-      parts.push({
-        index: headerMatch.index,
-        section: headerMatch[1].trim(),
-        endOfSection: headerMatch.index + headerMatch[0].length,
-        isHeader: true, // Mark as section header
-      });
-      console.log(`[splitConcatenatedRequirement] Found X.Y header: ${headerMatch[1]} "${followingText.substring(0, 40)}..."`);
+  // Detect SECTION HEADERS (not questions) - these are boundaries to STOP at
+  // Supports multiple formats: X.Y, A.X, roman numerals, ALL CAPS, etc.
+  // Pattern: section number followed by title words (Title Case or ALL CAPS)
+  // Note: Also matches inline headers since PDFs often strip newlines
+  const headerPatterns = [
+    // At line start - Title Case with lowercase articles
+    /(?:^|\n)\s*(\d+\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+(?:of|on|and|for|to|the|a|an|in|with|[A-Za-z]+))*)/gm,  // X.Y Title
+    /(?:^|\n)\s*([A-Z]\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+(?:of|on|and|for|to|the|a|an|in|with|[A-Za-z]+))*)/gm, // A.X Title
+    /(?:^|\n)\s*([IVXLC]+\.)\s*([A-Z][a-z]+(?:[\s,&]+(?:of|on|and|for|to|the|a|an|in|with|[A-Za-z]+))*)/gm, // IV. Title
+    // At line start - ALL CAPS titles
+    /(?:^|\n)\s*(\d+\.\d+)\s+([A-Z]{2,}(?:[\s,&]+[A-Z]+)*)/gm,                // X.Y ALL CAPS
+    /(?:^|\n)\s*(\d+\.)\s+([A-Z][A-Z]+(?:[\s,&]+[A-Z]+)*)/gm,                 // 1. ALL CAPS TITLE
+    /(?:^|\n)\s*([IVXLC]+\.)\s*([A-Z]{2,}(?:[\s,&]+[A-Z]+)*)/gm,              // IV. ALL CAPS
+    // Inline - after any word (PDFs strip newlines)
+    /\s(\d+\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+(?:of|on|and|for|to|the|a|an|in|with|[A-Za-z]+))+)/gm,  // X.Y Title Case (inline)
+    /\s(\d+\.\d+)\s+([A-Z]{2,}(?:[\s,&]+[A-Z]+)+)/gm,                         // X.Y ALL CAPS (inline)
+    /\s([A-Z]\.\d+)\s+([A-Z][a-z]+(?:[\s,&]+(?:of|on|and|for|to|the|a|an|in|with|[A-Za-z]+))+)/gm, // A.X Title (inline)
+    /\s([IVXLC]+\.[ivxlc\d]+)\s+([A-Z][a-zA-Z]+(?:[\s,&]+[A-Za-z]+)*)/gm,     // IV.ii Title (inline)
+  ];
+
+  for (const headerPattern of headerPatterns) {
+    headerPattern.lastIndex = 0;
+    let headerMatch;
+    while ((headerMatch = headerPattern.exec(text)) !== null) {
+      const followingText = headerMatch[2];
+      // Skip if it starts with a question word (then it's a question, not a header)
+      if (/^(Is|Are|Does|Do|Can|Will|Has|Have|Should|Would|Could|What|How|Why|When|Where|Describe|Explain|Provide|List|Detail|Please|Indicate|Specify|State|Clarify|Confirm|Outline|Summarize)\b/i.test(followingText)) {
+        continue;
+      }
+      // Skip if it's too long to be a header (likely a requirement sentence)
+      if (followingText.length > 80) {
+        continue;
+      }
+      // Check if we already have this position
+      const existingIndex = parts.findIndex(p => Math.abs(p.index - headerMatch!.index) < 5);
+      if (existingIndex === -1) {
+        parts.push({
+          index: headerMatch.index,
+          section: headerMatch[1].trim(),
+          endOfSection: headerMatch.index + headerMatch[0].length,
+          isHeader: true, // Mark as section header
+        });
+        console.log(`[splitConcatenatedRequirement] Found section header: ${headerMatch[1]} "${followingText.substring(0, 40)}..."`);
+      }
     }
   }
 
   // Sort parts by position
   parts.sort((a, b) => a.index - b.index);
 
-  // If no splits found, return original as single item
+  // If no splits found, try structural markers before giving up
   if (parts.length === 0) {
+    // Try structural markers (Transmittal Letter, Executive Summary, etc.)
+    const structuralSplits = splitOnStructuralMarkers(text);
+    if (structuralSplits.length > 1) {
+      console.log(`[splitConcatenatedRequirement] Split on structural markers: ${structuralSplits.map(s => s.section || 'PRE-CONTENT').join(', ')}`);
+      return structuralSplits;
+    }
     console.log(`[splitConcatenatedRequirement] No split points found in text of ${text.length} chars`);
     return [{ section: '', text: text.trim() }];
   }
 
   console.log(`[splitConcatenatedRequirement] Found ${parts.length} sections to split: ${parts.map(p => p.section + (p.isHeader ? ' (header)' : '')).join(', ')}`);
 
-  // Extract text for each requirement
+  // CRITICAL: Capture text BEFORE the first split point (the original requirement's content)
+  // This preserves the actual 6.1.3 content when we find 6.2, 6.3, etc. embedded in it
+  if (parts.length > 0 && parts[0].index > 0) {
+    const prefixText = text.substring(0, parts[0].index).trim();
+    if (prefixText.length > 0) {
+      results.push({
+        section: '',  // Will inherit original section in post-processing
+        text: prefixText,
+      });
+      console.log(`[splitConcatenatedRequirement] Captured prefix text (${prefixText.length} chars) before ${parts[0].section}`);
+    }
+  }
+
+  // Extract text for each detected section
   for (let i = 0; i < parts.length; i++) {
     const start = parts[i].endOfSection;
     const end = i < parts.length - 1 ? parts[i + 1].index : text.length;
@@ -691,6 +788,83 @@ function splitConcatenatedRequirement(text: string): Array<{ section: string; te
       results.push({
         section: parts[i].section,
         text: parts[i].isHeader ? `[SECTION_HEADER] ${reqText}` : reqText,  // Mark headers for later filtering
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Structural section markers that indicate document boundaries (not requirements)
+ * These are typically proposal response structure markers that should be filtered
+ */
+const STRUCTURAL_SECTION_MARKERS = [
+  { pattern: /\n\s*(Transmittal\s+Letter|Letter\s+of\s+Transmittal)[.\s:]*/i, name: 'TRANSMITTAL' },
+  { pattern: /\n\s*(Executive\s+Summary)[.\s:]*/i, name: 'EXEC_SUMMARY' },
+  { pattern: /\n\s*(Company\s+(?:Overview|Profile|Background))[.\s:]*/i, name: 'COMPANY_INFO' },
+  { pattern: /\n\s*(Technical\s+(?:Approach|Proposal|Response))[.\s:]*/i, name: 'TECHNICAL' },
+  { pattern: /\n\s*(Management\s+(?:Approach|Plan))[.\s:]*/i, name: 'MANAGEMENT' },
+  { pattern: /\n\s*(Pricing|Cost\s+Proposal)[.\s:]*/i, name: 'PRICING' },
+  { pattern: /\n\s*(References|Past\s+Performance)[.\s:]*/i, name: 'REFERENCES' },
+  { pattern: /\n\s*(Appendix|Attachment|Exhibit|Schedule)\s*[A-Z0-9]/i, name: 'APPENDIX' },
+  { pattern: /\n\s*(Certifications?|Representations?)[.\s:]*/i, name: 'CERTIFICATIONS' },
+  { pattern: /\n\s*(Instructions?\s+to\s+(?:Respondents?|Vendors?|Proposers?))[.\s:]*/i, name: 'INSTRUCTIONS' },
+  { pattern: /\n\s*(Evaluation\s+Criteria)[.\s:]*/i, name: 'EVALUATION' },
+  { pattern: /\n\s*(Terms?\s+and\s+Conditions?)[.\s:]*/i, name: 'TERMS' },
+  { pattern: /\n\s*(Scope\s+of\s+(?:Work|Services))[.\s:]*/i, name: 'SCOPE' },
+];
+
+/**
+ * Split text on structural section markers (document structure headers)
+ * Returns array of {section, text} where section is marked for filtering
+ */
+function splitOnStructuralMarkers(text: string): Array<{ section: string; text: string }> {
+  // Find all marker positions
+  const splits: Array<{ index: number; name: string; matchLength: number }> = [];
+
+  for (const marker of STRUCTURAL_SECTION_MARKERS) {
+    const match = text.match(marker.pattern);
+    if (match && match.index !== undefined) {
+      splits.push({
+        index: match.index,
+        name: marker.name,
+        matchLength: match[0].length,
+      });
+    }
+  }
+
+  // If no splits found, return empty (caller will use original text)
+  if (splits.length === 0) {
+    return [];
+  }
+
+  // Sort by position
+  splits.sort((a, b) => a.index - b.index);
+
+  console.log(`[splitOnStructuralMarkers] Found ${splits.length} structural markers: ${splits.map(s => s.name).join(', ')}`);
+
+  // Build result array - each split becomes its own item
+  const results: Array<{ section: string; text: string }> = [];
+
+  // If there's content before the first marker, include it as unmarked
+  if (splits[0].index > 0) {
+    const beforeText = text.substring(0, splits[0].index).trim();
+    if (beforeText.length > 0) {
+      results.push({ section: '', text: beforeText });
+    }
+  }
+
+  // Add each structural section
+  for (let i = 0; i < splits.length; i++) {
+    const start = splits[i].index + splits[i].matchLength;
+    const end = i < splits.length - 1 ? splits[i + 1].index : text.length;
+    const sectionText = text.substring(start, end).trim();
+
+    if (sectionText.length > 0) {
+      results.push({
+        section: `[STRUCTURAL:${splits[i].name}]`,
+        text: sectionText,
       });
     }
   }
@@ -1007,36 +1181,26 @@ function deduplicateRequirements(requirements: ExtractedRequirement[]): Extracte
       }
     }
 
-    // Check for near-duplicates ONLY if one text is a complete subset of another
-    // This catches cases where the LLM returns overlapping line ranges
-    // CRITICAL: Items with DIFFERENT section identifiers are NEVER duplicates
+    // Check for near-duplicates - text similarity is PRIMARY, section is SECONDARY
+    // This catches cases where the LLM extracts the same text with different section labels
+    // (which indicates an extraction error, not two different requirements)
     let isDupe = false;
     for (const [seenText, seenReq] of seen) {
-      // CRITICAL FIX: Items with DIFFERENT full section identifiers are NEVER duplicates
-      // This prevents false positives like 3.3.8 and 3.3.9 being compared
-      // Works for ANY section format: X.Y.Z, Roman, Letter, etc.
-      if (req.section && seenReq.section && req.section !== seenReq.section) {
-        continue; // Different sections can't be duplicates
-      }
-
-      const seenSubsection = getSubsection(seenReq.section);
-
-      // Additional check: NEVER dedupe items from different X.Y subsections
-      if (reqSubsection && seenSubsection && reqSubsection !== seenSubsection) {
-        continue;
-      }
-
-      // Only check longer texts to avoid false positives
+      // Only check longer texts to avoid false positives on short common phrases
       if (normalizedText.length > MIN_DEDUPE_TEXT_LENGTH && seenText.length > MIN_DEDUPE_TEXT_LENGTH) {
         const shorter = normalizedText.length < seenText.length ? normalizedText : seenText;
         const longer = normalizedText.length < seenText.length ? seenText : normalizedText;
 
-        // ONLY dedupe if one is a complete substring of the other
+        // Dedupe if one is a complete substring of the other
         // The shorter text must be substantial and represent a significant portion of the longer
         if (longer.includes(shorter)) {
-          // Verify the shorter text is substantial (not just a common phrase)
           if (shorter.length >= MIN_SUBSTANTIAL_TEXT_LENGTH && shorter.length > longer.length * SUBSET_LENGTH_RATIO) {
-            console.log(`[deduplicateRequirements] Removing subset duplicate: ${req.section} is contained in ${seenReq.section}`);
+            // Log cross-section duplicates for debugging (indicates LLM extraction error)
+            if (req.section !== seenReq.section) {
+              console.log(`[deduplicateRequirements] Cross-section duplicate: "${req.section}" same text as "${seenReq.section}" - keeping first`);
+            } else {
+              console.log(`[deduplicateRequirements] Removing subset duplicate: ${req.section} is contained in ${seenReq.section}`);
+            }
             dupeCount++;
             isDupe = true;
             break;
@@ -2922,6 +3086,21 @@ export async function extractRequirements(
 
     // Step 5: Split concatenated requirements
     requirements = splitConcatenatedRequirementsPostProcess(requirements);
+
+    // Step 5b: Filter out structural sections (Transmittal Letter, Executive Summary, etc.)
+    // These are document structure markers, not actual requirements
+    const beforeStructuralFilter = requirements.length;
+    requirements = requirements.filter(r => {
+      if (r.section?.startsWith('[STRUCTURAL:')) {
+        console.log(`[extraction] Filtering structural section: ${r.section}`);
+        return false;
+      }
+      return true;
+    });
+    const structuralFiltered = beforeStructuralFilter - requirements.length;
+    if (structuralFiltered > 0) {
+      console.log(`[extraction] Filtered ${structuralFiltered} structural sections`);
+    }
 
     // Step 6: Remove leading number artifacts ("3 Does..." → "Does...")
     removeLeadingNumberArtifacts(requirements);
