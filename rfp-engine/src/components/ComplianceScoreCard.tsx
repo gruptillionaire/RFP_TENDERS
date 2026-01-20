@@ -3,6 +3,7 @@
 import { ComplianceScore, getScoreGrade, getScoreColor, getScoreBgColor } from "@/lib/compliance-scoring";
 import { ActionableInsights } from "@/components/ActionableInsights";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent, InfoTooltip } from "@/components/ui/tooltip";
 
 interface ComplianceScoreCardProps {
   score: ComplianceScore;
@@ -29,17 +30,30 @@ export function ComplianceScoreCard({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-medium text-gray-500">Compliance Score</h3>
+              <InfoTooltip content="Weighted score based on requirement completion. Mandatory items carry more weight than optional ones." />
               {hasCustomWeights && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
-                  Custom Weights
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded cursor-help">
+                      Custom Weights
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>You have customized the evaluation weights for this project.</TooltipContent>
+                </Tooltip>
               )}
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className={`text-3xl font-bold ${textColor}`}>{score.overall}%</span>
-              <span className={`text-sm font-medium px-2 py-0.5 rounded ${bgColor} ${textColor}`}>
-                Grade {grade}
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`text-sm font-medium px-2 py-0.5 rounded cursor-help ${bgColor} ${textColor}`}>
+                    Grade {grade}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  A: 90-100% | B: 80-89% | C: 70-79% | D: 60-69% | F: Below 60%
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -98,24 +112,42 @@ export function ComplianceScoreCard({
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-gray-50 rounded p-2">
-            <div className="text-lg font-semibold text-green-600">{score.answered}</div>
-            <div className="text-xs text-gray-500">Complete</div>
-          </div>
-          <div className="bg-gray-50 rounded p-2">
-            <div className="text-lg font-semibold text-yellow-600">{score.partial}</div>
-            <div className="text-xs text-gray-500">Partial</div>
-          </div>
-          <div className="bg-gray-50 rounded p-2">
-            <div className="text-lg font-semibold text-red-600">{score.unanswered}</div>
-            <div className="text-xs text-gray-500">Open</div>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="bg-gray-50 rounded p-2 cursor-help">
+                <div className="text-lg font-semibold text-green-600">{score.answered}</div>
+                <div className="text-xs text-gray-500">Complete</div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Requirements with full draft responses ready for export.</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="bg-gray-50 rounded p-2 cursor-help">
+                <div className="text-lg font-semibold text-yellow-600">{score.partial}</div>
+                <div className="text-xs text-gray-500">Partial</div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Requirements with incomplete drafts that need more work.</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="bg-gray-50 rounded p-2 cursor-help">
+                <div className="text-lg font-semibold text-red-600">{score.unanswered}</div>
+                <div className="text-xs text-gray-500">Open</div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Requirements with no draft response yet.</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Mandatory progress */}
         <div className="mt-4 pt-4 border-t">
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-gray-600">Mandatory Requirements</span>
+            <span className="text-gray-600 flex items-center gap-1">
+              Mandatory Requirements
+              <InfoTooltip content="Requirements marked as mandatory by the RFP. Missing these may disqualify your submission." />
+            </span>
             <span className={`font-medium ${score.mandatory === 100 ? "text-green-600" : "text-gray-900"}`}>
               {score.mandatory}%
             </span>

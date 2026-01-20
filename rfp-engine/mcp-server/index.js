@@ -43,13 +43,13 @@ class MCPServer {
       extract_pdf: {
         name: "extract_pdf",
         description:
-          "Extract requirements from a PDF file. Debug modes (heuristic, classified) run fast via Vercel. Normal extraction calls Fly.io directly.",
+          "Extract requirements from a PDF or DOCX file. Debug modes (heuristic, classified) run fast via Vercel. Normal extraction calls Fly.io directly.",
         inputSchema: {
           type: "object",
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to the PDF file to extract",
+              description: "Absolute path to the PDF or DOCX file to extract",
             },
             debug: {
               type: "string",
@@ -157,40 +157,45 @@ class MCPServer {
       throw new Error(`File not found: ${resolvedPath}`);
     }
 
-    if (!resolvedPath.toLowerCase().endsWith(".pdf")) {
-      throw new Error("Only PDF files are supported");
+    const lowerPath = resolvedPath.toLowerCase();
+    const isPDF = lowerPath.endsWith(".pdf");
+    const isDOCX = lowerPath.endsWith(".docx");
+
+    if (!isPDF && !isDOCX) {
+      throw new Error("Only PDF and DOCX files are supported");
     }
 
     const fileName = path.basename(resolvedPath);
 
     // Debug modes go through Vercel (fast, no LLM)
     if (debug) {
-      return await this.extractViaVercel(resolvedPath, fileName, debug);
+      return await this.extractViaVercel(resolvedPath, fileName, debug, isPDF);
     }
 
     // Normal extraction goes directly to Fly.io
-    return await this.extractViaFlyio(resolvedPath, fileName);
+    return await this.extractViaFlyio(resolvedPath, fileName, isPDF);
   }
 
-  async extractViaVercel(filePath, fileName, debug) {
+  async extractViaVercel(filePath, fileName, debug, isPDF) {
     if (!API_KEY) {
       throw new Error("RFP_TEST_API_KEY not set");
     }
 
+    const contentType = isPDF ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     const fileBuffer = fs.readFileSync(filePath);
     const boundary = "----MCPFormBoundary" + Math.random().toString(36).slice(2);
     const body = Buffer.concat([
       Buffer.from(
         `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-        `Content-Type: application/pdf\r\n\r\n`
+        `Content-Type: ${contentType}\r\n\r\n`
       ),
       fileBuffer,
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
 
     const url = `${API_URL}/api/test/extract?debug=${encodeURIComponent(debug)}`;
-    console.error(`[MCP] Debug mode: ${debug} via Vercel`);
+    console.error(`[MCP] Debug mode: ${debug} via Vercel (${isPDF ? 'PDF' : 'DOCX'})`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -211,13 +216,13 @@ class MCPServer {
     return result;
   }
 
-  async extractViaFlyio(filePath, fileName) {
+  async extractViaFlyio(filePath, fileName, isPDF) {
     if (!WORKER_KEY) {
       throw new Error("RFP_WORKER_KEY not set. Add it to your MCP config.");
     }
 
-    // First, parse PDF via Vercel (quick operation)
-    const documentText = await this.parsePdfViaVercel(filePath, fileName);
+    // First, parse document via Vercel (quick operation)
+    const documentText = await this.parseDocumentViaVercel(filePath, fileName, isPDF);
 
     console.error(`[MCP] Calling Fly.io worker directly...`);
     console.error(`[MCP] Document: ${documentText.length} chars`);
@@ -263,25 +268,26 @@ class MCPServer {
     };
   }
 
-  async parsePdfViaVercel(filePath, fileName) {
+  async parseDocumentViaVercel(filePath, fileName, isPDF) {
     if (!API_KEY) {
       throw new Error("RFP_TEST_API_KEY not set");
     }
 
+    const contentType = isPDF ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     const fileBuffer = fs.readFileSync(filePath);
     const boundary = "----MCPFormBoundary" + Math.random().toString(36).slice(2);
     const body = Buffer.concat([
       Buffer.from(
         `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-        `Content-Type: application/pdf\r\n\r\n`
+        `Content-Type: ${contentType}\r\n\r\n`
       ),
       fileBuffer,
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
 
     const url = `${API_URL}/api/test/parse`;
-    console.error(`[MCP] Parsing PDF via Vercel...`);
+    console.error(`[MCP] Parsing ${isPDF ? 'PDF' : 'DOCX'} via Vercel...`);
 
     const response = await fetch(url, {
       method: "POST",

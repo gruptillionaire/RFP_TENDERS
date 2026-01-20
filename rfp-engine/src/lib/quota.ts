@@ -104,6 +104,76 @@ export async function getQuotaStatus(userId: string): Promise<QuotaCheckResult> 
   return checkAndIncrementQuota(userId, false);
 }
 
+// =============================================================================
+// COMBINED DASHBOARD QUERY (OPTIMIZED)
+// =============================================================================
+
+interface DashboardUserData {
+  plan: string;
+  emailVerified: Date | null;
+  quota: QuotaCheckResult;
+  singleUseQuota: SingleUseQuotaResult;
+}
+
+/**
+ * Get all user data needed for dashboard in a single query
+ * Avoids multiple round trips to database
+ */
+export async function getDashboardUserData(userId: string): Promise<DashboardUserData | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      plan: true,
+      emailVerified: true,
+      monthlyExtractionsUsed: true,
+      monthlyExtractionsLimit: true,
+      lastUsageReset: true,
+      singleUseExtractionsRemaining: true,
+      singleUseDraftsRemaining: true,
+      singleUseExpiresAt: true,
+    },
+  });
+
+  if (!user) return null;
+
+  // Calculate quota status from fetched data (no extra query)
+  const now = new Date();
+  const lastReset = new Date(user.lastUsageReset);
+  const shouldReset = now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
+
+  const currentUsage = shouldReset ? 0 : user.monthlyExtractionsUsed;
+  const limit =
+    user.plan === "ENTERPRISE" ? QUOTA_LIMITS.ENTERPRISE :
+    user.plan === "BUSINESS" ? QUOTA_LIMITS.BUSINESS :
+    user.plan === "PRO" ? QUOTA_LIMITS.PRO :
+    user.plan === "STARTER" ? QUOTA_LIMITS.STARTER :
+    user.monthlyExtractionsLimit || QUOTA_LIMITS.FREE;
+
+  const isUnlimited = limit === -1;
+  const remaining = isUnlimited ? -1 : Math.max(0, limit - currentUsage);
+
+  // Calculate single-use quota from fetched data (no extra query)
+  const isExpired = user.singleUseExpiresAt ? now > user.singleUseExpiresAt : false;
+
+  return {
+    plan: user.plan,
+    emailVerified: user.emailVerified,
+    quota: {
+      allowed: isUnlimited || currentUsage < limit,
+      used: currentUsage,
+      limit: isUnlimited ? -1 : limit,
+      remaining,
+    },
+    singleUseQuota: {
+      hasCredits: user.singleUseExtractionsRemaining > 0 && !isExpired,
+      extractionsRemaining: isExpired ? 0 : user.singleUseExtractionsRemaining,
+      draftsRemaining: isExpired ? 0 : user.singleUseDraftsRemaining,
+      expiresAt: user.singleUseExpiresAt,
+      isExpired,
+    },
+  };
+}
+
 /**
  * Check if user can generate a draft and optionally increment usage
  */

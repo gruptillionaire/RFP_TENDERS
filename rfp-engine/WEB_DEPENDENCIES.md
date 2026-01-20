@@ -47,6 +47,25 @@ External services and platforms that power RFP Matrix.
 
 ---
 
+### Upstash Redis
+- **Purpose:** Distributed rate limiting and session management
+- **URL:** [upstash.com](https://upstash.com)
+- **Dashboard:** [console.upstash.com](https://console.upstash.com)
+- **Used for:**
+  - API rate limiting (sliding window algorithm)
+  - Login attempt tracking with lockout (5 attempts → 15 min lockout)
+  - 2FA challenge rate limiting
+  - Distributed state across serverless instances
+- **Features:**
+  - REST API (works in serverless/edge)
+  - Graceful fallback if unavailable
+  - No connection pooling needed
+- **Env vars:**
+  - `UPSTASH_REDIS_REST_URL`
+  - `UPSTASH_REDIS_REST_TOKEN`
+
+---
+
 ## Payments
 
 ### Stripe
@@ -174,6 +193,10 @@ OPENAI_API_KEY=
 # Extraction Worker (Fly.io)
 EXTRACTION_WORKER_URL=https://your-app.fly.dev
 EXTRACTION_WORKER_KEY=
+
+# Rate Limiting (Upstash Redis)
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 ```
 
 ---
@@ -185,6 +208,7 @@ EXTRACTION_WORKER_KEY=
 | Vercel | Pro | ~$20/month |
 | Fly.io | Free tier | Free (256MB RAM) |
 | Database | Vercel Postgres | Usage-based |
+| Upstash Redis | Free tier | Free (10K commands/day) |
 | Stripe | Standard | 2.9% + 30¢ per transaction |
 | Resend | Free tier | Free (3,000 emails/month) |
 | Zoho Mail | Free | Free (5 users) |

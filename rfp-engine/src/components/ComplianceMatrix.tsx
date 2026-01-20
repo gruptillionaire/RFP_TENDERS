@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MatrixOverview } from "@/components/MatrixOverview";
 import { VersionHistoryModal } from "@/components/VersionHistoryModal";
+import { Tooltip, TooltipTrigger, TooltipContent, InfoTooltip } from "@/components/ui/tooltip";
 import {
   RequirementFilters,
   FilterState,
@@ -321,14 +322,22 @@ const RequirementRow = React.memo(function RequirementRow({
               </SelectContent>
             </Select>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={`h-7 w-9 text-xs font-semibold border rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 ${getDomainBadgeColor(req.domainContext || "FEATURE")}`}
-                  title={`Domain: ${req.domainContext || "FEATURE"}`}
-                >
-                  {getDomainIcon(req.domainContext || "FEATURE")}
-                </button>
-              </DropdownMenuTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`h-7 w-9 text-xs font-semibold border rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 ${getDomainBadgeColor(req.domainContext || "FEATURE")}`}
+                    >
+                      {getDomainIcon(req.domainContext || "FEATURE")}
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {req.domainContext === "LEGAL" ? "Legal/Compliance requirement" :
+                   req.domainContext === "PROCESS" ? "Process/Methodology requirement" :
+                   "Feature/Capability requirement"}
+                </TooltipContent>
+              </Tooltip>
               <DropdownMenuContent align="start">
                 <DropdownMenuItem onClick={() => onDomainChange(req.id, "FEATURE")}>
                   <span className="w-5 h-5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 flex items-center justify-center text-xs font-semibold mr-2">F</span>
@@ -345,20 +354,24 @@ const RequirementRow = React.memo(function RequirementRow({
               </DropdownMenuContent>
             </DropdownMenu>
             {req.requiresReview && (
-              <span
-                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-yellow-100 text-yellow-700 text-[10px]"
-                title="Requires manual review"
-              >
-                !
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-yellow-100 text-yellow-700 text-[10px] cursor-help">
+                    !
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>AI flagged this for manual review. Verify the extracted requirement is accurate.</TooltipContent>
+              </Tooltip>
             )}
             {req.type === "CONTEXTUAL" && (
-              <span
-                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600"
-                title="For internal reference only - not included in exports"
-              >
-                Internal
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 cursor-help">
+                    Internal
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Background context from the RFP. Not included in exports.</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </TableCell>
@@ -1039,8 +1052,18 @@ export function ComplianceMatrix({
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Requirement</TableHead>
                 <TableHead className="w-24">Priority</TableHead>
-                <TableHead className="w-28">Req. Type</TableHead>
-                <TableHead className="w-32">Status</TableHead>
+                <TableHead className="w-28">
+                  <span className="flex items-center gap-1">
+                    Req. Type
+                    <InfoTooltip content="Classification of what type of response is needed: Procedural (confirm compliance), Descriptive (explain approach), Evidence (cite documents), etc." />
+                  </span>
+                </TableHead>
+                <TableHead className="w-32">
+                  <span className="flex items-center gap-1">
+                    Status
+                    <InfoTooltip content="Unanswered: No draft yet. Partial: Draft started but incomplete. Answered: Ready for export." />
+                  </span>
+                </TableHead>
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>

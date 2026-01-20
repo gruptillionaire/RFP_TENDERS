@@ -99,6 +99,20 @@ interface CompactResult {
 
 const EXTRACTION_PROMPT = `You are an expert RFP (Request for Proposal) analyst. Extract ALL requirements from the complete document.
 
+## CRITICAL: SKIP SCOPE OF WORK DELIVERABLES
+
+DO NOT extract bullet points from "Scope of Work" sections that describe WHAT to build/deliver:
+- "Develop a website..." → SKIP (deliverable)
+- "Create content..." → SKIP (deliverable)
+- "Integrate features..." → SKIP (deliverable)
+- "Implement security..." → SKIP (deliverable)
+- "Design a system..." → SKIP (deliverable)
+
+ONLY extract items that ask the vendor to WRITE something in their proposal:
+- "Describe your approach..." → EXTRACT
+- "Provide examples of..." → EXTRACT
+- "Explain how you will..." → EXTRACT
+
 ## OUTPUT FORMAT - CRITICAL: USE COMPACT KEYS EXACTLY AS SHOWN
 
 Return JSON object with ONLY these keys:
@@ -206,10 +220,12 @@ The key distinction:
    - Process: "How will you handle...?"
    - Approach: "What is your approach to...?"
 
-2. CAPABILITY REQUESTS - Sentences starting with imperatives:
+2. PROPOSAL RESPONSE REQUESTS - Sentences asking vendor to WRITE something in their proposal:
    - "Describe...", "Explain...", "Provide...", "List..."
    - "Demonstrate...", "Detail...", "Outline..."
    - "Include...", "Submit...", "Specify..."
+   - NOT delivery verbs like "Develop", "Build", "Create", "Implement", "Integrate", "Design"
+   - Those describe what to BUILD, not what to WRITE in the proposal
 
 3. OBLIGATION STATEMENTS - Sentences containing:
    - "shall", "must", "will", "should"
@@ -237,6 +253,31 @@ CRITICAL - These are NOT requirements (do NOT extract):
 - Scope/background descriptions like "The organization requires..." or "This project will..." - these are context, not questions
 - Statements describing what the buyer needs (background info) vs questions asking vendors to respond
 - Only extract items that require a RESPONSE from the vendor (questions, requests for information, attestations)
+- Scope of Work DELIVERABLES - bullet points describing desired features/outcomes without asking a question:
+  - "Develop a modern, responsive website design" → SKIP (deliverable description)
+  - "Integrate online banking features" → SKIP (deliverable description)
+  - "Reflect the organization's brand identity" → SKIP (deliverable description)
+  - These describe WHAT the buyer wants built, not questions for the proposal to answer
+  - ONLY extract from Scope of Work if it asks HOW, requests a description, or requires vendor input
+
+CRITICAL - SKIP ADMINISTRATIVE FORMS (these are forms to FILL OUT, not proposal questions):
+- CONFLICT OF INTEREST QUESTIONNAIRE fields (Yes/No checkboxes about business relationships)
+- Exhibit/Attachment forms (EXHIBIT A, EXHIBIT B, ATTACHMENT A, etc.) that are:
+  - Acknowledgment forms with signature blocks
+  - Certification forms with checkbox attestations
+  - Questionnaires with Yes/No checkboxes to be checked
+  - Forms asking for name, date, signature fields
+- Form field prompts like:
+  - "Name of local government officer..."
+  - "Name of vendor who has a business relationship..."
+  - Checkbox questions: "yes [ ] no [ ]" or "☐ Yes ☐ No"
+- Signature blocks and certification statements at end of forms
+
+The distinction:
+- "Does your system support SSO?" → EXTRACT (proposal question asking about capability)
+- "Do you have a business relationship with local government officer? yes [ ] no [ ]" → SKIP (form checkbox)
+- "Describe your approach to security" → EXTRACT (proposal question)
+- "I certify that the above information is correct. Signature: ___" → SKIP (form attestation)
 
 ## EXTRACTION RULES
 
@@ -248,7 +289,9 @@ CRITICAL - These are NOT requirements (do NOT extract):
 2. SECTION DETECTION
    - Look for section ID on same line or 1-2 lines before
    - Formats: "3.1.2", "A.1", "III.B", "(a)", "Q5"
-   - Copy exactly as written, null if not found
+   - Copy exactly as written
+   - If NO numbered sections exist, use a short descriptive reference from the parent heading (e.g., "Pricing", "Technical", "References")
+   - Only use null if truly no section context exists
 
 3. SECTION GROUP DETECTION (g field)
    - Find the parent section header for each requirement

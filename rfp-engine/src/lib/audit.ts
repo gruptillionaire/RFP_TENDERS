@@ -33,6 +33,7 @@ export const AuditAction = {
 
   // Requirement actions
   REQUIREMENT_UPDATE: "requirement.update",
+  REQUIREMENT_DELETE: "requirement.delete",
   REQUIREMENT_GENERATE_DRAFT: "requirement.generate_draft",
 
   // CCPA

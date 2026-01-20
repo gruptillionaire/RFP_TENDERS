@@ -1,13 +1,14 @@
 /**
  * POST /api/test/parse
  *
- * Parse a PDF and return the raw text. Used by MCP to get document text
+ * Parse a PDF or DOCX and return the raw text. Used by MCP to get document text
  * before sending to Fly.io for extraction.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { parsePDF } from "@/lib/parsers/pdf";
+import { parseDOCX } from "@/lib/parsers/docx";
 import { sanitizeForLLM } from "@/lib/security";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -46,13 +47,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File too large" }, { status: 400 });
     }
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      return NextResponse.json({ error: "Only PDF files supported" }, { status: 400 });
+    const fileName = file.name.toLowerCase();
+    const isPDF = fileName.endsWith(".pdf");
+    const isDOCX = fileName.endsWith(".docx");
+
+    if (!isPDF && !isDOCX) {
+      return NextResponse.json({ error: "Only PDF and DOCX files supported" }, { status: 400 });
     }
 
-    // Parse PDF
+    // Parse file based on type
     const buffer = Buffer.from(await file.arrayBuffer());
-    const text = await parsePDF(buffer);
+    const text = isPDF ? await parsePDF(buffer) : await parseDOCX(buffer);
     const sanitizedText = sanitizeForLLM(text);
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useCallback, MouseEvent } from "react";
+import { Tooltip, TooltipTrigger, TooltipContent, InfoTooltip } from "@/components/ui/tooltip";
 
 interface Requirement {
   id: string;
@@ -100,22 +101,42 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
         </div>
         <div className="flex items-center gap-6 text-sm">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-green-500"></span>
-              Answered ({stats.answered})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-yellow-400"></span>
-              Partial ({stats.partial})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-gray-200"></span>
-              Unanswered ({stats.unanswered})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-red-200"></span>
-              Mandatory Unanswered
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1.5 cursor-help">
+                  <span className="w-3 h-3 rounded bg-green-500"></span>
+                  Answered ({stats.answered})
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Requirements with complete draft responses.</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1.5 cursor-help">
+                  <span className="w-3 h-3 rounded bg-yellow-400"></span>
+                  Partial ({stats.partial})
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Requirements with incomplete drafts that need more work.</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1.5 cursor-help">
+                  <span className="w-3 h-3 rounded bg-gray-200"></span>
+                  Unanswered ({stats.unanswered})
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Optional requirements with no draft yet.</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1.5 cursor-help">
+                  <span className="w-3 h-3 rounded bg-red-200"></span>
+                  Mandatory Unanswered
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Mandatory requirements without a response. Address these first.</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>
@@ -124,7 +145,10 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-600">Overall Progress</span>
+            <span className="text-gray-600 flex items-center gap-1">
+              Overall Progress
+              <InfoTooltip content="Percentage of all requirements marked as Answered." />
+            </span>
             <span className="font-medium">{overallProgress}%</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -136,7 +160,10 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
         </div>
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-600">Mandatory Requirements</span>
+            <span className="text-gray-600 flex items-center gap-1">
+              Mandatory Requirements
+              <InfoTooltip content="Must be completed. Missing mandatory requirements may disqualify your submission." />
+            </span>
             <span className={`font-medium ${mandatoryProgress === 100 ? "text-green-600" : "text-orange-600"}`}>
               {stats.mandatoryAnswered}/{stats.mandatory} ({mandatoryProgress}%)
             </span>

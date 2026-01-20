@@ -6,13 +6,7 @@ This document tracks issues identified during MVP audits that are not yet resolv
 
 ## High Priority
 
-### 1. Add Requirement Delete Endpoint
-**File:** `src/app/api/requirements/[id]/route.ts`
-**Issue:** No endpoint exists to delete individual requirements
-**Impact:** Users cannot remove mistakenly extracted requirements
-**Fix:** Add DELETE handler to requirements API route
-
-### 2. Add Abort Controllers to Fetch Calls
+### 1. Add Abort Controllers to Fetch Calls
 **Files:** Various client components
 **Issue:** Long-running fetch requests aren't cancelled on component unmount
 **Impact:** Potential memory leaks, stale state updates
@@ -23,14 +17,7 @@ This document tracks issues identified during MVP audits that are not yet resolv
 
 ## Medium Priority
 
-### 3. Rate Limiting in Serverless Environment
-**File:** `src/lib/rate-limit.ts`
-**Issue:** Rate limiting uses in-memory Maps, which don't persist across serverless function invocations
-**Impact:** Rate limits may not be effective in serverless deployments (each cold start gets fresh memory)
-**Fix:** Use Redis/Upstash for rate limiting state, or implement at edge (Vercel Edge Config)
-**Note:** Current implementation works for single-server deployments but not for serverless at scale
-
-### 4. Add Request ID Correlation
+### 2. Add Request ID Correlation
 **Issue:** No request IDs for tracing errors across services
 **Impact:** Difficult to debug production issues
 **Fix:** Generate request ID in middleware, pass through to logging
@@ -39,28 +26,20 @@ This document tracks issues identified during MVP audits that are not yet resolv
 
 ## Low Priority
 
-### 5. Virtual Scrolling for Large Requirement Lists
+### 3. Virtual Scrolling for Large Requirement Lists
 **File:** `src/app/(dashboard)/projects/[id]/ProjectClient.tsx`
 **Issue:** All requirements rendered at once
 **Impact:** Performance degradation with 100+ requirements
 **Fix:** Implement virtualized list (react-window or similar)
 
-### 6. Database Query Optimization
-**File:** `src/app/api/projects/route.ts`
-**Issue:** Dashboard queries could be optimized with selective fields
-**Impact:** Minor performance improvement
-**Fix:** Use `select` to limit returned fields in project list queries
-
-### 7. Add Health Check Endpoint
-**File:** `src/app/api/health/route.ts` (new)
-**Issue:** No endpoint for monitoring/load balancer health checks
-**Impact:** Can't easily verify service health
-**Fix:** Add simple health check endpoint returning 200 OK
-
 ---
 
 ## Completed
 
+- [x] Add requirement delete endpoint (`/api/requirements/[id]` DELETE - with ownership verification and audit logging)
+- [x] Add health check endpoint (`/api/health` - checks DB and Redis)
+- [x] Add Redis rate limiting (Upstash)
+- [x] Optimize dashboard queries (combined user data fetch)
 - [x] Fix hardcoded encryption keys (created centralized crypto module)
 - [x] Fix quota race condition (wrapped in Prisma transaction)
 - [x] Persist 2FA sessions to database (added Pending2FASession model)
