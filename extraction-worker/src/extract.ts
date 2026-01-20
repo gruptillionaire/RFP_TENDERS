@@ -164,12 +164,22 @@ Set a=0 (narrative) when:
 
 ## MANDATORY DETECTION (m)
 
-Default m=1 (mandatory) UNLESS text contains:
-- "optional", "if desired", "if applicable", "not required"
-- "nice to have", "desirable but not", "may choose"
-- "bonus", "preferred but not required"
+Default m=1 (mandatory). Only set m=0 when the REQUIREMENT ITSELF is optional to respond to.
 
-Note: "optional" describing CONTENT (e.g., "optional features") ≠ optional requirement
+Set m=0 ONLY when these phrases appear AT THE END or modify THE WHOLE REQUIREMENT:
+- "...if applicable" or "...if applicable." at END → m=0
+- "...if desired" at END → m=0
+- "This requirement is optional" → m=0
+- "Respondents may optionally..." → m=0
+
+KEEP m=1 (mandatory) when these words describe CONTENT being asked about:
+- "Is there an optional sign-up bonus?" → m=1 (asking about optional feature)
+- "Describe any optional modules" → m=1 (asking about optional modules)
+- "What optional features are available?" → m=1 (asking about optional features)
+
+The key distinction:
+- "Detail hardware requirements if applicable" → m=0 (whole requirement is conditional)
+- "Does the system support optional plugins?" → m=1 (asking about optional plugins)
 
 ## WHAT TO EXTRACT
 
