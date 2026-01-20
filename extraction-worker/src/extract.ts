@@ -83,20 +83,24 @@ interface CompactResult {
 
 const EXTRACTION_PROMPT = `You are an expert RFP (Request for Proposal) analyst. Extract ALL requirements from the complete document.
 
-## OUTPUT FORMAT
+## OUTPUT FORMAT - CRITICAL: USE COMPACT KEYS EXACTLY AS SHOWN
 
-Return JSON: {"dl":"ISO deadline or null","dt":"deadline text or null","r":[...requirements]}
+Return JSON object with ONLY these keys:
+{"dl":"ISO deadline or null","dt":"deadline text or null","r":[...requirements]}
 
-Each requirement object uses compact keys:
-- s: section reference (e.g., "3.1.2", "A.1", null if none)
-- g: section group/parent (e.g., "3: Technical Requirements")
-- t: requirement text (full text, no section numbers)
-- y: type code (1-8, see below)
-- m: mandatory (1=yes, 0=optional)
-- d: domain code (1-3, see below)
-- a: attestation (1=yes/no question, 0=narrative)
-- w: word limit (number or null)
-- c: character limit (number or null)
+CRITICAL: Each requirement MUST use these EXACT compact single-letter keys (NOT full names):
+- "s": section reference (e.g., "3.1.2", "A.1", null if none)
+- "g": section group (e.g., "3: Technical Requirements", null if none)
+- "t": requirement text (full text, no section numbers)
+- "y": type code (integer 1-8, see below)
+- "m": mandatory (integer: 1=yes, 0=optional)
+- "d": domain code (integer 1-3, see below)
+- "a": attestation (integer: 1=yes/no, 0=narrative)
+- "w": word limit (integer or null)
+- "c": character limit (integer or null)
+
+WRONG: {"section":"3.1", "text":"...", "type":"DECLARATIVE"}
+RIGHT: {"s":"3.1", "t":"...", "y":1}
 
 ## TYPE CODES (y)
 
@@ -237,7 +241,7 @@ export async function extractRequirements(
   documentText: string,
   options: ExtractionOptions = {}
 ): Promise<ExtractionResult> {
-  const model = options.model || "gemini-2.5-flash-lite";
+  const model = options.model || "gemini-2.5-flash";
   const startTime = Date.now();
 
   if (!process.env.GEMINI_API_KEY) {
@@ -271,6 +275,9 @@ export async function extractRequirements(
         responseMimeType: "application/json",
         temperature: 0.1,
         maxOutputTokens: 65536,
+        thinkingConfig: {
+          thinkingBudget: 0, // Disable thinking to use full token budget for output
+        },
       },
     });
 
@@ -280,6 +287,11 @@ export async function extractRequirements(
       const candidate = response.candidates[0];
       console.log(`[extract] Finish reason: ${candidate.finishReason}`);
       console.log(`[extract] Token count:`, response.usageMetadata);
+
+      // Check for truncation
+      if (candidate.finishReason === 'MAX_TOKENS') {
+        console.error(`[extract] WARNING: Response was truncated due to max tokens`);
+      }
     }
 
     const content = response.text;
@@ -287,7 +299,13 @@ export async function extractRequirements(
       throw new Error('Empty response from Gemini');
     }
 
-    console.log(`[extract] Raw response length: ${content.length} chars`);
+    console.log(`[extract] Response length: ${content.length} chars`);
+
+    // Check if JSON is complete
+    if (!content.trim().endsWith('}') && !content.trim().endsWith(']')) {
+      console.error(`[extract] WARNING: JSON appears truncated. Ends with: ${content.slice(-50)}`);
+      throw new Error(`Response JSON truncated (${content.length} chars). Model may have hit output limit.`);
+    }
 
     // Parse compact JSON response
     const compact: CompactResult = JSON.parse(content);

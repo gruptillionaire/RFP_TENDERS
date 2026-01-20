@@ -334,6 +334,7 @@ class MCPServer {
           sectionGroup: req.sectionGroup,
           type: req.type,
           isMandatory: req.isMandatory,
+          domainContext: req.domainContext,
           text: req.text,
           isAttestation: req.isAttestation,
         })),
