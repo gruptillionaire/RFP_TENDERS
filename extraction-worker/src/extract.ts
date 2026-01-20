@@ -104,13 +104,15 @@ RIGHT: {"s":"3.1", "t":"...", "y":1}
 
 ## TYPE CODES (y)
 
-1 = DECLARATIVE - Yes/no capability questions
+1 = DECLARATIVE - Yes/no OR direct factual questions
     Pattern: "Does your...", "Can the...", "Is there...", "Will you..."
-    Short answers expected, simple confirmation
+    Also: "What is...", "Where is...", "In what location...", "Which..." (factual answers)
+    Short/direct answers expected, not detailed narratives
 
-2 = DESCRIPTIVE - Open-ended narrative questions
-    Pattern: "Describe...", "Explain...", "What is your approach..."
-    Detailed written response required
+2 = DESCRIPTIVE - Open-ended narrative questions requiring explanation
+    Pattern: "Describe...", "Explain...", "What is your approach...", "How do you..."
+    Requires detailed written explanation, not just a fact
+    Keywords: describe, explain, detail, outline, elaborate
 
 3 = PROCEDURAL - Process/methodology/timeline questions
     Pattern: "How will you...", "What is your process for..."
