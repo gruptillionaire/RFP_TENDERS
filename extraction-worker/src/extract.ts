@@ -80,6 +80,22 @@ interface CompactResult {
 // =============================================================================
 // EXTRACTION PROMPT
 // =============================================================================
+//
+// ⭐ BEST EXTRACTION METHOD - Gemini 2.5 Flash with thinking disabled
+//
+// This prompt has been iteratively refined to:
+// - Eliminate false positives (evaluation criteria, scope descriptions)
+// - Properly detect section groups (e.g., "3.1: Design and Templates")
+// - Correctly classify requirement types (DECLARATIVE for factual, DESCRIPTIVE for explanations)
+// - Handle "if applicable" at end = optional, vs "optional" in content = mandatory
+// - Keep multi-part questions together under same section number
+// - Use compact JSON keys to maximize output within token limits
+//
+// Model: gemini-2.5-flash with thinkingBudget: 0 (disables thinking, full tokens for output)
+// Limits: ~4.2M chars input, ~262K chars output (~2000 requirements max)
+// Cost: ~$0.04-0.05 per extraction
+//
+// =============================================================================
 
 const EXTRACTION_PROMPT = `You are an expert RFP (Request for Proposal) analyst. Extract ALL requirements from the complete document.
 
