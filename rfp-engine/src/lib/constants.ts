@@ -5,13 +5,13 @@ export const MODELS = {
 
 export const TOKEN_LIMITS = {
   CONTEXTUAL: { min: 0, max: 0 }, // No response needed
-  PROCEDURAL: { min: 40, max: 60 },
-  DECLARATIVE: { min: 80, max: 120 },
-  DESCRIPTIVE: { min: 200, max: 300 },
-  EVIDENCE_BASED: { min: 120, max: 180 },
-  QUANTITATIVE: { min: 150, max: 250 },
-  REFERENCE_BASED: { min: 200, max: 350 },
-  STAFFING: { min: 180, max: 300 },
+  PROCEDURAL: { min: 100, max: 200 },
+  DECLARATIVE: { min: 150, max: 300 },
+  DESCRIPTIVE: { min: 250, max: 500 },
+  EVIDENCE_BASED: { min: 200, max: 400 },
+  QUANTITATIVE: { min: 200, max: 400 },
+  REFERENCE_BASED: { min: 300, max: 600 },
+  STAFFING: { min: 250, max: 500 },
 } as const;
 
 export const QUOTA_LIMITS = {
