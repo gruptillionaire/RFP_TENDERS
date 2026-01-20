@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 import { MODELS, TOKEN_LIMITS, RequirementType, EXTRACTION_CONFIG } from "./constants";
 import { sanitizeForLLM } from "./security";
@@ -182,6 +183,15 @@ if (apiKey && !apiKey.startsWith("sk-")) {
 export const openai = new OpenAI({
   apiKey: apiKey || "missing-key", // Provide fallback to prevent crash, but log error above
 });
+
+// Validate Gemini API key
+const geminiApiKey = process.env.GEMINI_API_KEY;
+if (!geminiApiKey) {
+  console.error("WARNING: GEMINI_API_KEY environment variable is not set (used for drafting)");
+}
+
+// Gemini client for draft generation
+export const gemini = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 
 // =============================================================================
 // EXTRACTION PROMPT - With requirement type classification
@@ -3904,6 +3914,10 @@ export async function generateDraft(
     };
   }
 
+  if (!gemini) {
+    throw new Error("GEMINI_API_KEY not configured - cannot generate drafts");
+  }
+
   const tokenLimits = TOKEN_LIMITS[requirementType];
   const basePrompt = DRAFT_PROMPTS[requirementType];
   const domainModifier = getDomainPromptModifier(domainContext);
@@ -3911,36 +3925,31 @@ export async function generateDraft(
   // Combine Layer 1 (type) and Layer 2 (domain) prompts
   const systemPrompt = `${basePrompt}\n\n${domainModifier}`;
 
-  const messages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: systemPrompt },
-  ];
-
+  // Build the user prompt
+  let userPrompt = "";
   if (context) {
-    messages.push({
-      role: "user",
-      content: `Here is some context from previous responses that may be relevant:\n\n${context}`,
-    });
+    userPrompt += `Here is some context from previous responses that may be relevant:\n\n${context}\n\n`;
   }
+  userPrompt += `Generate a draft response for this RFP requirement:\n\n"${requirement}"\n\nREMEMBER: Do NOT repeat this requirement text in your response. Do NOT write an email. Be concise and direct.`;
 
-  messages.push({
-    role: "user",
-    content: `Generate a draft response for this RFP requirement:\n\n"${requirement}"\n\nREMEMBER: Do NOT repeat this requirement text in your response. Do NOT write an email. Be concise and direct.`,
+  // Gemini call
+  const response = await gemini.models.generateContent({
+    model: MODELS.DRAFTING,
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
+      },
+    ],
+    config: {
+      temperature: 0.7,
+      maxOutputTokens: tokenLimits.max * 2, // Allow buffer, prompts guide actual length
+    },
   });
 
-  // OpenAI call with retry logic and timeout
-  const response = await withRetry(
-    () => openai.chat.completions.create({
-      model: MODELS.DRAFTING,
-      messages,
-      temperature: 0.7,
-      max_tokens: tokenLimits.max * 2, // Allow buffer, prompts guide actual length
-    }),
-    { timeout: 60000 } // 1 minute for drafting
-  );
-
-  let content = response.choices[0]?.message?.content;
+  let content = response.text;
   if (!content) {
-    throw new Error("No response from OpenAI");
+    throw new Error("No response from Gemini");
   }
 
   // Post-processing: Remove fluff phrases, apply guardrails, clean formatting

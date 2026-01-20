@@ -18,13 +18,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { MODELS, RequirementType } from "@/lib/constants";
 import { sanitizeForLLM } from "@/lib/security";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "missing-key",
-});
+const gemini = process.env.GEMINI_API_KEY
+  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+  : null;
 
 // Focused prompt for classification refinement only
 const REFINEMENT_PROMPT = `You are an expert at classifying RFP requirements. Given requirement text, classify:
@@ -156,21 +156,29 @@ export async function POST(
     const batchText = textsToRefine.join("\n");
 
     // Call LLM for classification
+    if (!gemini) {
+      throw new Error("GEMINI_API_KEY not configured");
+    }
+
     const startTime = Date.now();
-    const response = await openai.chat.completions.create({
-      model: MODELS.EXTRACTION,
-      messages: [
-        { role: "system", content: REFINEMENT_PROMPT },
-        { role: "user", content: `Classify these ${requirements.length} requirements:\n\n${batchText}` },
+    const response = await gemini.models.generateContent({
+      model: MODELS.DRAFTING, // Using same model for all Gemini calls
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `${REFINEMENT_PROMPT}\n\nClassify these ${requirements.length} requirements:\n\n${batchText}` }],
+        },
       ],
-      response_format: { type: "json_object" },
-      temperature: 0.1,
-      max_tokens: 4000,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        maxOutputTokens: 4000,
+      },
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.text;
     if (!content) {
-      throw new Error("No response from OpenAI");
+      throw new Error("No response from Gemini");
     }
 
     const elapsed = Date.now() - startTime;

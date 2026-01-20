@@ -230,7 +230,7 @@ class MCPServer {
       },
       body: JSON.stringify({
         documentText,
-        model: "gpt-4o-mini",
+        // model defaults to gemini-2.5-flash in extraction worker
       }),
     });
 

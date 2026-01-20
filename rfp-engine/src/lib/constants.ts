@@ -1,6 +1,6 @@
 export const MODELS = {
-  EXTRACTION: "gpt-4o-mini",
-  DRAFTING: "gpt-3.5-turbo",
+  EXTRACTION: "gemini-2.5-flash-preview-05-20", // Handled by extraction-worker
+  DRAFTING: "gemini-2.5-flash-preview-05-20",   // Used by rfp-engine for drafting
 } as const;
 
 export const TOKEN_LIMITS = {
@@ -64,6 +64,6 @@ export const EXTRACTION_CONFIG = {
   /** Timeout for worker requests (ms) - can be long for big documents */
   WORKER_TIMEOUT: 5 * 60 * 1000, // 5 minutes
 
-  /** Model to use for extraction */
-  EXTRACTION_MODEL: 'gpt-4o-mini',
+  /** Model to use for extraction (handled by extraction-worker) */
+  EXTRACTION_MODEL: 'gemini-2.5-flash-preview-05-20',
 } as const;

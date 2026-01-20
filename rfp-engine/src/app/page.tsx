@@ -6,8 +6,8 @@ import { JsonLd, organizationSchema, softwareApplicationSchema } from "@/compone
 import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "RFP Compliance Software for SMEs | Never Miss a Requirement",
-  description: "AI-powered RFP response software built for small and medium businesses. Extract every requirement, ensure 100% compliance, and generate draft responses in minutes.",
+  title: "RFP Matrix | AI-Powered RFP Compliance Software for SMEs",
+  description: "RFP Matrix extracts every requirement from your RFP documents using AI. Track compliance, generate draft responses, and never miss a requirement again.",
   alternates: {
     canonical: "/",
   },

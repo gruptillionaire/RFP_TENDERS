@@ -19,11 +19,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://rfpmatrix.com'),
   title: {
-    default: "RFP Matrix - AI-Powered RFP Management Software",
+    default: "RFP Matrix | AI-Powered RFP Compliance Software",
     template: "%s | RFP Matrix"
   },
-  description: "Respond to RFPs and tenders 10x faster with AI-powered requirement extraction and draft response generation. Upload documents, track compliance, and win more bids.",
-  keywords: ["RFP software", "tender management", "proposal automation", "AI RFP response", "bid management", "compliance matrix", "RFP response tool"],
+  description: "RFP Matrix extracts every requirement from your RFP documents using AI. Track compliance, generate draft responses, and never miss a requirement again.",
+  keywords: ["RFP Matrix", "RFP software", "tender management", "proposal automation", "AI RFP response", "bid management", "compliance matrix", "RFP response tool"],
   authors: [{ name: "RFP Matrix" }],
   creator: "RFP Matrix",
   publisher: "RFP Matrix",
