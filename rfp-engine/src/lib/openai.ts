@@ -730,6 +730,41 @@ CRITICAL INSTRUCTIONS:
 - Include direct questions, mandatory requirements, deliverables, timelines, compliance requirements, technical specifications, and pricing requirements
 
 ==============================================================================
+DO NOT EXTRACT - COMPANY INFORMATION FORM FIELDS
+==============================================================================
+SKIP any items that are simply asking for basic vendor/company identification data.
+These are form fields for administrative purposes, NOT actual requirements about
+products, services, or capabilities.
+
+DO NOT EXTRACT items like:
+- "Full name of the potential supplier submitting the information"
+- "Registered office address (if applicable)"
+- "Company registration number (if applicable)"
+- "Head office DUNS number (if applicable)"
+- "Registered VAT number"
+- "Date of registration in country of origin"
+- "Trading name(s) that will be used"
+- "Details of immediate parent company"
+- "Details of ultimate parent company"
+- "Details of Persons of Significant Control (PSC)"
+
+These are typically found in sections titled "Company Information", "Vendor Information",
+"Bidder Information", "Supplier Information", or similar. They ask for:
+- Company name, address, contact details
+- Registration numbers (company, charity, VAT, DUNS)
+- Legal status, trading status, ownership details
+- Parent company information
+
+HOWEVER, DO extract substantive questions even in these sections, such as:
+- "Is your organisation registered with the appropriate professional or trade register?"
+- "Is it a legal requirement for you to possess a particular authorisation?"
+- "Are you a Small, Medium or Micro Enterprise (SME)?"
+
+The distinction: Form fields request static data to fill in. Requirements ask questions
+that need evaluation or explanation.
+==============================================================================
+
+==============================================================================
 HIERARCHICAL SECTION HANDLING (CRITICAL - READ CAREFULLY)
 ==============================================================================
 Documents often use multi-level numbering systems. You MUST understand the hierarchy:
@@ -2193,7 +2228,7 @@ export interface DocumentProfile {
   /** Sections to skip entirely */
   skipSections: {
     title: string;
-    reason: 'appendix' | 'examples' | 'definitions' | 'boilerplate' | 'administrative';
+    reason: 'appendix' | 'examples' | 'definitions' | 'boilerplate' | 'administrative' | 'vendor_info';
   }[];
 
   /** Section number prefixes to focus on (e.g., ["3.", "4.", "5."]) */
@@ -2245,7 +2280,7 @@ Return a JSON object with these fields:
 4. "skipSections": Array of sections to EXCLUDE from extraction (REQUIRED, can be empty [])
    Each item has:
    - "title": Section title or heading text
-   - "reason": One of "appendix", "examples", "definitions", "boilerplate", "administrative"
+   - "reason": One of "appendix", "examples", "definitions", "boilerplate", "administrative", "vendor_info"
 
    What to skip:
    - appendix: Appendix A, Exhibit 1, Attachment B, etc.
@@ -2253,6 +2288,7 @@ Return a JSON object with these fields:
    - definitions: Glossary/Definitions sections with "X means..." content
    - boilerplate: Standard terms and conditions, legal disclaimers
    - administrative: Instructions, evaluation criteria, contact info, cover pages
+   - vendor_info: ALWAYS SKIP sections titled "Company Information", "Vendor Information", "Bidder Information", "Proposer Information", "Supplier Information", or similar. These contain form fields asking for company name, address, contact details, registration numbers, etc. - NOT actual requirements.
 
 5. "metadata": Document characteristics (REQUIRED)
    - "hasTableOfContents": boolean

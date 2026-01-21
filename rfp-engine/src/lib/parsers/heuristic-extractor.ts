@@ -867,6 +867,65 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       continue;
     }
 
+    // Skip COMPANY INFORMATION FORM FIELDS: Form labels and descriptive field requests
+    // These are typically found in "Company Information" sections - they're asking for
+    // vendor identification data, NOT actual requirements about products/services.
+    // Includes both short labels ("Company Name:") and longer descriptions
+    // ("Full name of the potential supplier submitting the information")
+    const formFieldPatterns = [
+      // Simple form labels (with or without colon)
+      /^(?:Company|Organization|Business|Firm|Legal)\s*Name:?\s*$/i,
+      /^(?:Address|Street|Mailing|Physical|Business)\s*(?:Address)?:?\s*$/i,
+      /^(?:City|State|Province|Zip|ZIP|Postal)\s*(?:Code)?:?\s*$/i,
+      /^(?:City,?\s*State,?\s*(?:Zip|ZIP)?\s*(?:Code)?):?\s*$/i,
+      /^(?:Contact|Primary|Key)\s*(?:Person|Name|Individual)?:?\s*$/i,
+      /^(?:Contact)\s*(?:Information|Details)?:?\s*$/i,
+      /^(?:Phone|Telephone|Tel|Fax|Mobile|Cell)\s*(?:Number)?:?\s*$/i,
+      /^(?:Email|E-mail)\s*(?:Address)?:?\s*$/i,
+      /^(?:Website|Web\s*Site|URL|Web\s*Address):?\s*$/i,
+      /^(?:Years?\s*(?:in\s*)?Business|Established|Founded):?\s*$/i,
+      /^(?:Tax|Federal)\s*(?:ID|Identification)\s*(?:Number)?:?\s*$/i,
+      /^(?:DUNS|D-U-N-S|EIN|TIN|SSN)\s*(?:Number)?:?\s*$/i,
+      /^(?:Title|Position|Job\s*Title|Role):?\s*$/i,
+      /^(?:Signature|Authorized\s*Signature|Date):?\s*$/i,
+      /^(?:Print|Printed)\s*Name:?\s*$/i,
+      /^(?:Name\s*of\s*(?:Firm|Company|Organization|Bidder|Proposer|Respondent)):?\s*$/i,
+      /^(?:Bidder|Proposer|Respondent|Vendor|Contractor)\s*(?:Name)?:?\s*$/i,
+      /^(?:Number\s*of\s*(?:Employees|Staff|Personnel)):?\s*$/i,
+      /^(?:Annual\s*(?:Revenue|Sales|Turnover)):?\s*$/i,
+      /^(?:Type\s*of\s*(?:Business|Organization|Entity)):?\s*$/i,
+      /^(?:Business\s*(?:Type|Structure|Classification)):?\s*$/i,
+      /^(?:Legal\s*(?:Status|Structure|Entity\s*Type)):?\s*$/i,
+      /^(?:Parent\s*Company|Holding\s*Company):?\s*$/i,
+      /^(?:Subsidiary|Subsidiaries|Affiliates?):?\s*$/i,
+      /^(?:Country|Nation|Nationality):?\s*$/i,
+      /^(?:State\s*of\s*(?:Incorporation|Registration)):?\s*$/i,
+      // Longer descriptive form field patterns (common in UK/EU RFPs)
+      /^Full\s+name\s+of\s+(?:the\s+)?(?:potential\s+)?(?:supplier|bidder|vendor|contractor|organisation|organization|company)/i,
+      /^(?:Registered|Trading|Business|Head\s+office)\s+(?:office\s+)?(?:address|name)/i,
+      /^(?:Registered\s+)?(?:website|web\s+site)\s+address/i,
+      /^(?:Date\s+of\s+)?registration\s+(?:in\s+)?(?:country|date)/i,
+      /^(?:Company|Charity|VAT|Business)\s+registration\s+number/i,
+      /^(?:Head\s+office\s+)?(?:DUNS|VAT)\s+number/i,
+      /^(?:Registered\s+)?VAT\s+number/i,
+      /^Trading\s+(?:name|status)/i,
+    ];
+    // Patterns that indicate form field entries when text is short
+    const formFieldIndicators = [
+      /\(if\s+applicable\)\s*$/i,  // Ends with "(if applicable)"
+      /^(?:Details\s+of|Name\s+of|Full\s+name)/i,  // Starts with "Details of", "Name of"
+      /^(?:Please\s+)?(?:enter|provide|state|specify)\s+(?:N\/A|your)/i,  // Form instructions
+    ];
+    // Also check for short text that ends with colon (generic form field pattern)
+    const isShortFormField = cleanedText.length < 60 && /^[A-Za-z\s\-\/()]+:?\s*$/.test(cleanedText);
+    const isFormFieldIndicator = cleanedText.length < 120 && formFieldIndicators.some(p => p.test(cleanedText));
+    const isFormFieldLabel = formFieldPatterns.some(p => p.test(cleanedText)) ||
+                             (isShortFormField && cleanedText.length < 40) ||
+                             isFormFieldIndicator;
+    if (isFormFieldLabel) {
+      continue;
+    }
+
     candidates.push({
       sectionNumber: current.sectionNumber,
       rawText: cleanedText,
@@ -1630,6 +1689,60 @@ export function findRequirementCandidatesWithProfile(
     if (/^\d+\s+[A-Za-z\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Way|Circle|Cir)\b/i.test(cleanedText) &&
         /\b[A-Z]{2}\s+\d{5}\b/.test(cleanedText) &&
         cleanedText.length < 150) {
+      continue;
+    }
+
+    // Skip COMPANY INFORMATION FORM FIELDS (same as main extractor)
+    const formFieldPatterns = [
+      // Simple form labels (with or without colon)
+      /^(?:Company|Organization|Business|Firm|Legal)\s*Name:?\s*$/i,
+      /^(?:Address|Street|Mailing|Physical|Business)\s*(?:Address)?:?\s*$/i,
+      /^(?:City|State|Province|Zip|ZIP|Postal)\s*(?:Code)?:?\s*$/i,
+      /^(?:City,?\s*State,?\s*(?:Zip|ZIP)?\s*(?:Code)?):?\s*$/i,
+      /^(?:Contact|Primary|Key)\s*(?:Person|Name|Individual)?:?\s*$/i,
+      /^(?:Contact)\s*(?:Information|Details)?:?\s*$/i,
+      /^(?:Phone|Telephone|Tel|Fax|Mobile|Cell)\s*(?:Number)?:?\s*$/i,
+      /^(?:Email|E-mail)\s*(?:Address)?:?\s*$/i,
+      /^(?:Website|Web\s*Site|URL|Web\s*Address):?\s*$/i,
+      /^(?:Years?\s*(?:in\s*)?Business|Established|Founded):?\s*$/i,
+      /^(?:Tax|Federal)\s*(?:ID|Identification)\s*(?:Number)?:?\s*$/i,
+      /^(?:DUNS|D-U-N-S|EIN|TIN|SSN)\s*(?:Number)?:?\s*$/i,
+      /^(?:Title|Position|Job\s*Title|Role):?\s*$/i,
+      /^(?:Signature|Authorized\s*Signature|Date):?\s*$/i,
+      /^(?:Print|Printed)\s*Name:?\s*$/i,
+      /^(?:Name\s*of\s*(?:Firm|Company|Organization|Bidder|Proposer|Respondent)):?\s*$/i,
+      /^(?:Bidder|Proposer|Respondent|Vendor|Contractor)\s*(?:Name)?:?\s*$/i,
+      /^(?:Number\s*of\s*(?:Employees|Staff|Personnel)):?\s*$/i,
+      /^(?:Annual\s*(?:Revenue|Sales|Turnover)):?\s*$/i,
+      /^(?:Type\s*of\s*(?:Business|Organization|Entity)):?\s*$/i,
+      /^(?:Business\s*(?:Type|Structure|Classification)):?\s*$/i,
+      /^(?:Legal\s*(?:Status|Structure|Entity\s*Type)):?\s*$/i,
+      /^(?:Parent\s*Company|Holding\s*Company):?\s*$/i,
+      /^(?:Subsidiary|Subsidiaries|Affiliates?):?\s*$/i,
+      /^(?:Country|Nation|Nationality):?\s*$/i,
+      /^(?:State\s*of\s*(?:Incorporation|Registration)):?\s*$/i,
+      // Longer descriptive form field patterns (common in UK/EU RFPs)
+      /^Full\s+name\s+of\s+(?:the\s+)?(?:potential\s+)?(?:supplier|bidder|vendor|contractor|organisation|organization|company)/i,
+      /^(?:Registered|Trading|Business|Head\s+office)\s+(?:office\s+)?(?:address|name)/i,
+      /^(?:Registered\s+)?(?:website|web\s+site)\s+address/i,
+      /^(?:Date\s+of\s+)?registration\s+(?:in\s+)?(?:country|date)/i,
+      /^(?:Company|Charity|VAT|Business)\s+registration\s+number/i,
+      /^(?:Head\s+office\s+)?(?:DUNS|VAT)\s+number/i,
+      /^(?:Registered\s+)?VAT\s+number/i,
+      /^Trading\s+(?:name|status)/i,
+    ];
+    // Patterns that indicate form field entries when text is short
+    const formFieldIndicators = [
+      /\(if\s+applicable\)\s*$/i,  // Ends with "(if applicable)"
+      /^(?:Details\s+of|Name\s+of|Full\s+name)/i,  // Starts with "Details of", "Name of"
+      /^(?:Please\s+)?(?:enter|provide|state|specify)\s+(?:N\/A|your)/i,  // Form instructions
+    ];
+    const isShortFormField = cleanedText.length < 60 && /^[A-Za-z\s\-\/()]+:?\s*$/.test(cleanedText);
+    const isFormFieldIndicator = cleanedText.length < 120 && formFieldIndicators.some(p => p.test(cleanedText));
+    const isFormFieldLabel = formFieldPatterns.some(p => p.test(cleanedText)) ||
+                             (isShortFormField && cleanedText.length < 40) ||
+                             isFormFieldIndicator;
+    if (isFormFieldLabel) {
       continue;
     }
 
