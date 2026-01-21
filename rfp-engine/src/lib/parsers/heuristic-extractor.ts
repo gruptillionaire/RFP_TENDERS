@@ -910,18 +910,10 @@ export function findRequirementCandidates(text: string): RequirementCandidate[] 
       /^(?:Registered\s+)?VAT\s+number/i,
       /^Trading\s+(?:name|status)/i,
     ];
-    // Patterns that indicate form field entries when text is short
-    const formFieldIndicators = [
-      /\(if\s+applicable\)\s*$/i,  // Ends with "(if applicable)"
-      /^(?:Details\s+of|Name\s+of|Full\s+name)/i,  // Starts with "Details of", "Name of"
-      /^(?:Please\s+)?(?:enter|provide|state|specify)\s+(?:N\/A|your)/i,  // Form instructions
-    ];
     // Also check for short text that ends with colon (generic form field pattern)
     const isShortFormField = cleanedText.length < 60 && /^[A-Za-z\s\-\/()]+:?\s*$/.test(cleanedText);
-    const isFormFieldIndicator = cleanedText.length < 120 && formFieldIndicators.some(p => p.test(cleanedText));
     const isFormFieldLabel = formFieldPatterns.some(p => p.test(cleanedText)) ||
-                             (isShortFormField && cleanedText.length < 40) ||
-                             isFormFieldIndicator;
+                             (isShortFormField && cleanedText.length < 40);
     if (isFormFieldLabel) {
       continue;
     }
@@ -1731,17 +1723,9 @@ export function findRequirementCandidatesWithProfile(
       /^(?:Registered\s+)?VAT\s+number/i,
       /^Trading\s+(?:name|status)/i,
     ];
-    // Patterns that indicate form field entries when text is short
-    const formFieldIndicators = [
-      /\(if\s+applicable\)\s*$/i,  // Ends with "(if applicable)"
-      /^(?:Details\s+of|Name\s+of|Full\s+name)/i,  // Starts with "Details of", "Name of"
-      /^(?:Please\s+)?(?:enter|provide|state|specify)\s+(?:N\/A|your)/i,  // Form instructions
-    ];
     const isShortFormField = cleanedText.length < 60 && /^[A-Za-z\s\-\/()]+:?\s*$/.test(cleanedText);
-    const isFormFieldIndicator = cleanedText.length < 120 && formFieldIndicators.some(p => p.test(cleanedText));
     const isFormFieldLabel = formFieldPatterns.some(p => p.test(cleanedText)) ||
-                             (isShortFormField && cleanedText.length < 40) ||
-                             isFormFieldIndicator;
+                             (isShortFormField && cleanedText.length < 40);
     if (isFormFieldLabel) {
       continue;
     }
