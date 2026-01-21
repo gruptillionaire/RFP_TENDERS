@@ -40,8 +40,11 @@ export async function checkAndIncrementQuota(
     let currentUsage = shouldReset ? 0 : user.monthlyExtractionsUsed;
 
     // Get limit based on plan
+    // FREE plan always gets 0 - no fallback to monthlyExtractionsLimit
     const limit =
-      user.plan === "ENTERPRISE"
+      user.plan === "FREE"
+        ? QUOTA_LIMITS.FREE
+        : user.plan === "ENTERPRISE"
         ? QUOTA_LIMITS.ENTERPRISE
         : user.plan === "BUSINESS"
         ? QUOTA_LIMITS.BUSINESS
@@ -49,7 +52,7 @@ export async function checkAndIncrementQuota(
         ? QUOTA_LIMITS.PRO
         : user.plan === "STARTER"
         ? QUOTA_LIMITS.STARTER
-        : user.monthlyExtractionsLimit || QUOTA_LIMITS.FREE;
+        : QUOTA_LIMITS.FREE;
 
     // Unlimited plans have -1 as limit
     const isUnlimited = limit === -1;
@@ -142,12 +145,14 @@ export async function getDashboardUserData(userId: string): Promise<DashboardUse
   const shouldReset = now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
 
   const currentUsage = shouldReset ? 0 : user.monthlyExtractionsUsed;
+  // FREE plan always gets 0 - no fallback to monthlyExtractionsLimit
   const limit =
+    user.plan === "FREE" ? QUOTA_LIMITS.FREE :
     user.plan === "ENTERPRISE" ? QUOTA_LIMITS.ENTERPRISE :
     user.plan === "BUSINESS" ? QUOTA_LIMITS.BUSINESS :
     user.plan === "PRO" ? QUOTA_LIMITS.PRO :
     user.plan === "STARTER" ? QUOTA_LIMITS.STARTER :
-    user.monthlyExtractionsLimit || QUOTA_LIMITS.FREE;
+    QUOTA_LIMITS.FREE;
 
   const isUnlimited = limit === -1;
   const remaining = isUnlimited ? -1 : Math.max(0, limit - currentUsage);
@@ -202,9 +207,11 @@ export async function checkAndIncrementDraftQuota(
 
     let currentUsage = shouldReset ? 0 : user.monthlyDraftsUsed;
 
-    // Get limit based on plan
+    // Get limit based on plan - FREE always gets 0
     const limit =
-      user.plan === "ENTERPRISE"
+      user.plan === "FREE"
+        ? DRAFT_LIMITS.FREE
+        : user.plan === "ENTERPRISE"
         ? DRAFT_LIMITS.ENTERPRISE
         : user.plan === "BUSINESS"
         ? DRAFT_LIMITS.BUSINESS
