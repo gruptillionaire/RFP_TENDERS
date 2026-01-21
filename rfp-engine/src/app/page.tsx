@@ -64,7 +64,7 @@ export default async function Home() {
           </h1>
           <p className="text-xl text-gray-600 mb-8">
             Stop losing bids to missed requirements. Our AI extracts every question from your RFP,
-            tracks your compliance status, and drafts responses—so you can focus on winning.
+            tracks your compliance status, and drafts responses - so you can focus on winning.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <Link href={isSignedIn ? "/dashboard" : "/signup"}>

@@ -255,14 +255,26 @@ export default function TermsOfServicePage() {
 
         <h3>13.2 Arbitration</h3>
         <p>
-          Any disputes that cannot be resolved informally shall be resolved through binding
-          arbitration, except where prohibited by law.
+          For business customers, any disputes that cannot be resolved informally shall be
+          resolved through binding arbitration in accordance with the rules of the London
+          Court of International Arbitration (LCIA).
+        </p>
+        <p>
+          <strong>Consumer Exception:</strong> This arbitration clause does not apply to
+          consumers located in the European Union, United Kingdom, or other jurisdictions
+          where mandatory arbitration of consumer disputes is prohibited by law. Such
+          consumers retain the right to bring claims in their local courts.
         </p>
 
         <h3>13.3 Class Action Waiver</h3>
         <p>
-          You agree to resolve disputes on an individual basis and waive the right to
-          participate in class actions, except where prohibited by law.
+          To the extent permitted by applicable law, you agree to resolve disputes on an
+          individual basis and waive the right to participate in class actions.
+        </p>
+        <p>
+          <strong>Consumer Exception:</strong> This waiver does not apply to consumers in
+          jurisdictions where class action waivers are unenforceable, including the
+          European Union and United Kingdom.
         </p>
       </section>
 
@@ -270,8 +282,19 @@ export default function TermsOfServicePage() {
         <h2>14. Governing Law</h2>
         <p>
           These Terms shall be governed by and construed in accordance with the laws of
-          the jurisdiction in which RFP Matrix is incorporated, without regard to
-          conflict of law principles.
+          England and Wales, without regard to conflict of law principles.
+        </p>
+        <p>
+          <strong>For EU/UK Consumers:</strong> If you are a consumer resident in the
+          European Union or United Kingdom, you will benefit from any mandatory provisions
+          of the law of the country in which you are resident. Nothing in these Terms
+          affects your rights as a consumer to rely on such mandatory provisions of local law.
+        </p>
+        <p>
+          <strong>Jurisdiction:</strong> Any disputes arising from these Terms shall be
+          subject to the exclusive jurisdiction of the courts of England and Wales,
+          provided that if you are a consumer resident in the EU, you may also bring
+          proceedings in your country of residence.
         </p>
       </section>
 

@@ -229,13 +229,77 @@ export default function PrivacyPolicyPage() {
       <section>
         <h2>11. International Transfers</h2>
         <p>
-          Your data may be transferred to and processed in countries outside your residence.
-          We ensure appropriate safeguards are in place, including:
+          Your data may be transferred to and processed in countries outside your residence,
+          particularly the United States where our primary sub-processors are located.
+          We ensure appropriate safeguards are in place as required by GDPR Chapter V.
+        </p>
+
+        <h3>11.1 Transfer Mechanisms</h3>
+        <ul>
+          <li>
+            <strong>Standard Contractual Clauses (SCCs):</strong> We use the European
+            Commission&apos;s 2021 SCCs (Commission Implementing Decision (EU) 2021/914)
+            with all US-based sub-processors
+          </li>
+          <li>
+            <strong>Data Processing Agreements:</strong> Binding contracts ensuring
+            GDPR-equivalent protections
+          </li>
+        </ul>
+
+        <h3>11.2 Sub-processor Locations</h3>
+        <table className="w-full border-collapse border border-gray-300 my-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border border-gray-300 px-4 py-2 text-left">Sub-processor</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Location</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Safeguards</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2">OpenAI</td>
+              <td className="border border-gray-300 px-4 py-2">United States</td>
+              <td className="border border-gray-300 px-4 py-2">SCCs + DPA + Encryption</td>
+            </tr>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2">Stripe</td>
+              <td className="border border-gray-300 px-4 py-2">United States</td>
+              <td className="border border-gray-300 px-4 py-2">SCCs + DPA + PCI-DSS</td>
+            </tr>
+            <tr>
+              <td className="border border-gray-300 px-4 py-2">Vercel</td>
+              <td className="border border-gray-300 px-4 py-2">United States / Global</td>
+              <td className="border border-gray-300 px-4 py-2">SCCs + DPA + Edge encryption</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>11.3 Supplementary Measures</h3>
+        <p>
+          Following the Schrems II decision, we implement additional technical and
+          organisational measures:
         </p>
         <ul>
-          <li>Standard Contractual Clauses (SCCs)</li>
-          <li>Data Processing Agreements with service providers</li>
+          <li>End-to-end encryption for data in transit (TLS 1.2+)</li>
+          <li>Encryption at rest for all stored data</li>
+          <li>Data minimisation - we only transfer data necessary for each service</li>
+          <li>Pseudonymisation where technically feasible</li>
+          <li>Regular review of sub-processor security certifications</li>
         </ul>
+
+        <h3>11.4 Transfer Impact Assessments</h3>
+        <p>
+          We conduct Transfer Impact Assessments (TIAs) for each US sub-processor to
+          evaluate the legal framework in the destination country and the effectiveness
+          of our supplementary measures. These assessments are reviewed annually and
+          are available to enterprise customers upon request.
+        </p>
+
+        <p className="mt-4">
+          For questions about international transfers or to request TIA summaries,
+          contact our DPO at <a href="mailto:dpo@rfpmatrix.com">dpo@rfpmatrix.com</a>.
+        </p>
       </section>
 
       <section>

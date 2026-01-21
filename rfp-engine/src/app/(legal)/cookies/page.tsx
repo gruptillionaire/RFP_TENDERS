@@ -90,34 +90,36 @@ export default function CookiePolicyPage() {
           </tbody>
         </table>
 
-        <h3>2.3 Analytics Cookies (Optional)</h3>
+        <h3>2.3 Analytics (Optional)</h3>
         <p>
-          These cookies help us understand how you use the Service so we can improve it.
-          We only use these with your consent.
+          We use Vercel Analytics and SpeedInsights to understand how you use the Service
+          so we can improve it. These services are privacy-focused and collect minimal data.
+          We only enable analytics with your consent.
         </p>
         <table className="w-full border-collapse border border-gray-300 my-4">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border border-gray-300 px-4 py-2 text-left">Cookie</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Service</th>
               <th className="border border-gray-300 px-4 py-2 text-left">Purpose</th>
-              <th className="border border-gray-300 px-4 py-2 text-left">Duration</th>
+              <th className="border border-gray-300 px-4 py-2 text-left">Data Collected</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="border border-gray-300 px-4 py-2">_ga</td>
-              <td className="border border-gray-300 px-4 py-2">Google Analytics - Distinguish users</td>
-              <td className="border border-gray-300 px-4 py-2">2 years</td>
+              <td className="border border-gray-300 px-4 py-2">Vercel Analytics</td>
+              <td className="border border-gray-300 px-4 py-2">Page view analytics and user flow analysis</td>
+              <td className="border border-gray-300 px-4 py-2">Page URL, referrer, device type, country</td>
             </tr>
             <tr>
-              <td className="border border-gray-300 px-4 py-2">_gid</td>
-              <td className="border border-gray-300 px-4 py-2">Google Analytics - Distinguish users</td>
-              <td className="border border-gray-300 px-4 py-2">24 hours</td>
+              <td className="border border-gray-300 px-4 py-2">Vercel SpeedInsights</td>
+              <td className="border border-gray-300 px-4 py-2">Performance monitoring (Core Web Vitals)</td>
+              <td className="border border-gray-300 px-4 py-2">Page load times, performance metrics</td>
             </tr>
           </tbody>
         </table>
         <p className="text-sm text-gray-600">
-          Note: Analytics cookies are only set if you consent to non-essential cookies.
+          Note: Analytics are only enabled if you consent to non-essential cookies.
+          Vercel Analytics does not use cookies but still requires consent as it collects usage data.
         </p>
       </section>
 
@@ -152,16 +154,16 @@ export default function CookiePolicyPage() {
           </a>
         </p>
 
-        <h3>4.2 Google Analytics (If Enabled)</h3>
+        <h3>4.2 Vercel Analytics (If Enabled)</h3>
         <p>
-          If you consent to analytics cookies, Google Analytics will set cookies to help
-          us understand site usage.{" "}
+          If you consent to analytics, Vercel Analytics and SpeedInsights will collect
+          page view and performance data to help us improve the Service.{" "}
           <a
-            href="https://policies.google.com/technologies/cookies"
+            href="https://vercel.com/docs/analytics/privacy-policy"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Google&apos;s Cookie Policy
+            Vercel&apos;s Privacy Policy
           </a>
         </p>
       </section>

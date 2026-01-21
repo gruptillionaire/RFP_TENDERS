@@ -33,6 +33,9 @@ export function CookieConsent() {
     setShowBanner(false);
     initializeAnalyticsIfConsented();
 
+    // Dispatch event to notify ConditionalAnalytics component
+    window.dispatchEvent(new CustomEvent("cookie-consent-changed"));
+
     // Log consent to server
     try {
       await fetch("/api/consent", {
@@ -52,6 +55,9 @@ export function CookieConsent() {
   const handleRejectNonEssential = async () => {
     rejectNonEssentialCookies();
     setShowBanner(false);
+
+    // Dispatch event to notify ConditionalAnalytics component
+    window.dispatchEvent(new CustomEvent("cookie-consent-changed"));
 
     // Log consent to server
     try {
@@ -74,6 +80,9 @@ export function CookieConsent() {
     setShowBanner(false);
     setShowPreferences(false);
     initializeAnalyticsIfConsented();
+
+    // Dispatch event to notify ConditionalAnalytics component
+    window.dispatchEvent(new CustomEvent("cookie-consent-changed"));
 
     // Log consent to server
     try {
