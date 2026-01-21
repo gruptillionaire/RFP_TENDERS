@@ -322,10 +322,22 @@ export async function createBillingPortalSession(
 ): Promise<Stripe.BillingPortal.Session> {
   const stripe = getStripeClient();
 
-  const session = await stripe.billingPortal.sessions.create({
+  const sessionConfig: {
+    customer: string;
+    return_url: string;
+    configuration?: string;
+  } = {
     customer: customerId,
     return_url: returnUrl,
-  });
+  };
+
+  // Optionally specify a portal configuration ID
+  // Get this from Stripe Dashboard → Settings → Billing → Customer portal → Configuration ID
+  if (process.env.STRIPE_PORTAL_CONFIGURATION_ID) {
+    sessionConfig.configuration = process.env.STRIPE_PORTAL_CONFIGURATION_ID;
+  }
+
+  const session = await stripe.billingPortal.sessions.create(sessionConfig);
 
   return session;
 }
