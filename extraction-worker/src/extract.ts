@@ -303,6 +303,12 @@ HOWEVER, DO extract substantive questions even in these sections:
 
 The distinction: Form fields request static company data to fill in. Questions require evaluation or a yes/no answer about compliance/status.
 
+NOTE: This does NOT apply to pricing/commercial sections. ALWAYS extract:
+- Pricing requirements ("Tender Price for...", "Costs shall be...", "Prices must include...")
+- Commercial terms ("Payment within X days", "Prices valid for X months")
+- VAT/tax statements ("Price does not include VAT")
+These are legitimate requirements even if they appear in form-like sections.
+
 ## EXTRACTION RULES
 
 1. KEEP MULTI-PART QUESTIONS TOGETHER
