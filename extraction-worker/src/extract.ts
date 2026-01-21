@@ -279,6 +279,30 @@ The distinction:
 - "Describe your approach to security" → EXTRACT (proposal question)
 - "I certify that the above information is correct. Signature: ___" → SKIP (form attestation)
 
+CRITICAL - SKIP COMPANY INFORMATION FORM FIELDS:
+These are administrative form fields asking for basic vendor identification data, NOT proposal questions:
+- "Full name of the potential supplier submitting the information" → SKIP
+- "Registered office address (if applicable)" → SKIP
+- "Company registration number (if applicable)" → SKIP
+- "Head office DUNS number (if applicable)" → SKIP
+- "Registered VAT number" → SKIP
+- "Date of registration in country of origin" → SKIP
+- "Trading name(s) that will be used" → SKIP
+- "Details of immediate parent company" → SKIP
+- "Details of ultimate parent company" → SKIP
+- "Details of Persons of Significant Control (PSC)" → SKIP
+- "Relevant classifications (VCSE, Sheltered Workshop, etc.)" → SKIP
+- "Trading status (limited company, partnership, etc.)" → SKIP
+
+These are typically in sections titled "Company Information", "Vendor Information", "Bidder Information".
+
+HOWEVER, DO extract substantive questions even in these sections:
+- "Is your organisation registered with the appropriate professional or trade register?" → EXTRACT
+- "Is it a legal requirement for you to possess a particular authorisation?" → EXTRACT
+- "Are you a Small, Medium or Micro Enterprise (SME)?" → EXTRACT
+
+The distinction: Form fields request static company data to fill in. Questions require evaluation or a yes/no answer about compliance/status.
+
 ## EXTRACTION RULES
 
 1. KEEP MULTI-PART QUESTIONS TOGETHER
