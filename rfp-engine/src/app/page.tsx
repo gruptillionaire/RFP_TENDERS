@@ -412,8 +412,8 @@ export default async function Home() {
                   Word & PDF export
                 </li>
               </ul>
-              <CheckoutButton plan="STARTER" isSignedIn={isSignedIn} variant="outline" className="w-full h-12 border-slate-300 text-slate-900 hover:bg-slate-50">
-                Buy Now | $150
+              <CheckoutButton plan="STARTER" isSignedIn={isSignedIn} variant="outline" className="w-full h-12 border-slate-300 hover:bg-slate-50">
+                Buy Now | $150/month
               </CheckoutButton>
             </div>
 
@@ -457,7 +457,7 @@ export default async function Home() {
                 </li>
               </ul>
               <CheckoutButton plan="PRO" isSignedIn={isSignedIn} className="w-full h-12 bg-[#ffbe0b] hover:bg-[#ffd60a] text-black font-semibold">
-                Buy Now | $250
+                Buy Now | $250/month
               </CheckoutButton>
             </div>
 
@@ -497,8 +497,8 @@ export default async function Home() {
                   Priority support
                 </li>
               </ul>
-              <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full h-12 border-slate-300 text-slate-900 hover:bg-slate-50">
-                Buy Now | $500
+              <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full h-12 border-slate-300 hover:bg-slate-50">
+                Buy Now | $500/month
               </CheckoutButton>
             </div>
           </div>
@@ -571,7 +571,7 @@ export default async function Home() {
                 </li>
               </ul>
               <CheckoutButton plan="SINGLE_USE" isSignedIn={isSignedIn} className="w-full bg-amber-500 hover:bg-amber-600 text-white">
-                Buy Now | $100
+                Buy Now | $100 One-Time
               </CheckoutButton>
             </div>
           </div>
