@@ -60,7 +60,7 @@ export default async function Home() {
             <div className="text-white">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-sm mb-8">
                 <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                <span className="text-white/80">Trusted by 500+ businesses</span>
+                <span className="text-white/80">AI-Powered RFP Response Software</span>
               </div>
               <h1 className="text-5xl lg:text-6xl font-bold leading-[1.1] mb-6">
                 Never miss an RFP requirement again
@@ -163,21 +163,6 @@ export default async function Home() {
           <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z" fill="#f8f7f4"/>
           </svg>
-        </div>
-      </section>
-
-      {/* Logo wall - Social proof */}
-      <section className="py-12 bg-[#f8f7f4]">
-        <div className="max-w-7xl mx-auto px-6">
-          <p className="text-center text-sm text-slate-500 mb-8">Trusted by teams responding to RFPs at</p>
-          <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-6 opacity-60">
-            {/* Placeholder logos - just text for now */}
-            <span className="text-xl font-bold text-slate-400">Accenture</span>
-            <span className="text-xl font-bold text-slate-400">Deloitte</span>
-            <span className="text-xl font-bold text-slate-400">KPMG</span>
-            <span className="text-xl font-bold text-slate-400">Capgemini</span>
-            <span className="text-xl font-bold text-slate-400">Cognizant</span>
-          </div>
         </div>
       </section>
 
@@ -300,14 +285,14 @@ export default async function Home() {
             </h2>
           </div>
 
-          <div className="relative">
+          <div className="relative mt-8">
             {/* Connection line */}
-            <div className="hidden lg:block absolute top-24 left-0 right-0 h-0.5 bg-slate-200"></div>
+            <div className="hidden lg:block absolute top-6 left-[8%] right-[8%] h-0.5 bg-slate-200"></div>
 
             <div className="grid lg:grid-cols-3 gap-12">
               {/* Step 1 */}
               <div className="relative">
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg mb-6 relative z-10">1</div>
+                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg mb-8 relative z-10 mx-auto lg:mx-0">1</div>
                 <h3 className="text-xl font-bold text-slate-900 mb-3">Upload your RFP</h3>
                 <p className="text-slate-600 mb-6">
                   Drag and drop your PDF or Word document. We support files up to 200 pages.
@@ -324,7 +309,7 @@ export default async function Home() {
 
               {/* Step 2 */}
               <div className="relative">
-                <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-6 relative z-10">2</div>
+                <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-8 relative z-10 mx-auto lg:mx-0">2</div>
                 <h3 className="text-xl font-bold text-slate-900 mb-3">Review requirements</h3>
                 <p className="text-slate-600 mb-6">
                   Our AI extracts every requirement. Review, categorize, and start responding.
@@ -350,7 +335,7 @@ export default async function Home() {
 
               {/* Step 3 */}
               <div className="relative">
-                <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-6 relative z-10">3</div>
+                <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg mb-8 relative z-10 mx-auto lg:mx-0">3</div>
                 <h3 className="text-xl font-bold text-slate-900 mb-3">Draft and export</h3>
                 <p className="text-slate-600 mb-6">
                   Generate AI drafts, refine with your team, and export the final document.
@@ -427,8 +412,8 @@ export default async function Home() {
                   Word & PDF export
                 </li>
               </ul>
-              <CheckoutButton plan="STARTER" isSignedIn={isSignedIn} variant="outline" className="w-full h-12">
-                Start free trial
+              <CheckoutButton plan="STARTER" isSignedIn={isSignedIn} variant="outline" className="w-full h-12 border-slate-300 text-slate-900 hover:bg-slate-50">
+                Buy Now | $150
               </CheckoutButton>
             </div>
 
@@ -472,7 +457,7 @@ export default async function Home() {
                 </li>
               </ul>
               <CheckoutButton plan="PRO" isSignedIn={isSignedIn} className="w-full h-12 bg-[#ffbe0b] hover:bg-[#ffd60a] text-black font-semibold">
-                Start free trial
+                Buy Now | $250
               </CheckoutButton>
             </div>
 
@@ -512,21 +497,81 @@ export default async function Home() {
                   Priority support
                 </li>
               </ul>
-              <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full h-12">
-                Start free trial
+              <CheckoutButton plan="BUSINESS" isSignedIn={isSignedIn} variant="outline" className="w-full h-12 border-slate-300 text-slate-900 hover:bg-slate-50">
+                Buy Now | $500
               </CheckoutButton>
             </div>
           </div>
 
-          {/* Single use option */}
-          <div className="mt-12 max-w-2xl mx-auto">
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200 flex flex-col sm:flex-row items-center gap-6">
-              <div className="flex-1">
-                <h4 className="font-bold text-slate-900 mb-1">Just need to respond to one RFP?</h4>
-                <p className="text-slate-600 text-sm">Get a single extraction + 100 AI drafts for $100. No subscription.</p>
+          {/* Enterprise and Single RFP options */}
+          <div className="mt-12 grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* Enterprise */}
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h4 className="font-bold text-lg">Enterprise</h4>
+                  <p className="text-slate-400 text-sm mt-1">For large organizations</p>
+                </div>
+                <span className="text-2xl font-bold">Custom</span>
               </div>
-              <CheckoutButton plan="SINGLE_USE" isSignedIn={isSignedIn} className="bg-amber-500 hover:bg-amber-600 text-white whitespace-nowrap">
-                Buy once - $100
+              <ul className="space-y-2 mb-6 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Unlimited everything
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Dedicated account manager
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Custom integrations & SLA
+                </li>
+              </ul>
+              <Link href="mailto:enterprise@rfpmatrix.com">
+                <Button variant="outline" className="w-full border-white/30 text-white hover:bg-white/10">
+                  Contact Us
+                </Button>
+              </Link>
+            </div>
+
+            {/* Single RFP */}
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h4 className="font-bold text-lg text-slate-900">Single RFP</h4>
+                  <p className="text-slate-600 text-sm mt-1">One-time purchase</p>
+                </div>
+                <span className="text-2xl font-bold text-slate-900">$100</span>
+              </div>
+              <ul className="space-y-2 mb-6 text-sm text-slate-700">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  1 RFP extraction
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  100 AI draft responses
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  No subscription required
+                </li>
+              </ul>
+              <CheckoutButton plan="SINGLE_USE" isSignedIn={isSignedIn} className="w-full bg-amber-500 hover:bg-amber-600 text-white">
+                Buy Now | $100
               </CheckoutButton>
             </div>
           </div>
