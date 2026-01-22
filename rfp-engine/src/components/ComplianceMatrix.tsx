@@ -129,23 +129,23 @@ const getPlaceholder = (type: RequirementType): string => {
 const getTypeBadgeColor = (type: RequirementType): string => {
   switch (type) {
     case "CONTEXTUAL":
-      return "bg-gray-100 text-gray-600 border-gray-300";
+      return "bg-muted text-muted-foreground border-border";
     case "PROCEDURAL":
-      return "bg-blue-100 text-blue-800 border-blue-200";
+      return "bg-pill-blue text-pill-blue-foreground border-pill-blue/50";
     case "DECLARATIVE":
-      return "bg-purple-100 text-purple-800 border-purple-200";
+      return "bg-pill-purple text-pill-purple-foreground border-pill-purple/50";
     case "DESCRIPTIVE":
-      return "bg-orange-100 text-orange-800 border-orange-200";
+      return "bg-pill-orange text-pill-orange-foreground border-pill-orange/50";
     case "EVIDENCE_BASED":
-      return "bg-green-100 text-green-800 border-green-200";
+      return "bg-pill-green text-pill-green-foreground border-pill-green/50";
     case "QUANTITATIVE":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      return "bg-pill-yellow text-pill-yellow-foreground border-pill-yellow/50";
     case "REFERENCE_BASED":
-      return "bg-cyan-100 text-cyan-800 border-cyan-200";
+      return "bg-pill-cyan text-pill-cyan-foreground border-pill-cyan/50";
     case "STAFFING":
-      return "bg-amber-100 text-amber-800 border-amber-200";
+      return "bg-pill-orange text-pill-orange-foreground border-pill-orange/50";
     default:
-      return "bg-gray-100 text-gray-800 border-gray-200";
+      return "bg-muted text-muted-foreground border-border";
   }
 };
 
@@ -176,13 +176,13 @@ const formatTypeName = (type: RequirementType): string => {
 const getDomainBadgeColor = (domain: DomainContext): string => {
   switch (domain) {
     case "FEATURE":
-      return "bg-cyan-50 text-cyan-700 border-cyan-200";
+      return "bg-pill-cyan text-pill-cyan-foreground border-pill-cyan/50";
     case "PROCESS":
-      return "bg-amber-50 text-amber-700 border-amber-200";
+      return "bg-pill-orange text-pill-orange-foreground border-pill-orange/50";
     case "LEGAL":
-      return "bg-red-50 text-red-700 border-red-200";
+      return "bg-destructive/10 text-destructive border-destructive/30";
     default:
-      return "bg-gray-50 text-gray-600 border-gray-200";
+      return "bg-muted text-muted-foreground border-border";
   }
 };
 
@@ -251,11 +251,11 @@ const RequirementRow = React.memo(function RequirementRow({
   const getStatusColor = (status: Requirement["status"]) => {
     switch (status) {
       case "ANSWERED":
-        return "bg-green-100 text-green-800";
+        return "bg-success text-success-foreground";
       case "PARTIAL":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-warning text-warning-foreground";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -711,9 +711,9 @@ const countWords = (text: string): number => {
 // Helper to get limit status color
 const getLimitStatusColor = (current: number, limit: number): string => {
   const percentage = (current / limit) * 100;
-  if (percentage > 100) return "text-red-600";
-  if (percentage >= 80) return "text-yellow-600";
-  return "text-gray-500";
+  if (percentage > 100) return "text-destructive";
+  if (percentage >= 80) return "text-warning-foreground";
+  return "text-muted-foreground";
 };
 
 export function ComplianceMatrix({

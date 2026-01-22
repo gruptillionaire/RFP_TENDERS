@@ -82,9 +82,10 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center gradient-hero-subtle px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          <Link href="/" className="font-bold text-xl gradient-text mb-4 inline-block">RFP Matrix</Link>
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription>
             Enter your details to get started with RFP Matrix
@@ -93,7 +94,7 @@ export default function SignupPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+              <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
@@ -129,7 +130,7 @@ export default function SignupPage() {
                 required
                 minLength={8}
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Must include uppercase, lowercase, number, and special character
               </p>
             </div>
@@ -142,19 +143,19 @@ export default function SignupPage() {
                   id="acceptTermsAndPrivacy"
                   checked={acceptTermsAndPrivacy}
                   onChange={(e) => setAcceptTermsAndPrivacy(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="mt-1 h-4 w-4 rounded border-input text-primary focus:ring-primary"
                   required
                 />
-                <label htmlFor="acceptTermsAndPrivacy" className="text-sm text-gray-700">
+                <label htmlFor="acceptTermsAndPrivacy" className="text-sm text-muted-foreground">
                   I agree to the{" "}
-                  <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                  <Link href="/terms" target="_blank" className="text-primary hover:underline">
                     Terms of Service
                   </Link>{" "}
                   and{" "}
-                  <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline">
+                  <Link href="/privacy" target="_blank" className="text-primary hover:underline">
                     Privacy Policy
                   </Link>{" "}
-                  <span className="text-red-500">*</span>
+                  <span className="text-destructive">*</span>
                 </label>
               </div>
 
@@ -164,9 +165,9 @@ export default function SignupPage() {
                   id="acceptMarketing"
                   checked={acceptMarketing}
                   onChange={(e) => setAcceptMarketing(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="mt-1 h-4 w-4 rounded border-input text-primary focus:ring-primary"
                 />
-                <label htmlFor="acceptMarketing" className="text-sm text-gray-700">
+                <label htmlFor="acceptMarketing" className="text-sm text-muted-foreground">
                   I would like to receive product updates and marketing emails
                 </label>
               </div>
@@ -176,9 +177,9 @@ export default function SignupPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating account..." : "Create account"}
             </Button>
-            <p className="text-sm text-gray-600 text-center">
+            <p className="text-sm text-muted-foreground text-center">
               Already have an account?{" "}
-              <Link href="/login" className="text-blue-600 hover:underline">
+              <Link href="/login" className="text-primary hover:underline">
                 Sign in
               </Link>
             </p>

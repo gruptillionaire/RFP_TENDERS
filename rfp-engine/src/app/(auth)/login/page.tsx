@@ -131,7 +131,7 @@ export default function LoginPage() {
   // 2FA verification screen
   if (requires2FA) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="min-h-screen flex items-center justify-center gradient-hero-subtle px-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold">Two-Factor Authentication</CardTitle>
@@ -142,7 +142,7 @@ export default function LoginPage() {
           <form onSubmit={handle2FASubmit}>
             <CardContent className="space-y-4">
               {error && (
-                <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+                <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -159,7 +159,7 @@ export default function LoginPage() {
                   autoFocus
                   required
                 />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   You can also use a backup code if you don&apos;t have access to your authenticator
                 </p>
               </div>
@@ -185,9 +185,10 @@ export default function LoginPage() {
 
   // Normal login screen
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center gradient-hero-subtle px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          <Link href="/" className="font-bold text-xl gradient-text mb-4 inline-block">RFP Matrix</Link>
           <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
           <CardDescription>
             Enter your email and password to access your account
@@ -196,7 +197,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+              <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
@@ -216,7 +217,7 @@ export default function LoginPage() {
                 <Label htmlFor="password">Password</Label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-primary hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -235,9 +236,9 @@ export default function LoginPage() {
                 id="rememberMe"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
               />
-              <Label htmlFor="rememberMe" className="text-sm font-normal text-gray-600 cursor-pointer">
+              <Label htmlFor="rememberMe" className="text-sm font-normal text-muted-foreground cursor-pointer">
                 Remember me for 30 days
               </Label>
             </div>
@@ -246,9 +247,9 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
-            <p className="text-sm text-gray-600 text-center">
+            <p className="text-sm text-muted-foreground text-center">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-blue-600 hover:underline">
+              <Link href="/signup" className="text-primary hover:underline">
                 Sign up
               </Link>
             </p>

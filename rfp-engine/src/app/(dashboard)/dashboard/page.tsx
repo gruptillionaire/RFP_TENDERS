@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ProjectCard } from "@/components/ProjectCard";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { QuotaBanner } from "@/components/QuotaBanner";
+import { Badge } from "@/components/ui/badge";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -75,40 +76,40 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Email Verification Banner */}
       <EmailVerificationBanner emailVerified={userData?.emailVerified} />
 
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-card border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-8">
-            <Link href="/" className="font-bold text-xl">
+            <Link href="/" className="font-bold text-xl gradient-text">
               RFP Matrix
             </Link>
             <nav className="hidden sm:flex items-center gap-1">
               <Link
                 href="/dashboard"
-                className="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md"
+                className="px-3 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg"
               >
                 Projects
               </Link>
               <Link
                 href="/library"
-                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
               >
                 Library
               </Link>
               <Link
                 href="/settings"
-                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
               >
                 Settings
               </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{session.user.email}</span>
+            <span className="text-sm text-muted-foreground">{session.user.email}</span>
             <form action={async () => {
               "use server";
               const { signOut } = await import("@/lib/auth");
@@ -134,7 +135,7 @@ export default async function DashboardPage() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-2xl font-bold">Your Projects</h1>
-            <p className="text-gray-600">Manage your RFP and tender responses</p>
+            <p className="text-muted-foreground">Manage your RFP and tender responses</p>
           </div>
           <Link href="/projects/new">
             <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits}>
@@ -149,13 +150,13 @@ export default async function DashboardPage() {
         {projects.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 bg-pill-teal rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-pill-teal-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <h3 className="text-lg font-medium mb-2">No projects yet</h3>
-              <p className="text-gray-500 mb-4">Upload your first RFP to get started</p>
+              <p className="text-muted-foreground mb-4">Upload your first RFP to get started</p>
               <Link href="/projects/new">
                 <Button>Create your first project</Button>
               </Link>
@@ -197,8 +198,8 @@ export default async function DashboardPage() {
                   {completedProjects.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-4">
-                        <h2 className="text-lg font-semibold text-gray-700">Completed Projects</h2>
-                        <span className="text-sm text-gray-500">({completedProjects.length})</span>
+                        <h2 className="text-lg font-semibold text-muted-foreground">Completed Projects</h2>
+                        <Badge variant="neutral">{completedProjects.length}</Badge>
                       </div>
                       <div className="grid gap-4">
                         {completedProjects.map(renderProjectCard)}
@@ -208,14 +209,14 @@ export default async function DashboardPage() {
 
                   {/* Show message if all projects are completed */}
                   {activeProjects.length === 0 && completedProjects.length > 0 && (
-                    <div className="text-center px-6 py-12 mt-8 mb-8 bg-green-50 rounded-lg border border-green-200">
-                      <div className="w-12 h-12 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-3">
-                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="text-center px-6 py-12 mt-8 mb-8 bg-pill-green/30 rounded-lg border border-pill-green">
+                      <div className="w-12 h-12 mx-auto bg-pill-green rounded-full flex items-center justify-center mb-3">
+                        <svg className="w-6 h-6 text-pill-green-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <p className="text-green-800 font-medium">All projects completed!</p>
-                      <p className="text-green-600 text-sm">Start a new project to continue working.</p>
+                      <p className="text-pill-green-foreground font-medium">All projects completed!</p>
+                      <p className="text-muted-foreground text-sm">Start a new project to continue working.</p>
                     </div>
                   )}
                 </>

@@ -7,7 +7,7 @@ interface CheckoutButtonProps {
   plan: string; // 'STARTER' | 'PRO' | 'BUSINESS' | 'SINGLE_USE'
   isSignedIn: boolean;
   children: React.ReactNode;
-  variant?: "default" | "outline" | "ghost";
+  variant?: "default" | "outline" | "ghost" | "gradient";
   className?: string;
 }
 
@@ -83,7 +83,7 @@ export function CheckoutButton({
         )}
       </Button>
       {error && (
-        <p className="text-xs text-red-600 mt-1 text-center">{error}</p>
+        <p className="text-xs text-destructive mt-1 text-center">{error}</p>
       )}
     </div>
   );

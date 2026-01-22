@@ -69,15 +69,15 @@ function FilterChip({
   color?: "gray" | "green" | "yellow" | "red" | "blue" | "purple" | "orange" | "cyan" | "amber";
 }) {
   const colorClasses = {
-    gray: active ? "bg-gray-200 border-gray-400 text-gray-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100",
-    green: active ? "bg-green-100 border-green-400 text-green-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-green-50",
-    yellow: active ? "bg-yellow-100 border-yellow-400 text-yellow-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-yellow-50",
-    red: active ? "bg-red-100 border-red-400 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-red-50",
-    blue: active ? "bg-blue-100 border-blue-400 text-blue-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-blue-50",
-    purple: active ? "bg-purple-100 border-purple-400 text-purple-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-purple-50",
-    orange: active ? "bg-orange-100 border-orange-400 text-orange-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-orange-50",
-    cyan: active ? "bg-cyan-100 border-cyan-400 text-cyan-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-cyan-50",
-    amber: active ? "bg-amber-100 border-amber-400 text-amber-800" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-amber-50",
+    gray: active ? "bg-muted border-border text-foreground" : "bg-card border-border text-muted-foreground hover:bg-accent",
+    green: active ? "bg-pill-green border-pill-green/50 text-pill-green-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-green/20",
+    yellow: active ? "bg-pill-yellow border-pill-yellow/50 text-pill-yellow-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-yellow/20",
+    red: active ? "bg-destructive/20 border-destructive/50 text-destructive" : "bg-card border-border text-muted-foreground hover:bg-destructive/10",
+    blue: active ? "bg-pill-blue border-pill-blue/50 text-pill-blue-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-blue/20",
+    purple: active ? "bg-pill-purple border-pill-purple/50 text-pill-purple-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-purple/20",
+    orange: active ? "bg-pill-orange border-pill-orange/50 text-pill-orange-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-orange/20",
+    cyan: active ? "bg-pill-cyan border-pill-cyan/50 text-pill-cyan-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-cyan/20",
+    amber: active ? "bg-pill-orange border-pill-orange/50 text-pill-orange-foreground" : "bg-card border-border text-muted-foreground hover:bg-pill-orange/20",
   };
 
   return (
@@ -115,20 +115,20 @@ function ToggleChip({
 
   const colorClasses = {
     gray: value === null
-      ? "bg-gray-50 border-gray-200 text-gray-600"
+      ? "bg-card border-border text-muted-foreground"
       : value
-      ? "bg-gray-200 border-gray-400 text-gray-800"
-      : "bg-gray-100 border-gray-300 text-gray-500",
+      ? "bg-muted border-border text-foreground"
+      : "bg-accent border-border text-muted-foreground",
     green: value === null
-      ? "bg-gray-50 border-gray-200 text-gray-600"
+      ? "bg-card border-border text-muted-foreground"
       : value
-      ? "bg-green-100 border-green-400 text-green-800"
-      : "bg-gray-100 border-gray-300 text-gray-500",
+      ? "bg-pill-green border-pill-green/50 text-pill-green-foreground"
+      : "bg-accent border-border text-muted-foreground",
     red: value === null
-      ? "bg-gray-50 border-gray-200 text-gray-600"
+      ? "bg-card border-border text-muted-foreground"
       : value
-      ? "bg-red-100 border-red-400 text-red-800"
-      : "bg-gray-100 border-gray-300 text-gray-500",
+      ? "bg-destructive/20 border-destructive/50 text-destructive"
+      : "bg-accent border-border text-muted-foreground",
   };
 
   return (
