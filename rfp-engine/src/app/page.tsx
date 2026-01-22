@@ -266,7 +266,7 @@ export default async function Home() {
               </div>
               <h3 className="text-xl font-bold text-slate-900 mb-3">Export Anywhere</h3>
               <p className="text-slate-600 leading-relaxed">
-                Export to Word or PDF, formatted and ready for submission.
+                Export to Word or PDF, formatted as a Q&A or Compliance Matrix.
               </p>
             </div>
           </div>
