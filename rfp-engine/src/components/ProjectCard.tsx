@@ -34,6 +34,14 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Get border color based on status
+  const getBorderColor = () => {
+    if (project.stats.percentage === 100) return "border-l-[#20c933]"; // completed - green
+    if (project.status === "PROCESSING") return "border-l-[#fcb400]"; // processing - yellow
+    if (project.status === "FAILED") return "border-l-red-500"; // failed - red
+    return "border-l-[#18bfb2]"; // ready - teal
+  };
+
   const handleSave = async () => {
     if (!title.trim() || title === project.name) {
       setTitle(project.name);
@@ -88,7 +96,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   };
 
   return (
-    <Card className={`hover:border-blue-400 hover:shadow-md transition-all ${project.stats.percentage === 100 ? "border-emerald-300 bg-emerald-50/50" : ""}`}>
+    <Card className={`border-l-4 ${getBorderColor()} hover:shadow-lg hover:border-l-[#0d9488] transition-all ${project.stats.percentage === 100 ? "bg-[#f0fdf4]" : "bg-white"}`}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
@@ -100,14 +108,14 @@ export function ProjectCard({ project }: ProjectCardProps) {
                   onKeyDown={handleKeyDown}
                   onBlur={handleSave}
                   disabled={saving}
-                  className="h-8 text-lg font-semibold max-w-[500px]"
+                  className="h-8 text-lg font-bold max-w-[500px]"
                   autoFocus
                 />
               </div>
             ) : (
               <div className="flex items-center gap-2 group pr-4">
                 <Link href={`/projects/${project.id}`} className="flex-1 min-w-0">
-                  <CardTitle className="text-lg truncate text-slate-900 hover:text-blue-600">{title}</CardTitle>
+                  <CardTitle className="text-lg font-bold truncate text-slate-800 hover:text-[#0d9488] tracking-tight">{title}</CardTitle>
                 </Link>
                 <Button
                   variant="ghost"
@@ -184,21 +192,21 @@ export function ProjectCard({ project }: ProjectCardProps) {
         <CardContent className="cursor-pointer">
           <div className="flex items-center gap-6 text-sm text-slate-600">
             <div>
-              <span className="font-semibold text-slate-900">{project.stats.total}</span> requirements
+              <span className="font-bold text-slate-800">{project.stats.total}</span> requirements
             </div>
             <div>
-              <span className="font-semibold text-emerald-600">{project.stats.answered}</span> answered
+              <span className="font-bold text-[#20c933]">{project.stats.answered}</span> answered
             </div>
             <div>
-              <span className="font-semibold text-amber-600">{project.stats.partial}</span> partial
+              <span className="font-bold text-[#fcb400]">{project.stats.partial}</span> partial
             </div>
             <div className="ml-auto">
-              <span className="font-semibold text-slate-900">{project.stats.percentage}%</span> complete
+              <span className="font-bold text-slate-800">{project.stats.percentage}%</span> complete
             </div>
           </div>
           <div className="mt-3 h-2.5 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-blue-500 rounded-full transition-all"
+              className="h-full bg-gradient-to-r from-[#18bfb2] to-[#14b8a6] rounded-full transition-all"
               style={{ width: `${project.stats.percentage}%` }}
             />
           </div>

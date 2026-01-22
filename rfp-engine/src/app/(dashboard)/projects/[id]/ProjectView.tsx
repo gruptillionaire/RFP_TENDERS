@@ -579,25 +579,28 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       const element = document.getElementById(`requirement-${requirementIds[0]}`);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
-        element.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
+        element.classList.add("ring-2", "ring-[#14b8a6]", "ring-offset-2");
         setTimeout(() => {
-          element.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+          element.classList.remove("ring-2", "ring-[#14b8a6]", "ring-offset-2");
         }, 2000);
       }
     }
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header - Dark theme */}
-      <header className="bg-slate-900 sticky top-0 z-40">
+    <div className="min-h-screen bg-[#faf9f7]">
+      {/* Teal accent bar */}
+      <div className="h-1 bg-gradient-to-r from-[#18bfb2] via-[#14b8a6] to-[#0d9488]" />
+
+      {/* Header - Light theme with teal accents */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <Link href="/" className="font-bold text-xl text-white">
+              <Link href="/" className="font-extrabold text-xl text-slate-800 tracking-tight">
                 RFP Matrix
               </Link>
-              <span className="text-slate-600">/</span>
+              <span className="text-slate-300">/</span>
               {isEditingName ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -611,7 +614,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                         setEditedName(project.name);
                       }
                     }}
-                    className="w-80 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-80 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-800 text-base focus:outline-none focus:ring-2 focus:ring-[#14b8a6]"
                     autoFocus
                     disabled={isRenamingSaving}
                   />
@@ -620,7 +623,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                     variant="ghost"
                     onClick={handleRenameProject}
                     disabled={isRenamingSaving}
-                    className="text-slate-300 hover:text-white hover:bg-white/10"
+                    className="text-slate-600 hover:text-[#0d9488] hover:bg-[#f0fdfa]"
                   >
                     {isRenamingSaving ? "Saving..." : "Save"}
                   </Button>
@@ -632,7 +635,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                       setEditedName(project.name);
                     }}
                     disabled={isRenamingSaving}
-                    className="text-slate-300 hover:text-white hover:bg-white/10"
+                    className="text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   >
                     Cancel
                   </Button>
@@ -640,7 +643,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
               ) : (
                 <button
                   onClick={() => setIsEditingName(true)}
-                  className="text-slate-300 hover:text-white hover:underline cursor-pointer transition-colors"
+                  className="font-semibold text-slate-700 hover:text-[#0d9488] hover:underline cursor-pointer transition-colors"
                   title="Click to rename"
                 >
                   {project.name}
@@ -649,12 +652,12 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
             </div>
             <div className="flex items-center gap-3">
               {project.deadline && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-md">
-                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#fffbeb] border border-[#fcd34d] rounded-lg">
+                  <svg className="w-4 h-4 text-[#d97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <div className="text-sm">
-                    <span className="text-amber-800 font-medium">
+                    <span className="text-[#92400e] font-semibold">
                       Deadline: {new Date(project.deadline).toLocaleDateString("en-GB", {
                         day: "numeric",
                         month: "short",
@@ -662,13 +665,13 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                       })}
                     </span>
                     {project.deadlineText && (
-                      <span className="text-amber-600 ml-1 text-xs">({project.deadlineText})</span>
+                      <span className="text-[#b45309] ml-1 text-xs">({project.deadlineText})</span>
                     )}
                     {new Date(project.deadline) < new Date() && (
-                      <span className="ml-2 text-red-600 font-medium text-xs">(OVERDUE)</span>
+                      <span className="ml-2 text-red-600 font-semibold text-xs">(OVERDUE)</span>
                     )}
                     {new Date(project.deadline) >= new Date() && (
-                      <span className="ml-2 text-amber-600 text-xs">
+                      <span className="ml-2 text-[#b45309] text-xs">
                         ({Math.ceil((new Date(project.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days left)
                       </span>
                     )}
@@ -685,14 +688,14 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                 {project.status.toLowerCase()}
               </Badge>
               {project.status === "READY" && (
-                <Button size="sm" onClick={() => setShowExportDialog(true)} className="bg-blue-500 hover:bg-blue-600 text-white">
+                <Button size="sm" onClick={() => setShowExportDialog(true)} className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">
                   <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Export
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")} className="text-slate-300 hover:text-white hover:bg-white/10">
+              <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")} className="text-slate-600 hover:text-[#0d9488] hover:bg-[#f0fdfa]">
                 Back to Projects
               </Button>
             </div>
@@ -710,10 +713,10 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
 
       {/* Company Name Input */}
       {project.status === "READY" && (
-        <div className="bg-white border-b">
+        <div className="bg-gradient-to-b from-white to-[#faf9f7] border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex items-center gap-4">
-              <label htmlFor="companyName" className="text-sm font-medium text-slate-700 whitespace-nowrap">
+              <label htmlFor="companyName" className="text-sm font-semibold text-slate-700 whitespace-nowrap">
                 Your Company Name:
               </label>
               <div className="flex-1 max-w-md">
@@ -729,7 +732,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                     }
                   }}
                   placeholder="Enter your company name to auto-fill drafts"
-                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#14b8a6]"
                   disabled={isCompanyNameSaving}
                 />
               </div>
@@ -737,7 +740,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                 <span className="text-xs text-slate-500">Saving...</span>
               )}
               {showCompanyNameSaved && (
-                <span className="text-xs text-emerald-600">Saved!</span>
+                <span className="text-xs font-medium text-[#0d9488]">Saved!</span>
               )}
               {companyName.trim() && (
                 <Button
@@ -746,6 +749,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                   onClick={() => handleCompanyNameSave(true)}
                   disabled={isCompanyNameSaving}
                   title="Replace [COMPANY NAME] placeholders in all existing drafts"
+                  className="border-[#14b8a6] text-[#0d9488] hover:bg-[#f0fdfa]"
                 >
                   Update Existing Drafts
                 </Button>
@@ -762,11 +766,11 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       <main className="max-w-7xl mx-auto px-6 py-6">
         {project.status === "PROCESSING" ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <svg className="animate-spin h-12 w-12 text-blue-600 mb-4" fill="none" viewBox="0 0 24 24">
+            <svg className="animate-spin h-12 w-12 text-[#14b8a6] mb-4" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Analyzing Document</h2>
+            <h2 className="text-xl font-bold text-slate-800 mb-2 tracking-tight">Analyzing Document</h2>
             <p className="text-slate-500">
               We&apos;re extracting requirements from your RFP.
             </p>

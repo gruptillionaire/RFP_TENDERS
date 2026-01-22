@@ -75,46 +75,49 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#faf9f7]">
+      {/* Teal accent bar */}
+      <div className="h-1 bg-gradient-to-r from-[#18bfb2] via-[#14b8a6] to-[#0d9488]" />
+
       {/* Email Verification Banner */}
       <EmailVerificationBanner emailVerified={userData?.emailVerified} />
 
-      {/* Header - Dark theme */}
-      <header className="bg-slate-900 sticky top-0 z-50">
+      {/* Header - Light theme with teal accents */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
           <div className="flex items-center gap-10">
-            <Link href="/" className="font-bold text-xl text-white">
+            <Link href="/" className="font-extrabold text-xl text-slate-800 tracking-tight">
               RFP Matrix
             </Link>
             <nav className="hidden sm:flex items-center gap-1">
               <Link
                 href="/dashboard"
-                className="px-4 py-2 text-sm font-medium text-white bg-white/10 rounded-lg"
+                className="px-4 py-2 text-sm font-semibold text-[#0d9488] bg-[#f0fdfa] rounded-lg"
               >
                 Projects
               </Link>
               <Link
                 href="/library"
-                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-[#0d9488] hover:bg-[#f0fdfa] rounded-lg transition-colors"
               >
                 Library
               </Link>
               <Link
                 href="/settings"
-                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-[#0d9488] hover:bg-[#f0fdfa] rounded-lg transition-colors"
               >
                 Settings
               </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-400">{session.user.email}</span>
+            <span className="text-sm text-slate-500">{session.user.email}</span>
             <form action={async () => {
               "use server";
               const { signOut } = await import("@/lib/auth");
               await signOut({ redirectTo: "/" });
             }}>
-              <Button variant="ghost" size="sm" type="submit" className="text-slate-300 hover:text-white hover:bg-white/10">
+              <Button variant="ghost" size="sm" type="submit" className="text-slate-600 hover:text-slate-900 hover:bg-slate-100">
                 Sign out
               </Button>
             </form>
@@ -122,16 +125,16 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 py-8">
+      {/* Hero Section - Subtle gradient */}
+      <div className="bg-gradient-to-b from-white to-[#faf9f7] py-8 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-white">Your Projects</h1>
-              <p className="text-slate-400 mt-1">Manage your RFP and tender responses</p>
+              <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Your Projects</h1>
+              <p className="text-slate-500 mt-1">Manage your RFP and tender responses</p>
             </div>
             <Link href="/projects/new">
-              <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits} className="bg-blue-500 hover:bg-blue-600 text-white">
+              <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits} className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
@@ -154,15 +157,15 @@ export default async function DashboardPage() {
         {projects.length === 0 ? (
           <Card className="bg-white border-slate-200 rounded-2xl shadow-sm">
             <CardContent className="flex flex-col items-center justify-center py-20">
-              <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
-                <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-20 h-20 bg-[#f0fdfa] rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-10 h-10 text-[#14b8a6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">No projects yet</h3>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">No projects yet</h3>
               <p className="text-slate-500 mb-6">Upload your first RFP to get started</p>
               <Link href="/projects/new">
-                <Button className="bg-blue-600 hover:bg-blue-700">Create your first project</Button>
+                <Button className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">Create your first project</Button>
               </Link>
             </CardContent>
           </Card>
@@ -202,8 +205,8 @@ export default async function DashboardPage() {
                   {completedProjects.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-4">
-                        <h2 className="text-lg font-semibold text-slate-700">Completed Projects</h2>
-                        <span className="text-sm text-slate-400">({completedProjects.length})</span>
+                        <h2 className="text-lg font-bold text-slate-700 tracking-tight">Completed Projects</h2>
+                        <span className="text-sm font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{completedProjects.length}</span>
                       </div>
                       <div className="grid gap-4">
                         {completedProjects.map(renderProjectCard)}
@@ -213,14 +216,14 @@ export default async function DashboardPage() {
 
                   {/* Show message if all projects are completed */}
                   {activeProjects.length === 0 && completedProjects.length > 0 && (
-                    <div className="text-center px-6 py-12 mt-8 mb-8 bg-emerald-50 rounded-2xl border border-emerald-200">
-                      <div className="w-14 h-14 mx-auto bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                        <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="text-center px-6 py-12 mt-8 mb-8 bg-[#f0fdfa] rounded-2xl border border-[#99f6e4]">
+                      <div className="w-14 h-14 mx-auto bg-[#ccfbf1] rounded-xl flex items-center justify-center mb-4">
+                        <svg className="w-7 h-7 text-[#0d9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <p className="text-emerald-800 font-semibold text-lg">All projects completed!</p>
-                      <p className="text-emerald-600 text-sm mt-1">Start a new project to continue working.</p>
+                      <p className="text-[#115e59] font-bold text-lg">All projects completed!</p>
+                      <p className="text-[#0d9488] text-sm mt-1">Start a new project to continue working.</p>
                     </div>
                   )}
                 </>
