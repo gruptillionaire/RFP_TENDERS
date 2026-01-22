@@ -302,7 +302,7 @@ function PricingContent() {
         )}
 
         {/* Subscription plans header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-12">
           <h2 className="text-2xl font-bold text-slate-900">Monthly Subscriptions</h2>
           <p className="mt-2 text-slate-600">For regular RFP responders - cancel anytime</p>
         </div>
