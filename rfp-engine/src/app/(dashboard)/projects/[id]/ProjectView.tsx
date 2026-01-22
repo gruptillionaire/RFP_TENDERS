@@ -588,16 +588,16 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+    <div className="min-h-screen bg-slate-50">
+      {/* Header - Dark theme */}
+      <header className="bg-slate-900 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <Link href="/" className="font-bold text-xl text-slate-900">
+              <Link href="/" className="font-bold text-xl text-white">
                 RFP Matrix
               </Link>
-              <span className="text-slate-300">/</span>
+              <span className="text-slate-600">/</span>
               {isEditingName ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -611,7 +611,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                         setEditedName(project.name);
                       }
                     }}
-                    className="w-80 px-3 py-2 border border-slate-200 rounded-lg text-slate-700 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-80 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                     autoFocus
                     disabled={isRenamingSaving}
                   />
@@ -620,6 +620,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                     variant="ghost"
                     onClick={handleRenameProject}
                     disabled={isRenamingSaving}
+                    className="text-slate-300 hover:text-white hover:bg-white/10"
                   >
                     {isRenamingSaving ? "Saving..." : "Save"}
                   </Button>
@@ -631,6 +632,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                       setEditedName(project.name);
                     }}
                     disabled={isRenamingSaving}
+                    className="text-slate-300 hover:text-white hover:bg-white/10"
                   >
                     Cancel
                   </Button>
@@ -638,7 +640,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
               ) : (
                 <button
                   onClick={() => setIsEditingName(true)}
-                  className="text-slate-600 hover:text-slate-900 hover:underline cursor-pointer"
+                  className="text-slate-300 hover:text-white hover:underline cursor-pointer transition-colors"
                   title="Click to rename"
                 >
                   {project.name}
@@ -683,15 +685,15 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                 {project.status.toLowerCase()}
               </Badge>
               {project.status === "READY" && (
-                <Button variant="outline" size="sm" onClick={() => setShowExportDialog(true)}>
+                <Button size="sm" onClick={() => setShowExportDialog(true)} className="bg-blue-500 hover:bg-blue-600 text-white">
                   <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Export
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>
-                Back to Dashboard
+              <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard")} className="text-slate-300 hover:text-white hover:bg-white/10">
+                Back to Projects
               </Button>
             </div>
           </div>

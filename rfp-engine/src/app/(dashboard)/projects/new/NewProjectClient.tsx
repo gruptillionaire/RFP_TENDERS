@@ -130,35 +130,43 @@ export function NewProjectClient() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <Link href="/" className="font-bold text-xl text-slate-900">
-            RFP Matrix
-          </Link>
+    <div className="min-h-screen bg-slate-50">
+      {/* Header - Dark theme */}
+      <header className="bg-slate-900 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="font-bold text-xl text-white">
+              RFP Matrix
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm text-slate-300 hover:text-white flex items-center gap-1 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Projects
+            </Link>
+          </div>
         </div>
       </header>
 
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 py-8">
+        <div className="max-w-2xl mx-auto px-6">
+          <h1 className="text-2xl font-bold text-white">Create New Project</h1>
+          <p className="text-slate-400 mt-1">Upload an RFP document to get started</p>
+        </div>
+      </div>
+
       {/* Main */}
       <main className="max-w-2xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <Link
-            href="/dashboard"
-            className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Dashboard
-          </Link>
-        </div>
 
         <Card className="bg-white border-slate-200 rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle className="text-2xl text-slate-900">Create New Project</CardTitle>
+            <CardTitle className="text-xl text-slate-900">Upload Document</CardTitle>
             <CardDescription className="text-slate-500">
-              Upload an RFP or tender document to extract requirements and start drafting responses.
+              Supported formats: PDF, DOCX, DOC (max 4.5MB)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

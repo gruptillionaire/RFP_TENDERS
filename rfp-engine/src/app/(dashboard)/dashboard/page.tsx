@@ -75,52 +75,72 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
+    <div className="min-h-screen bg-slate-50">
       {/* Email Verification Banner */}
       <EmailVerificationBanner emailVerified={userData?.emailVerified} />
 
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-12">
-            <Link href="/" className="font-bold text-xl text-slate-900">
+      {/* Header - Dark theme */}
+      <header className="bg-slate-900 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-10">
+            <Link href="/" className="font-bold text-xl text-white">
               RFP Matrix
             </Link>
             <nav className="hidden sm:flex items-center gap-1">
               <Link
                 href="/dashboard"
-                className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg"
+                className="px-4 py-2 text-sm font-medium text-white bg-white/10 rounded-lg"
               >
                 Projects
               </Link>
               <Link
                 href="/library"
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
+                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               >
                 Library
               </Link>
               <Link
                 href="/settings"
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
+                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               >
                 Settings
               </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-500">{session.user.email}</span>
+            <span className="text-sm text-slate-400">{session.user.email}</span>
             <form action={async () => {
               "use server";
               const { signOut } = await import("@/lib/auth");
               await signOut({ redirectTo: "/" });
             }}>
-              <Button variant="ghost" size="sm" type="submit">
+              <Button variant="ghost" size="sm" type="submit" className="text-slate-300 hover:text-white hover:bg-white/10">
                 Sign out
               </Button>
             </form>
           </div>
         </div>
       </header>
+
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 py-8">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Your Projects</h1>
+              <p className="text-slate-400 mt-1">Manage your RFP and tender responses</p>
+            </div>
+            <Link href="/projects/new">
+              <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits} className="bg-blue-500 hover:bg-blue-600 text-white">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Project
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* Main */}
       <main className="max-w-7xl mx-auto px-6 py-8">
@@ -130,21 +150,6 @@ export default async function DashboardPage() {
           quota={quota}
           singleUseQuota={singleUseQuota}
         />
-
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Your Projects</h1>
-            <p className="text-slate-500 mt-1">Manage your RFP and tender responses</p>
-          </div>
-          <Link href="/projects/new">
-            <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits} className="bg-blue-600 hover:bg-blue-700">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Project
-            </Button>
-          </Link>
-        </div>
 
         {projects.length === 0 ? (
           <Card className="bg-white border-slate-200 rounded-2xl shadow-sm">
