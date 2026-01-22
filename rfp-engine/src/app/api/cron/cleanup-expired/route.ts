@@ -1,12 +1,13 @@
 /**
  * GET /api/cron/cleanup-expired
  *
- * Daily cron job to clean up expired single-use projects and credits.
+ * Daily cron job to clean up expired content and subscriptions.
  * Runs at 2 AM daily.
  *
  * Actions:
  * 1. Delete projects where isSingleUseProject = true AND expiresAt < now
  * 2. Reset expired single-use credits to 0 for users
+ * 3. Downgrade expired granted subscriptions (no Stripe ID) to FREE
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -128,8 +129,64 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Downgrade expired granted subscriptions
+    // These are users with paid plans but no Stripe subscription (manually granted)
+    // whose currentPeriodEnd has passed
+    const expiredGrantedSubscriptions = await prisma.user.findMany({
+      where: {
+        plan: { in: ["STARTER", "PRO", "BUSINESS"] },
+        stripeSubscriptionId: null, // No Stripe subscription = granted
+        currentPeriodEnd: {
+          lt: now,
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        plan: true,
+        currentPeriodEnd: true,
+      },
+    });
+
+    // Downgrade to FREE
+    if (expiredGrantedSubscriptions.length > 0) {
+      await prisma.user.updateMany({
+        where: {
+          id: {
+            in: expiredGrantedSubscriptions.map((u) => u.id),
+          },
+        },
+        data: {
+          plan: "FREE",
+          subscriptionStatus: null,
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+          monthlyExtractionsLimit: 0,
+        },
+      });
+
+      // Log each subscription expiration
+      for (const user of expiredGrantedSubscriptions) {
+        await logAudit({
+          userId: user.id,
+          action: AuditAction.BILLING_SUBSCRIPTION_CANCELLED,
+          resource: AuditResource.USER,
+          resourceId: user.id,
+          details: {
+            reason: "granted_subscription_expired",
+            previousPlan: user.plan,
+            newPlan: "FREE",
+            expiredAt: user.currentPeriodEnd?.toISOString(),
+          },
+        });
+        console.log(
+          `Expired granted subscription: ${user.email} (${user.plan}) -> FREE`
+        );
+      }
+    }
+
     console.log(
-      `Cleanup completed: ${expiredProjects.length} projects deleted, ${usersWithExpiredCredits.length} users' credits reset`
+      `Cleanup completed: ${expiredProjects.length} projects deleted, ${usersWithExpiredCredits.length} users' credits reset, ${expiredGrantedSubscriptions.length} granted subscriptions expired`
     );
 
     return NextResponse.json({
@@ -140,6 +197,12 @@ export async function GET(req: NextRequest) {
         name: p.name,
       })),
       creditsReset: usersWithExpiredCredits.length,
+      subscriptionsExpired: expiredGrantedSubscriptions.length,
+      expiredSubscriptions: expiredGrantedSubscriptions.map((u) => ({
+        email: u.email,
+        previousPlan: u.plan,
+        expiredAt: u.currentPeriodEnd?.toISOString(),
+      })),
     });
   } catch (error) {
     console.error("Cleanup expired cron error:", error);

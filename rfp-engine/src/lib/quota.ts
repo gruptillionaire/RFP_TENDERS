@@ -9,6 +9,36 @@ interface QuotaCheckResult {
 }
 
 /**
+ * Check if a manually granted subscription has expired.
+ * A subscription is considered "granted" (not Stripe-managed) when:
+ * - User has a paid plan (STARTER, PRO, BUSINESS)
+ * - User has no stripeSubscriptionId
+ * - User has a currentPeriodEnd date
+ *
+ * Returns true if the grant has expired and user should be treated as FREE.
+ */
+function isGrantedSubscriptionExpired(
+  plan: string,
+  stripeSubscriptionId: string | null,
+  currentPeriodEnd: Date | null
+): boolean {
+  // Only check for paid plans that are manually granted (no Stripe subscription)
+  const isPaidPlan = ["STARTER", "PRO", "BUSINESS"].includes(plan);
+  const isGranted = !stripeSubscriptionId;
+
+  if (!isPaidPlan || !isGranted) {
+    return false;
+  }
+
+  // If no expiration date, treat as not expired (shouldn't happen but be safe)
+  if (!currentPeriodEnd) {
+    return false;
+  }
+
+  return new Date() > currentPeriodEnd;
+}
+
+/**
  * Check if user can perform extraction and optionally increment usage
  * Uses a transaction to prevent race conditions
  */
@@ -25,6 +55,8 @@ export async function checkAndIncrementQuota(
         monthlyExtractionsUsed: true,
         monthlyExtractionsLimit: true,
         lastUsageReset: true,
+        stripeSubscriptionId: true,
+        currentPeriodEnd: true,
       },
     });
 
@@ -39,18 +71,27 @@ export async function checkAndIncrementQuota(
 
     let currentUsage = shouldReset ? 0 : user.monthlyExtractionsUsed;
 
+    // Check if this is an expired granted subscription
+    const grantExpired = isGrantedSubscriptionExpired(
+      user.plan,
+      user.stripeSubscriptionId,
+      user.currentPeriodEnd
+    );
+
     // Get limit based on plan
     // FREE plan always gets 0 - no fallback to monthlyExtractionsLimit
+    // Expired grants are treated as FREE
+    const effectivePlan = grantExpired ? "FREE" : user.plan;
     const limit =
-      user.plan === "FREE"
+      effectivePlan === "FREE"
         ? QUOTA_LIMITS.FREE
-        : user.plan === "ENTERPRISE"
+        : effectivePlan === "ENTERPRISE"
         ? QUOTA_LIMITS.ENTERPRISE
-        : user.plan === "BUSINESS"
+        : effectivePlan === "BUSINESS"
         ? QUOTA_LIMITS.BUSINESS
-        : user.plan === "PRO"
+        : effectivePlan === "PRO"
         ? QUOTA_LIMITS.PRO
-        : user.plan === "STARTER"
+        : effectivePlan === "STARTER"
         ? QUOTA_LIMITS.STARTER
         : QUOTA_LIMITS.FREE;
 
@@ -134,6 +175,8 @@ export async function getDashboardUserData(userId: string): Promise<DashboardUse
       singleUseExtractionsRemaining: true,
       singleUseDraftsRemaining: true,
       singleUseExpiresAt: true,
+      stripeSubscriptionId: true,
+      currentPeriodEnd: true,
     },
   });
 
@@ -145,13 +188,23 @@ export async function getDashboardUserData(userId: string): Promise<DashboardUse
   const shouldReset = now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear();
 
   const currentUsage = shouldReset ? 0 : user.monthlyExtractionsUsed;
+
+  // Check if this is an expired granted subscription
+  const grantExpired = isGrantedSubscriptionExpired(
+    user.plan,
+    user.stripeSubscriptionId,
+    user.currentPeriodEnd
+  );
+
   // FREE plan always gets 0 - no fallback to monthlyExtractionsLimit
+  // Expired grants are treated as FREE
+  const effectivePlan = grantExpired ? "FREE" : user.plan;
   const limit =
-    user.plan === "FREE" ? QUOTA_LIMITS.FREE :
-    user.plan === "ENTERPRISE" ? QUOTA_LIMITS.ENTERPRISE :
-    user.plan === "BUSINESS" ? QUOTA_LIMITS.BUSINESS :
-    user.plan === "PRO" ? QUOTA_LIMITS.PRO :
-    user.plan === "STARTER" ? QUOTA_LIMITS.STARTER :
+    effectivePlan === "FREE" ? QUOTA_LIMITS.FREE :
+    effectivePlan === "ENTERPRISE" ? QUOTA_LIMITS.ENTERPRISE :
+    effectivePlan === "BUSINESS" ? QUOTA_LIMITS.BUSINESS :
+    effectivePlan === "PRO" ? QUOTA_LIMITS.PRO :
+    effectivePlan === "STARTER" ? QUOTA_LIMITS.STARTER :
     QUOTA_LIMITS.FREE;
 
   const isUnlimited = limit === -1;
@@ -161,7 +214,8 @@ export async function getDashboardUserData(userId: string): Promise<DashboardUse
   const isExpired = user.singleUseExpiresAt ? now > user.singleUseExpiresAt : false;
 
   return {
-    plan: user.plan,
+    // Return effective plan so UI shows correct state
+    plan: effectivePlan,
     emailVerified: user.emailVerified,
     quota: {
       allowed: isUnlimited || currentUsage < limit,
@@ -193,6 +247,8 @@ export async function checkAndIncrementDraftQuota(
         plan: true,
         monthlyDraftsUsed: true,
         lastUsageReset: true,
+        stripeSubscriptionId: true,
+        currentPeriodEnd: true,
       },
     });
 
@@ -207,17 +263,26 @@ export async function checkAndIncrementDraftQuota(
 
     let currentUsage = shouldReset ? 0 : user.monthlyDraftsUsed;
 
+    // Check if this is an expired granted subscription
+    const grantExpired = isGrantedSubscriptionExpired(
+      user.plan,
+      user.stripeSubscriptionId,
+      user.currentPeriodEnd
+    );
+
     // Get limit based on plan - FREE always gets 0
+    // Expired grants are treated as FREE
+    const effectivePlan = grantExpired ? "FREE" : user.plan;
     const limit =
-      user.plan === "FREE"
+      effectivePlan === "FREE"
         ? DRAFT_LIMITS.FREE
-        : user.plan === "ENTERPRISE"
+        : effectivePlan === "ENTERPRISE"
         ? DRAFT_LIMITS.ENTERPRISE
-        : user.plan === "BUSINESS"
+        : effectivePlan === "BUSINESS"
         ? DRAFT_LIMITS.BUSINESS
-        : user.plan === "PRO"
+        : effectivePlan === "PRO"
         ? DRAFT_LIMITS.PRO
-        : user.plan === "STARTER"
+        : effectivePlan === "STARTER"
         ? DRAFT_LIMITS.STARTER
         : DRAFT_LIMITS.FREE;
 
