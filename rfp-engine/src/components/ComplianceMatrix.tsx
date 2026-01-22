@@ -1046,25 +1046,25 @@ export function ComplianceMatrix({
           className="overflow-auto"
           style={{ maxHeight: "calc(100vh - 200px)" }}
         >
-          <Table>
+          <Table className="table-fixed">
             <TableHeader className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
               <TableRow>
-                <TableHead className="w-12 font-semibold text-slate-600">#</TableHead>
-                <TableHead className="font-semibold text-slate-600">Requirement</TableHead>
-                <TableHead className="w-24 font-semibold text-slate-600">Priority</TableHead>
-                <TableHead className="w-28 font-semibold text-slate-600">
+                <TableHead className="w-10 font-semibold text-slate-600">#</TableHead>
+                <TableHead className="w-[45%] font-semibold text-slate-600">Requirement</TableHead>
+                <TableHead className="w-20 font-semibold text-slate-600">Priority</TableHead>
+                <TableHead className="w-40 font-semibold text-slate-600">
                   <span className="flex items-center gap-1">
-                    Req. Type
+                    Type
                     <InfoTooltip content="Classification of what type of response is needed: Procedural (confirm compliance), Descriptive (explain approach), Evidence (cite documents), etc." />
                   </span>
                 </TableHead>
-                <TableHead className="w-32 font-semibold text-slate-600">
+                <TableHead className="w-28 font-semibold text-slate-600">
                   <span className="flex items-center gap-1">
                     Status
                     <InfoTooltip content="Unanswered: No draft yet. Partial: Draft started but incomplete. Answered: Ready for export." />
                   </span>
                 </TableHead>
-                <TableHead className="w-24 font-semibold text-slate-600">Actions</TableHead>
+                <TableHead className="w-20 font-semibold text-slate-600">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

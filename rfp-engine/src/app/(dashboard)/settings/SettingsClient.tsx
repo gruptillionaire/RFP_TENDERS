@@ -170,13 +170,13 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
   const getStatusBadge = (status: string | null) => {
     if (!status) return null;
     const colors: Record<string, string> = {
-      ACTIVE: "bg-green-100 text-green-800",
-      PAST_DUE: "bg-yellow-100 text-yellow-800",
-      CANCELED: "bg-gray-100 text-gray-800",
-      TRIALING: "bg-blue-100 text-blue-800",
+      ACTIVE: "bg-[#dcfce7] text-[#166534]",
+      PAST_DUE: "bg-[#fef9c3] text-[#a16207]",
+      CANCELED: "bg-slate-100 text-slate-600",
+      TRIALING: "bg-[#dbeafe] text-[#1e40af]",
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || "bg-gray-100 text-gray-800"}`}>
+      <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${colors[status] || "bg-slate-100 text-slate-600"}`}>
         {status.replace("_", " ")}
       </span>
     );
@@ -213,17 +213,17 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
+    <div className="min-h-screen bg-[#faf9f7]">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="text-xl font-bold text-gray-900">
+          <Link href="/dashboard" className="font-extrabold text-xl text-slate-800 tracking-tight">
             RFP Matrix
           </Link>
-          <nav className="flex gap-4">
-            <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+          <nav className="flex gap-1">
+            <Link href="/dashboard" className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-[#0d9488] rounded-lg hover:bg-slate-50 transition-colors">
               Dashboard
             </Link>
-            <Link href="/settings" className="text-blue-600 font-medium">
+            <Link href="/settings" className="px-4 py-2 text-sm font-semibold text-[#0d9488] bg-[#f0fdfa] rounded-lg">
               Settings
             </Link>
           </nav>
@@ -231,34 +231,63 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
       </header>
 
       <div className="max-w-4xl mx-auto py-8 px-4">
-        <h1 className="text-3xl font-bold mb-8">Settings</h1>
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#14b8a6] to-[#0d9488] flex items-center justify-center">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Settings</h1>
+            <p className="text-sm text-slate-500">Manage your account and preferences</p>
+          </div>
+        </div>
 
         {message && (
           <div
-            className={`mb-6 p-4 rounded-lg ${
+            className={`mb-6 p-4 rounded-xl flex items-start gap-3 ${
               message.type === "success"
-                ? "bg-green-50 text-green-800 border border-green-200"
+                ? "bg-[#dcfce7] text-[#166534] border border-[#86efac]"
                 : "bg-red-50 text-red-800 border border-red-200"
             }`}
           >
-            {message.text}
+            {message.type === "success" ? (
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="font-medium">{message.text}</span>
           </div>
         )}
 
         {/* Account Information */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Account Information</CardTitle>
-            <CardDescription>Your account details</CardDescription>
+        <Card className="mb-6 rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#dbeafe] flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#1e40af]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800">Account Information</CardTitle>
+                <CardDescription className="text-slate-500">Your account details</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Email</Label>
-              <p className="text-gray-700">{userEmail}</p>
+              <Label className="text-xs uppercase tracking-wide text-slate-400 font-semibold">Email</Label>
+              <p className="text-slate-800 font-medium mt-1">{userEmail}</p>
             </div>
             <div>
-              <Label>Name</Label>
-              <p className="text-gray-700">{userName || "Not set"}</p>
+              <Label className="text-xs uppercase tracking-wide text-slate-400 font-semibold">Name</Label>
+              <p className="text-slate-800 font-medium mt-1">{userName || "Not set"}</p>
             </div>
           </CardContent>
         </Card>
@@ -274,10 +303,19 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
         </div>
 
         {/* Billing & Subscription */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Billing & Subscription</CardTitle>
-            <CardDescription>Manage your subscription and payment methods</CardDescription>
+        <Card className="mb-6 rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#dcfce7] flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#166534]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800">Billing & Subscription</CardTitle>
+                <CardDescription className="text-slate-500">Manage your subscription and payment methods</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Current Plan */}
@@ -312,26 +350,26 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
             </div>
 
             {/* Usage */}
-            <div className="border-t pt-4">
-              <h3 className="font-medium mb-3">Usage This Month</h3>
+            <div className="border-t border-slate-100 pt-4">
+              <h3 className="font-semibold text-slate-800 mb-4">Usage This Month</h3>
               <div className="space-y-4">
                 {/* Extraction Usage */}
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Document Extractions</span>
-                    <span className="font-medium">
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-slate-600 font-medium">Document Extractions</span>
+                    <span className="font-bold text-slate-800">
                       {billingInfo.usage.extractionsUsed} / {billingInfo.usage.extractionsLimit === -1 ? "Unlimited" : billingInfo.usage.extractionsLimit}
                     </span>
                   </div>
                   {billingInfo.usage.extractionsLimit !== -1 && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-slate-200 rounded-full h-2.5">
                       <div
-                        className={`h-2 rounded-full ${
+                        className={`h-2.5 rounded-full transition-all ${
                           billingInfo.usage.extractionsUsed >= billingInfo.usage.extractionsLimit
                             ? "bg-red-500"
                             : billingInfo.usage.extractionsUsed >= billingInfo.usage.extractionsLimit * 0.8
-                            ? "bg-yellow-500"
-                            : "bg-blue-500"
+                            ? "bg-[#fcb400]"
+                            : "bg-[#14b8a6]"
                         }`}
                         style={{
                           width: `${Math.min(100, (billingInfo.usage.extractionsUsed / billingInfo.usage.extractionsLimit) * 100)}%`,
@@ -342,22 +380,22 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
                 </div>
 
                 {/* Draft Usage */}
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">AI Draft Generations</span>
-                    <span className="font-medium">
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-slate-600 font-medium">AI Draft Generations</span>
+                    <span className="font-bold text-slate-800">
                       {billingInfo.usage.draftsUsed} / {billingInfo.usage.draftsLimit === -1 ? "Unlimited" : billingInfo.usage.draftsLimit}
                     </span>
                   </div>
                   {billingInfo.usage.draftsLimit !== -1 && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-slate-200 rounded-full h-2.5">
                       <div
-                        className={`h-2 rounded-full ${
+                        className={`h-2.5 rounded-full transition-all ${
                           billingInfo.usage.draftsUsed >= billingInfo.usage.draftsLimit
                             ? "bg-red-500"
                             : billingInfo.usage.draftsUsed >= billingInfo.usage.draftsLimit * 0.8
-                            ? "bg-yellow-500"
-                            : "bg-green-500"
+                            ? "bg-[#fcb400]"
+                            : "bg-[#20c933]"
                         }`}
                         style={{
                           width: `${Math.min(100, (billingInfo.usage.draftsUsed / billingInfo.usage.draftsLimit) * 100)}%`,
@@ -434,10 +472,19 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
         </Card>
 
         {/* Privacy & Data */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Privacy & Data</CardTitle>
-            <CardDescription>Manage your data and privacy settings</CardDescription>
+        <Card className="mb-6 rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#f3e8ff] flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#7c3aed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800">Privacy & Data</CardTitle>
+                <CardDescription className="text-slate-500">Manage your data and privacy settings</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Data Export */}
@@ -500,57 +547,85 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
         </Card>
 
         {/* Legal Documents */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Legal</CardTitle>
-            <CardDescription>View our policies and agreements</CardDescription>
+        <Card className="mb-6 rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800">Legal</CardTitle>
+                <CardDescription className="text-slate-500">View our policies and agreements</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <Link
                 href="/terms"
-                className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all"
               >
-                <span className="text-blue-600">Terms of Service</span>
+                <svg className="w-4 h-4 text-[#0d9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span className="text-slate-700 font-medium">Terms of Service</span>
               </Link>
               <Link
                 href="/privacy"
-                className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all"
               >
-                <span className="text-blue-600">Privacy Policy</span>
+                <svg className="w-4 h-4 text-[#0d9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span className="text-slate-700 font-medium">Privacy Policy</span>
               </Link>
               <Link
                 href="/cookies"
-                className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all"
               >
-                <span className="text-blue-600">Cookie Policy</span>
+                <svg className="w-4 h-4 text-[#0d9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span className="text-slate-700 font-medium">Cookie Policy</span>
               </Link>
               <Link
                 href="/ccpa"
-                className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all"
               >
-                <span className="text-blue-600">California Privacy Rights</span>
+                <svg className="w-4 h-4 text-[#0d9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span className="text-slate-700 font-medium">California Privacy Rights</span>
               </Link>
             </div>
           </CardContent>
         </Card>
 
         {/* Help & Support */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Help & Support</CardTitle>
-            <CardDescription>Get help with your account</CardDescription>
+        <Card className="mb-6 rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#fef9c3] flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#a16207]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800">Help & Support</CardTitle>
+                <CardDescription className="text-slate-500">Get help with your account</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">
-                  Have a question or need assistance? We&apos;re here to help.
-                </p>
-              </div>
+            <div className="flex items-center justify-between bg-slate-50 rounded-xl p-4">
+              <p className="text-sm text-slate-600">
+                Have a question or need assistance? We&apos;re here to help.
+              </p>
               <a
                 href="mailto:help@rfpmatrix.com"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#0d9488] bg-[#f0fdfa] rounded-lg hover:bg-[#ccfbf1] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -562,10 +637,19 @@ export function SettingsClient({ userEmail, userName, initialCcpaOptOut, billing
         </Card>
 
         {/* Danger Zone */}
-        <Card className="border-red-200">
-          <CardHeader>
-            <CardTitle className="text-red-600">Danger Zone</CardTitle>
-            <CardDescription>Irreversible account actions</CardDescription>
+        <Card className="rounded-xl border-red-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-red-600">Danger Zone</CardTitle>
+                <CardDescription className="text-slate-500">Irreversible account actions</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {!showDeleteConfirm ? (

@@ -162,12 +162,27 @@ export function NewProjectClient() {
       {/* Main */}
       <main className="max-w-2xl mx-auto px-6 py-8">
 
-        <Card className="bg-white border-slate-200 rounded-2xl shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold text-slate-800 tracking-tight">Upload Document</CardTitle>
-            <CardDescription className="text-slate-500">
-              Supported formats: PDF, DOCX, DOC (max 4.5MB)
-            </CardDescription>
+        <Card className="bg-white border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <CardHeader className="pb-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#14b8a6] to-[#0d9488] flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-xl font-bold text-slate-800 tracking-tight">Upload Document</CardTitle>
+                <CardDescription className="text-slate-500 mt-1">
+                  Drag and drop or click to upload your RFP document
+                </CardDescription>
+                <div className="flex items-center gap-2 mt-3">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-[#dbeafe] text-[#1e40af]">PDF</span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-[#f3e8ff] text-[#7c3aed]">DOCX</span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-[#dcfce7] text-[#166534]">DOC</span>
+                  <span className="text-xs text-slate-400 ml-1">max 4.5MB</span>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Single-Use Credit Notice */}
@@ -233,23 +248,39 @@ export function NewProjectClient() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="name">Project Name (optional)</Label>
+              <Label htmlFor="name" className="text-sm font-medium text-slate-700">Project Name (optional)</Label>
               <Input
                 id="name"
                 placeholder="e.g., City Council IT Services RFP"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isUploading}
+                className="border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-slate-400">
                 If not provided, we&apos;ll use the filename
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>RFP Document</Label>
+              <Label className="text-sm font-medium text-slate-700">RFP Document</Label>
               <FileUpload onUpload={handleUpload} isUploading={isUploading} />
             </div>
+
+            {/* Helpful tip */}
+            {!isUploading && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-8 h-8 rounded-lg bg-[#f0fdfa] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-[#0d9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Tip</p>
+                  <p className="text-xs text-slate-500 mt-0.5">For best results, upload documents with clear section headers and numbered requirements.</p>
+                </div>
+              </div>
+            )}
 
             {isUploading && (
               <div className="bg-[#f0fdfa] p-4 rounded-xl border border-[#99f6e4]">

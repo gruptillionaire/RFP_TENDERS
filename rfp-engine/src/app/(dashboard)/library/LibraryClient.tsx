@@ -240,22 +240,29 @@ export function LibraryClient() {
   }, [data?.responses]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#faf9f7]">
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
+              <Link href="/dashboard" className="text-slate-400 hover:text-[#0d9488] transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </Link>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Response Library</h1>
-                <p className="text-sm text-gray-500">
-                  {data?.totalCount || 0} saved response{data?.totalCount !== 1 ? "s" : ""}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#14b8a6] to-[#0d9488] flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">Response Library</h1>
+                  <p className="text-sm text-slate-500">
+                    {data?.totalCount || 0} saved response{data?.totalCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -264,13 +271,13 @@ export function LibraryClient() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-6">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search input */}
             <div className="flex-1">
               <div className="relative">
                 <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -286,7 +293,7 @@ export function LibraryClient() {
                   placeholder="Search responses..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
                 />
               </div>
             </div>
@@ -296,7 +303,7 @@ export function LibraryClient() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white text-slate-700 focus:border-[#14b8a6] focus:ring-[#14b8a6] focus:outline-none"
               >
                 <option value="createdAt">Date Created</option>
                 <option value="updatedAt">Last Updated</option>
@@ -307,14 +314,14 @@ export function LibraryClient() {
                 variant="outline"
                 size="sm"
                 onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
-                className="px-3"
+                className="px-3 border-slate-200 hover:bg-slate-50"
               >
                 {sortOrder === "asc" ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 )}
@@ -329,10 +336,10 @@ export function LibraryClient() {
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     selectedTags.includes(tag)
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "bg-[#14b8a6] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
                   {tag}
@@ -341,7 +348,7 @@ export function LibraryClient() {
               {selectedTags.length > 0 && (
                 <button
                   onClick={() => setSelectedTags([])}
-                  className="px-3 py-1 rounded-full text-xs font-medium text-red-600 hover:bg-red-50"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50"
                 >
                   Clear filters
                 </button>
@@ -365,26 +372,28 @@ export function LibraryClient() {
 
         {/* Empty state */}
         {!loading && !error && sortedResponses.length === 0 && (
-          <div className="text-center py-16 bg-white rounded-lg border">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-              />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
+          <div className="text-center py-16 bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#f0fdfa] to-[#ccfbf1] flex items-center justify-center mb-4">
+              <svg
+                className="h-8 w-8 text-[#0d9488]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
               {debouncedSearch || selectedTags.length > 0
                 ? "No matching responses"
                 : "Your library is empty"}
             </h3>
-            <p className="mt-2 text-gray-500">
+            <p className="mt-2 text-slate-500 max-w-sm mx-auto">
               {debouncedSearch || selectedTags.length > 0
                 ? "Try adjusting your search or filters"
                 : "Save responses from your projects to build your reusable library"}
@@ -399,22 +408,22 @@ export function LibraryClient() {
               {sortedResponses.map((response) => (
                 <div
                   key={response.id}
-                  className="bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow p-4"
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all p-5"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-gray-900 truncate">{response.title}</h3>
-                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                      <h3 className="font-semibold text-slate-800 truncate">{response.title}</h3>
+                      <p className="mt-1.5 text-sm text-slate-600 line-clamp-2">
                         {truncateContent(response.content)}
                       </p>
 
                       {/* Tags */}
                       {response.tags.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
+                        <div className="mt-3 flex flex-wrap gap-1.5">
                           {response.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
+                              className="px-2.5 py-1 bg-[#f0fdfa] text-[#0d9488] rounded-lg text-xs font-medium"
                             >
                               {tag}
                             </span>
@@ -423,9 +432,19 @@ export function LibraryClient() {
                       )}
 
                       {/* Meta info */}
-                      <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
-                        <span>Created {formatDate(response.createdAt)}</span>
-                        <span>Used {response.usageCount} time{response.usageCount !== 1 ? "s" : ""}</span>
+                      <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {formatDate(response.createdAt)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Used {response.usageCount} time{response.usageCount !== 1 ? "s" : ""}
+                        </span>
                       </div>
                     </div>
 
@@ -435,6 +454,7 @@ export function LibraryClient() {
                         variant="outline"
                         size="sm"
                         onClick={() => openEdit(response)}
+                        className="border-slate-200 text-slate-600 hover:text-[#0d9488] hover:border-[#14b8a6] hover:bg-[#f0fdfa]"
                       >
                         Edit
                       </Button>
@@ -442,7 +462,7 @@ export function LibraryClient() {
                         variant="outline"
                         size="sm"
                         onClick={() => setDeletingId(response.id)}
-                        className="text-red-600 hover:text-red-700 hover:border-red-300"
+                        className="border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50"
                       >
                         Delete
                       </Button>
@@ -453,8 +473,8 @@ export function LibraryClient() {
             </div>
 
             {/* Load More / Pagination info */}
-            <div className="mt-6 flex flex-col items-center gap-3">
-              <p className="text-sm text-gray-500">
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <p className="text-sm text-slate-500">
                 Showing {sortedResponses.length} of {data?.totalCount || 0} responses
               </p>
               {hasMore && (
@@ -462,11 +482,11 @@ export function LibraryClient() {
                   variant="outline"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="min-w-[140px]"
+                  className="min-w-[140px] border-slate-200 hover:bg-slate-50"
                 >
                   {loadingMore ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-[#0d9488]" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
@@ -485,45 +505,47 @@ export function LibraryClient() {
       {/* Edit Modal */}
       {editingResponse && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold">Edit Response</h2>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-800">Edit Response</h2>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Title</label>
                 <Input
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   placeholder="Response title"
+                  className="border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Content</label>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={8}
-                  className="w-full rounded-md border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#14b8a6] focus:border-[#14b8a6]"
                   placeholder="Response content"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   Tags (comma-separated)
                 </label>
                 <Input
                   value={editTags}
                   onChange={(e) => setEditTags(e.target.value)}
                   placeholder="security, compliance, pricing"
+                  className="border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
                 />
               </div>
             </div>
-            <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setEditingResponse(null)} disabled={saving}>
+            <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setEditingResponse(null)} disabled={saving} className="border-slate-200">
                 Cancel
               </Button>
-              <Button onClick={handleSaveEdit} disabled={saving}>
+              <Button onClick={handleSaveEdit} disabled={saving} className="bg-[#14b8a6] hover:bg-[#0d9488] text-white">
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -534,21 +556,26 @@ export function LibraryClient() {
       {/* Delete Confirmation Modal */}
       {deletingId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900">Delete Response?</h2>
-              <p className="mt-2 text-gray-600">
+              <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-slate-800">Delete Response?</h2>
+              <p className="mt-2 text-slate-600">
                 This action cannot be undone. The response will be permanently removed from your library.
               </p>
             </div>
-            <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setDeletingId(null)} disabled={deleting}>
+            <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setDeletingId(null)} disabled={deleting} className="border-slate-200">
                 Cancel
               </Button>
               <Button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-red-600 hover:bg-red-700 text-white"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </Button>
