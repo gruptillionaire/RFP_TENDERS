@@ -88,7 +88,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   };
 
   return (
-    <Card className={`hover:border-blue-300 transition-colors ${project.stats.percentage === 100 ? "border-green-200 bg-green-50/30" : ""}`}>
+    <Card className={`hover:border-blue-400 hover:shadow-md transition-all ${project.stats.percentage === 100 ? "border-emerald-300 bg-emerald-50/50" : ""}`}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
@@ -107,7 +107,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
             ) : (
               <div className="flex items-center gap-2 group pr-4">
                 <Link href={`/projects/${project.id}`} className="flex-1 min-w-0">
-                  <CardTitle className="text-lg truncate hover:text-blue-600">{title}</CardTitle>
+                  <CardTitle className="text-lg truncate text-slate-900 hover:text-blue-600">{title}</CardTitle>
                 </Link>
                 <Button
                   variant="ghost"
@@ -120,7 +120,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
                   }}
                   title="Edit title"
                 >
-                  <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                 </Button>
@@ -135,14 +135,14 @@ export function ProjectCard({ project }: ProjectCardProps) {
                   }}
                   title="Delete project"
                 >
-                  <svg className="w-3.5 h-3.5 text-gray-500 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </Button>
               </div>
             )}
             <Link href={`/projects/${project.id}`}>
-              <CardDescription className="hover:text-gray-700">{project.fileName}</CardDescription>
+              <CardDescription className="text-slate-500 hover:text-slate-700">{project.fileName}</CardDescription>
             </Link>
             {project.deadline && (
               <div className="flex items-center gap-1.5 mt-1 text-xs">
@@ -182,23 +182,23 @@ export function ProjectCard({ project }: ProjectCardProps) {
       </CardHeader>
       <Link href={`/projects/${project.id}`}>
         <CardContent className="cursor-pointer">
-          <div className="flex items-center gap-6 text-sm text-gray-600">
+          <div className="flex items-center gap-6 text-sm text-slate-600">
             <div>
-              <span className="font-medium">{project.stats.total}</span> requirements
+              <span className="font-semibold text-slate-900">{project.stats.total}</span> requirements
             </div>
             <div>
-              <span className="font-medium text-green-600">{project.stats.answered}</span> answered
+              <span className="font-semibold text-emerald-600">{project.stats.answered}</span> answered
             </div>
             <div>
-              <span className="font-medium text-yellow-600">{project.stats.partial}</span> partial
+              <span className="font-semibold text-amber-600">{project.stats.partial}</span> partial
             </div>
             <div className="ml-auto">
-              <span className="font-medium">{project.stats.percentage}%</span> complete
+              <span className="font-semibold text-slate-900">{project.stats.percentage}%</span> complete
             </div>
           </div>
-          <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="mt-3 h-2.5 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-green-500 transition-all"
+              className="h-full bg-blue-500 rounded-full transition-all"
               style={{ width: `${project.stats.percentage}%` }}
             />
           </div>
@@ -208,23 +208,23 @@ export function ProjectCard({ project }: ProjectCardProps) {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl p-6 max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Delete Project</h3>
-                <p className="text-sm text-gray-500">This action cannot be undone</p>
+                <h3 className="text-lg font-semibold text-slate-900">Delete Project</h3>
+                <p className="text-sm text-slate-500">This action cannot be undone</p>
               </div>
             </div>
 
-            <p className="text-gray-600 mb-2">
+            <p className="text-slate-600 mb-2">
               Are you sure you want to delete <span className="font-medium">&quot;{project.name}&quot;</span>?
             </p>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-slate-500 mb-6">
               All requirements, draft responses, and associated data will be permanently deleted.
             </p>
 
