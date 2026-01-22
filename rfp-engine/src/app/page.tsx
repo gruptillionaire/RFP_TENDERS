@@ -97,7 +97,7 @@ export default async function Home() {
               <div className="text-sm font-medium text-blue-600 mb-1">Step 1</div>
               <h3 className="text-lg font-semibold mb-2">Upload Your RFP</h3>
               <p className="text-gray-600">
-                Drop in a PDF or Word document. Our AI scans every page and extracts all requirements—including those hidden in tables and appendices.
+                Drop in a PDF or Word document. Our AI scans every page and extracts all requirements, including those hidden in tables and appendices.
               </p>
             </div>
 
