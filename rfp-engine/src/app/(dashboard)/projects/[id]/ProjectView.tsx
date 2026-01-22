@@ -588,16 +588,16 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f8f7f4]">
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <Link href="/" className="font-bold text-xl">
+              <Link href="/" className="font-bold text-xl text-slate-900">
                 RFP Matrix
               </Link>
-              <span className="text-gray-300">/</span>
+              <span className="text-slate-300">/</span>
               {isEditingName ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -611,7 +611,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                         setEditedName(project.name);
                       }
                     }}
-                    className="w-80 px-3 py-2 border rounded text-gray-700 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-80 px-3 py-2 border border-slate-200 rounded-lg text-slate-700 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
                     autoFocus
                     disabled={isRenamingSaving}
                   />
@@ -638,7 +638,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
               ) : (
                 <button
                   onClick={() => setIsEditingName(true)}
-                  className="text-gray-600 hover:text-gray-900 hover:underline cursor-pointer"
+                  className="text-slate-600 hover:text-slate-900 hover:underline cursor-pointer"
                   title="Click to rename"
                 >
                   {project.name}
@@ -709,9 +709,9 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       {/* Company Name Input */}
       {project.status === "READY" && (
         <div className="bg-white border-b">
-          <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="max-w-7xl mx-auto px-6 py-3">
             <div className="flex items-center gap-4">
-              <label htmlFor="companyName" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+              <label htmlFor="companyName" className="text-sm font-medium text-slate-700 whitespace-nowrap">
                 Your Company Name:
               </label>
               <div className="flex-1 max-w-md">
@@ -727,15 +727,15 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                     }
                   }}
                   placeholder="Enter your company name to auto-fill drafts"
-                  className="w-full px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={isCompanyNameSaving}
                 />
               </div>
               {isCompanyNameSaving && (
-                <span className="text-xs text-gray-500">Saving...</span>
+                <span className="text-xs text-slate-500">Saving...</span>
               )}
               {showCompanyNameSaved && (
-                <span className="text-xs text-green-600">Saved!</span>
+                <span className="text-xs text-emerald-600">Saved!</span>
               )}
               {companyName.trim() && (
                 <Button
@@ -748,7 +748,7 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
                   Update Existing Drafts
                 </Button>
               )}
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-400">
                 Replaces [COMPANY NAME] in generated drafts
               </p>
             </div>
@@ -757,33 +757,33 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
       )}
 
       {/* Main */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-6 py-6">
         {project.status === "PROCESSING" ? (
           <div className="flex flex-col items-center justify-center py-20">
             <svg className="animate-spin h-12 w-12 text-blue-600 mb-4" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <h2 className="text-xl font-semibold mb-2">Analyzing Document</h2>
-            <p className="text-gray-500">
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">Analyzing Document</h2>
+            <p className="text-slate-500">
               We&apos;re extracting requirements from your RFP.
             </p>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-slate-400 text-sm mt-1">
               Small documents: 1-2 minutes. Large documents (100+ requirements): 5-10 minutes.
             </p>
           </div>
         ) : project.status === "FAILED" ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-4">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold mb-2">Extraction Failed</h2>
-            <p className="text-gray-500 mb-2">
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">Extraction Failed</h2>
+            <p className="text-slate-500 mb-2">
               We couldn&apos;t extract requirements from this document.
             </p>
-            <p className="text-sm text-green-600 mb-4">
+            <p className="text-sm text-emerald-600 mb-4">
               This extraction was not counted against your monthly quota.
             </p>
             <div className="flex gap-3">
@@ -801,13 +801,13 @@ export function ProjectView({ project: initialProject }: ProjectViewProps) {
           </div>
         ) : requirements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold mb-2">No Requirements Found</h2>
-            <p className="text-gray-500 mb-4">
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">No Requirements Found</h2>
+            <p className="text-slate-500 mb-4">
               We couldn&apos;t extract any requirements from this document.
             </p>
             <Button variant="outline" onClick={() => router.push("/projects/new")}>

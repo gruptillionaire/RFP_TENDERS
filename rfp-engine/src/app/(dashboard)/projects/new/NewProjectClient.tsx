@@ -130,22 +130,22 @@ export function NewProjectClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f8f7f4]">
       {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="font-bold text-xl">
+      <header className="bg-white border-b sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <Link href="/" className="font-bold text-xl text-slate-900">
             RFP Matrix
           </Link>
         </div>
       </header>
 
       {/* Main */}
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-6 py-8">
         <div className="mb-6">
           <Link
             href="/dashboard"
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -154,10 +154,10 @@ export function NewProjectClient() {
           </Link>
         </div>
 
-        <Card>
+        <Card className="bg-white border-slate-200 rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle>Create New Project</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl text-slate-900">Create New Project</CardTitle>
+            <CardDescription className="text-slate-500">
               Upload an RFP or tender document to extract requirements and start drafting responses.
             </CardDescription>
           </CardHeader>
@@ -244,7 +244,7 @@ export function NewProjectClient() {
             </div>
 
             {isUploading && (
-              <div className="bg-blue-50 p-4 rounded-md">
+              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <div className="flex items-center gap-3">
                   <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -252,7 +252,7 @@ export function NewProjectClient() {
                   </svg>
                   <div>
                     <p className="font-medium text-blue-900">Processing document...</p>
-                    <p className="text-sm text-blue-700">
+                    <p className="text-sm text-blue-600">
                       This may take a minute depending on document size.
                     </p>
                   </div>
