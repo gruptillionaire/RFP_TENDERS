@@ -129,23 +129,23 @@ const getPlaceholder = (type: RequirementType): string => {
 const getTypeBadgeColor = (type: RequirementType): string => {
   switch (type) {
     case "CONTEXTUAL":
-      return "bg-gray-100 text-gray-600 border-gray-300";
+      return "bg-slate-100 text-slate-600 border-slate-200";
     case "PROCEDURAL":
-      return "bg-blue-100 text-blue-800 border-blue-200";
+      return "bg-[#dbeafe] text-[#1e40af] border-[#93c5fd]";
     case "DECLARATIVE":
-      return "bg-purple-100 text-purple-800 border-purple-200";
+      return "bg-[#f3e8ff] text-[#7c3aed] border-[#d8b4fe]";
     case "DESCRIPTIVE":
-      return "bg-orange-100 text-orange-800 border-orange-200";
+      return "bg-[#ffedd5] text-[#c2410c] border-[#fdba74]";
     case "EVIDENCE_BASED":
-      return "bg-green-100 text-green-800 border-green-200";
+      return "bg-[#dcfce7] text-[#166534] border-[#86efac]";
     case "QUANTITATIVE":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      return "bg-[#fef9c3] text-[#a16207] border-[#fde047]";
     case "REFERENCE_BASED":
-      return "bg-cyan-100 text-cyan-800 border-cyan-200";
+      return "bg-[#cffafe] text-[#0e7490] border-[#67e8f9]";
     case "STAFFING":
-      return "bg-amber-100 text-amber-800 border-amber-200";
+      return "bg-[#fef3c7] text-[#b45309] border-[#fcd34d]";
     default:
-      return "bg-gray-100 text-gray-800 border-gray-200";
+      return "bg-slate-100 text-slate-700 border-slate-200";
   }
 };
 
@@ -1001,26 +1001,26 @@ export function ComplianceMatrix({
 
       {/* Section progress bars */}
       {sections.length > 0 && sectionStats.length > 0 && (
-        <div className="bg-white p-4 rounded-lg border">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Progress by Section</h4>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-4 uppercase tracking-wide">Progress by Section</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {sectionStats.map((section) => (
               <button
                 key={section.name}
                 onClick={() => setActiveSection(section.name)}
-                className={`text-left p-2 rounded border transition-colors ${
+                className={`text-left p-3 rounded-lg border transition-all ${
                   activeSection === section.name
-                    ? "border-blue-300 bg-blue-50"
-                    : "border-gray-200 hover:bg-gray-50"
+                    ? "border-[#14b8a6] bg-[#f0fdfa] shadow-sm"
+                    : "border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                 }`}
               >
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium truncate">{categoryTitleMap.get(section.name) || section.name}</span>
-                  <span className="text-xs text-gray-500">{section.answered}/{section.total}</span>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-semibold text-slate-700 truncate">{categoryTitleMap.get(section.name) || section.name}</span>
+                  <span className="text-xs font-medium text-slate-500">{section.answered}/{section.total}</span>
                 </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-green-500 transition-all"
+                    className="h-full bg-gradient-to-r from-[#18bfb2] to-[#14b8a6] transition-all"
                     style={{ width: `${section.percentage}%` }}
                   />
                 </div>
@@ -1031,15 +1031,15 @@ export function ComplianceMatrix({
       )}
 
       {/* Progress bar */}
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
         <div
-          className="h-full bg-green-500 transition-all"
+          className="h-full bg-gradient-to-r from-[#18bfb2] to-[#14b8a6] transition-all"
           style={{ width: `${stats.total > 0 ? (stats.answered / stats.total) * 100 : 0}%` }}
         />
       </div>
 
       {/* Requirements table */}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         {/* Scrollable container */}
         <div
           ref={tableContainerRef}
@@ -1047,24 +1047,24 @@ export function ComplianceMatrix({
           style={{ maxHeight: "calc(100vh - 200px)" }}
         >
           <Table>
-            <TableHeader className="sticky top-0 bg-white z-10">
+            <TableHeader className="sticky top-0 bg-slate-50 z-10 border-b border-slate-200">
               <TableRow>
-                <TableHead className="w-12">#</TableHead>
-                <TableHead>Requirement</TableHead>
-                <TableHead className="w-24">Priority</TableHead>
-                <TableHead className="w-28">
+                <TableHead className="w-12 font-semibold text-slate-600">#</TableHead>
+                <TableHead className="font-semibold text-slate-600">Requirement</TableHead>
+                <TableHead className="w-24 font-semibold text-slate-600">Priority</TableHead>
+                <TableHead className="w-28 font-semibold text-slate-600">
                   <span className="flex items-center gap-1">
                     Req. Type
                     <InfoTooltip content="Classification of what type of response is needed: Procedural (confirm compliance), Descriptive (explain approach), Evidence (cite documents), etc." />
                   </span>
                 </TableHead>
-                <TableHead className="w-32">
+                <TableHead className="w-32 font-semibold text-slate-600">
                   <span className="flex items-center gap-1">
                     Status
                     <InfoTooltip content="Unanswered: No draft yet. Partial: Draft started but incomplete. Answered: Ready for export." />
                   </span>
                 </TableHead>
-                <TableHead className="w-24">Actions</TableHead>
+                <TableHead className="w-24 font-semibold text-slate-600">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

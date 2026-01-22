@@ -35,10 +35,10 @@ export function ActionableInsights({
     <div className="space-y-4">
       {/* Evaluation Breakdown */}
       {criterionScores && criterionScores.length > 0 && (
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
             <svg
-              className="w-4 h-4 text-blue-500"
+              className="w-4 h-4 text-[#14b8a6]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -52,39 +52,39 @@ export function ActionableInsights({
             </svg>
             Evaluation Breakdown
           </h4>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {criterionScores.map((criterion) => (
               <div key={criterion.criterionId}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-gray-700">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-slate-700">
                     {criterion.name}{" "}
-                    <span className="text-gray-400">({criterion.weight}%)</span>
+                    <span className="text-slate-400">({criterion.weight}%)</span>
                   </span>
                   <span
-                    className={`text-sm font-medium ${
+                    className={`text-sm font-bold ${
                       criterion.score >= 80
-                        ? "text-green-600"
+                        ? "text-[#16a34a]"
                         : criterion.score >= 50
-                        ? "text-yellow-600"
+                        ? "text-[#d97706]"
                         : "text-red-600"
                     }`}
                   >
                     {criterion.score}%
                   </span>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all ${
                       criterion.score >= 80
-                        ? "bg-green-500"
+                        ? "bg-[#20c933]"
                         : criterion.score >= 50
-                        ? "bg-yellow-500"
+                        ? "bg-[#fcb400]"
                         : "bg-red-500"
                     }`}
                     style={{ width: `${criterion.score}%` }}
                   />
                 </div>
-                <div className="text-xs text-gray-400 mt-0.5">
+                <div className="text-xs text-slate-400 mt-1 font-medium">
                   {criterion.answeredCount}/{criterion.requirementCount} requirements
                 </div>
               </div>
@@ -95,10 +95,10 @@ export function ActionableInsights({
 
       {/* Focus Items */}
       {focusItems.length > 0 && (
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
             <svg
-              className="w-4 h-4 text-orange-500"
+              className="w-4 h-4 text-[#f59e0b]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -112,7 +112,7 @@ export function ActionableInsights({
             </svg>
             Focus Items
             {potentialImprovement > 0 && (
-              <span className="text-xs font-normal text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-medium text-[#16a34a] bg-[#dcfce7] px-2 py-0.5 rounded-full">
                 +{potentialImprovement}% potential
               </span>
             )}
@@ -122,31 +122,31 @@ export function ActionableInsights({
               <button
                 key={item.requirementId}
                 onClick={() => onRequirementClick?.(item.requirementId)}
-                className="w-full text-left p-2 rounded border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors"
+                className="w-full text-left p-3 rounded-lg border border-slate-100 hover:border-[#14b8a6] hover:bg-[#f0fdfa] transition-all"
               >
-                <div className="flex items-start gap-2">
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-xs flex items-center justify-center font-medium">
+                <div className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#f0fdfa] text-[#0d9488] text-xs flex items-center justify-center font-bold">
                     {index + 1}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       {item.isMandatory && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded font-medium">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full font-semibold">
                           M
                         </span>
                       )}
                       {item.section && (
-                        <span className="text-xs text-gray-400">{item.section}</span>
+                        <span className="text-xs text-slate-400 font-medium">{item.section}</span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-700 line-clamp-2 mt-0.5">
+                    <p className="text-sm text-slate-700 line-clamp-2 mt-1">
                       {item.text || "No description"}
                     </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-green-600 font-medium">
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-[#16a34a] font-bold">
                         +{item.impactScore}%
                       </span>
-                      <span className="text-xs text-gray-400">{item.reason}</span>
+                      <span className="text-xs text-slate-400">{item.reason}</span>
                     </div>
                   </div>
                 </div>
@@ -158,10 +158,10 @@ export function ActionableInsights({
 
       {/* Risks & Warnings */}
       {insights.length > 0 && (
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide">
             <svg
-              className="w-4 h-4 text-yellow-500"
+              className="w-4 h-4 text-[#f59e0b]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -179,12 +179,12 @@ export function ActionableInsights({
             {insights.map((insight, index) => (
               <div
                 key={index}
-                className={`p-2 rounded border ${
+                className={`p-3 rounded-lg border ${
                   insight.priority === "high"
                     ? "bg-red-50 border-red-200"
                     : insight.priority === "medium"
-                    ? "bg-yellow-50 border-yellow-200"
-                    : "bg-gray-50 border-gray-200"
+                    ? "bg-[#fffbeb] border-[#fde68a]"
+                    : "bg-slate-50 border-slate-200"
                 }`}
               >
                 <div className="flex items-start gap-2">

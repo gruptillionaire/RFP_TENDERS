@@ -76,9 +76,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#faf9f7]">
-      {/* Teal accent bar */}
-      <div className="h-1 bg-gradient-to-r from-[#18bfb2] via-[#14b8a6] to-[#0d9488]" />
-
       {/* Email Verification Banner */}
       <EmailVerificationBanner emailVerified={userData?.emailVerified} />
 

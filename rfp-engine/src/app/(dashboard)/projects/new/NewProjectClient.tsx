@@ -131,9 +131,6 @@ export function NewProjectClient() {
 
   return (
     <div className="min-h-screen bg-[#faf9f7]">
-      {/* Teal accent bar */}
-      <div className="h-1 bg-gradient-to-r from-[#18bfb2] via-[#14b8a6] to-[#0d9488]" />
-
       {/* Header - Light theme with teal accents */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">

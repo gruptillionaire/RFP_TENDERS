@@ -26,7 +26,7 @@ export default async function Home() {
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-12">
-            <Link href="/" className="font-bold text-xl text-slate-900">RFP Matrix</Link>
+            <Link href="/" className="font-extrabold text-xl text-slate-800 tracking-tight">RFP Matrix</Link>
             <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
               <Link href="#features" className="text-slate-600 hover:text-slate-900">Features</Link>
               <Link href="#pricing" className="text-slate-600 hover:text-slate-900">Pricing</Link>
@@ -607,7 +607,7 @@ export default async function Home() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div>
-              <div className="font-bold text-xl text-white mb-4">RFP Matrix</div>
+              <div className="font-extrabold text-xl text-white mb-4 tracking-tight">RFP Matrix</div>
               <p className="text-sm leading-relaxed">
                 AI-powered RFP compliance software. Extract requirements, track progress, and draft responses in minutes.
               </p>

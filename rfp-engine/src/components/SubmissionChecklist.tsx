@@ -36,16 +36,16 @@ function IssueItem({
   return (
     <div
       className={`flex items-start gap-2 text-sm ${
-        hasLink ? "cursor-pointer hover:bg-gray-50 -mx-2 px-2 py-1 rounded" : ""
+        hasLink ? "cursor-pointer hover:bg-white/50 -mx-2 px-2 py-1.5 rounded-lg transition-colors" : ""
       }`}
       onClick={() => hasLink && onIssueClick(issue.requirementIds!)}
     >
       <IssueIcon type={type} />
-      <span className={type === "blocker" ? "text-red-700" : "text-yellow-700"}>
+      <span className={`font-medium ${type === "blocker" ? "text-red-700" : "text-amber-700"}`}>
         {issue.message}
       </span>
       {hasLink && (
-        <svg className="w-4 h-4 text-gray-400 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-slate-400 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       )}
@@ -57,29 +57,29 @@ export function SubmissionChecklist({ readiness, onIssueClick }: SubmissionCheck
   const hasIssues = readiness.blockers.length > 0 || readiness.warnings.length > 0;
 
   return (
-    <div className="bg-white rounded-lg border p-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <div className="flex items-center gap-3 mb-4">
         {readiness.ready ? (
           <>
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 rounded-xl bg-[#dcfce7] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#16a34a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-green-800">Ready to Submit</h3>
-              <p className="text-xs text-green-600">All critical requirements met</p>
+              <h3 className="text-sm font-bold text-[#166534]">Ready to Submit</h3>
+              <p className="text-xs text-[#16a34a]">All critical requirements met</p>
             </div>
           </>
         ) : (
           <>
-            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
               <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-red-800">Not Ready</h3>
+              <h3 className="text-sm font-bold text-red-800">Not Ready</h3>
               <p className="text-xs text-red-600">
                 {readiness.blockers.length} blocker{readiness.blockers.length !== 1 ? "s" : ""} to resolve
               </p>
@@ -91,8 +91,8 @@ export function SubmissionChecklist({ readiness, onIssueClick }: SubmissionCheck
       {hasIssues && (
         <div className="space-y-3">
           {readiness.blockers.length > 0 && (
-            <div className="bg-red-50 border border-red-100 rounded-lg p-3">
-              <h4 className="text-xs font-medium text-red-800 uppercase tracking-wide mb-2">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <h4 className="text-xs font-semibold text-red-800 uppercase tracking-wide mb-3">
                 Blockers
               </h4>
               <div className="space-y-2">
@@ -104,8 +104,8 @@ export function SubmissionChecklist({ readiness, onIssueClick }: SubmissionCheck
           )}
 
           {readiness.warnings.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3">
-              <h4 className="text-xs font-medium text-yellow-800 uppercase tracking-wide mb-2">
+            <div className="bg-[#fffbeb] border border-[#fde68a] rounded-xl p-4">
+              <h4 className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3">
                 Warnings
               </h4>
               <div className="space-y-2">
@@ -119,8 +119,13 @@ export function SubmissionChecklist({ readiness, onIssueClick }: SubmissionCheck
       )}
 
       {!hasIssues && readiness.ready && (
-        <div className="text-center py-4">
-          <p className="text-sm text-gray-500">No issues found. Your submission is ready!</p>
+        <div className="text-center py-6">
+          <div className="w-12 h-12 rounded-xl bg-[#dcfce7] flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-[#16a34a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-slate-600">No issues found. Your submission is ready!</p>
         </div>
       )}
     </div>
