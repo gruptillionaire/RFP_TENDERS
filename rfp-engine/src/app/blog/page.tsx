@@ -69,24 +69,40 @@ function formatDate(dateString: string): string {
 }
 
 export default function BlogPage() {
+  const categoryColors: Record<string, string> = {
+    Fundamentals: "bg-[#dbeafe] text-[#1e40af]",
+    Strategy: "bg-[#f3e8ff] text-[#7c3aed]",
+    Tools: "bg-[#dcfce7] text-[#166534]",
+    Business: "bg-[#fef9c3] text-[#a16207]",
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#faf9f7]">
       {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-            &larr; Back to RFP Matrix
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="font-extrabold text-xl text-slate-800 tracking-tight">
+            RFP Matrix
+          </Link>
+          <Link href="/" className="text-sm font-medium text-[#0d9488] hover:text-[#0f766e]">
+            &larr; Back to Home
           </Link>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-16">
+      <section className="bg-gradient-to-br from-[#0d9488] to-[#0f766e] text-white py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-sm mb-6">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <span className="text-white/90">Resources & Insights</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
             RFP Matrix Blog
           </h1>
-          <p className="text-xl text-blue-100 max-w-2xl mx-auto">
+          <p className="text-xl text-white/80 max-w-2xl mx-auto">
             Expert insights on RFP response management, bid strategies, and winning more contracts.
           </p>
         </div>
@@ -94,29 +110,40 @@ export default function BlogPage() {
 
       {/* Blog Posts */}
       <main className="max-w-4xl mx-auto px-4 py-12">
-        <div className="space-y-8">
+        <div className="space-y-6">
           {blogPosts.map((post) => (
             <article
               key={post.slug}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-lg hover:border-slate-300 transition-all"
             >
               <Link href={`/blog/${post.slug}`} className="block">
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  <span className={`px-3 py-1 text-xs font-semibold rounded-lg ${categoryColors[post.category] || "bg-slate-100 text-slate-600"}`}>
                     {post.category}
                   </span>
-                  <span className="text-gray-500 text-sm">{post.readTime}</span>
+                  <span className="text-slate-400 text-sm flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {post.readTime}
+                  </span>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2 hover:text-blue-600 transition-colors">
+                <h2 className="text-xl font-bold text-slate-800 mb-2 hover:text-[#0d9488] transition-colors">
                   {post.title}
                 </h2>
-                <p className="text-gray-600 mb-4">{post.description}</p>
+                <p className="text-slate-600 mb-4 line-clamp-2">{post.description}</p>
                 <div className="flex items-center justify-between">
-                  <time className="text-sm text-gray-500">
+                  <time className="text-sm text-slate-400 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                     {formatDate(post.date)}
                   </time>
-                  <span className="text-blue-600 font-medium text-sm">
-                    Read more &rarr;
+                  <span className="text-[#0d9488] font-semibold text-sm flex items-center gap-1">
+                    Read more
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </span>
                 </div>
               </Link>
@@ -125,25 +152,25 @@ export default function BlogPage() {
         </div>
 
         {/* CTA */}
-        <div className="mt-16 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-center text-white">
+        <div className="mt-16 bg-gradient-to-br from-[#0d9488] to-[#0f766e] rounded-2xl p-8 text-center text-white shadow-lg">
           <h2 className="text-2xl font-bold mb-3">
             Ready to respond to RFPs 10x faster?
           </h2>
-          <p className="text-blue-100 mb-6 max-w-lg mx-auto">
+          <p className="text-white/80 mb-6 max-w-lg mx-auto">
             RFP Matrix uses AI to extract requirements and generate draft responses automatically.
           </p>
           <Link
             href="/signup"
-            className="inline-block bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+            className="inline-block bg-white text-[#0d9488] px-6 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-colors shadow-sm"
           >
-            Get Started
+            Get Started Free
           </Link>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t py-8">
-        <div className="max-w-4xl mx-auto px-4 text-center text-gray-600">
+      <footer className="bg-white border-t border-slate-200 py-8">
+        <div className="max-w-4xl mx-auto px-4 text-center text-slate-500">
           <p>&copy; {new Date().getFullYear()} RFP Matrix. All rights reserved.</p>
         </div>
       </footer>

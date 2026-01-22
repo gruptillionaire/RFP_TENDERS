@@ -243,26 +243,26 @@ function PricingContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-[#f8f7f4]">
       {/* Header */}
-      <header className="border-b bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold text-gray-900">
+            <Link href="/" className="font-extrabold text-xl text-slate-800 tracking-tight">
               RFP Matrix
             </Link>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {status === "authenticated" ? (
                 <Link href="/dashboard">
-                  <Button variant="outline">Dashboard</Button>
+                  <Button variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50">Dashboard</Button>
                 </Link>
               ) : (
                 <>
                   <Link href="/login">
-                    <Button variant="ghost">Sign In</Button>
+                    <Button variant="ghost" className="text-slate-600 hover:text-slate-900">Sign In</Button>
                   </Link>
                   <Link href="/signup">
-                    <Button>Get Started</Button>
+                    <Button className="bg-[#14b8a6] hover:bg-[#0d9488] text-white">Get Started</Button>
                   </Link>
                 </>
               )}
@@ -271,37 +271,40 @@ function PricingContent() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <main className="max-w-7xl mx-auto px-6 py-16">
         {/* Hero */}
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-sm font-medium mb-4">
+            Pricing
+          </div>
+          <h1 className="text-4xl lg:text-5xl font-bold text-slate-900 mb-4">
             Simple, transparent pricing
           </h1>
-          <p className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto">
-            Choose the plan that fits your RFP response needs. All plans include our AI-powered extraction and drafting.
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            No hidden fees. Cancel anytime. Choose the plan that fits your RFP response needs.
           </p>
         </div>
 
         {/* Cancelled notice */}
         {(cancelled || purchaseCancelled) && (
-          <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-            <p className="text-yellow-800">
-              Checkout was cancelled. Feel free to try again when you're ready.
+          <div className="mb-8 p-4 bg-[#fef9c3] border border-[#fde047] rounded-xl text-center">
+            <p className="text-[#a16207]">
+              Checkout was cancelled. Feel free to try again when you&apos;re ready.
             </p>
           </div>
         )}
 
         {/* Error notice */}
         {error && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-            <p className="text-red-800">{error}</p>
+          <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-xl text-center">
+            <p className="text-red-700">{error}</p>
           </div>
         )}
 
         {/* Subscription plans header */}
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Monthly Subscriptions</h2>
-          <p className="mt-2 text-gray-600">For regular RFP responders - cancel anytime</p>
+          <h2 className="text-2xl font-bold text-slate-900">Monthly Subscriptions</h2>
+          <p className="mt-2 text-slate-600">For regular RFP responders - cancel anytime</p>
         </div>
 
         {/* Pricing cards */}
@@ -310,51 +313,58 @@ function PricingContent() {
             const buttonText = getButtonText(plan.id);
             const isCurrent = isCurrentPlan(plan.id);
             const showButton = buttonText !== null;
+            const isPopular = plan.popular && (!isCurrent || planLoading);
 
             return (
               <div
                 key={plan.id}
-                className={`relative rounded-2xl bg-white p-8 shadow-sm border-2 transition-shadow hover:shadow-lg flex flex-col ${
-                  plan.popular ? "border-blue-500" : (isCurrent && !planLoading) ? "border-green-500" : "border-gray-200"
+                className={`relative rounded-3xl p-8 transition-shadow hover:shadow-lg flex flex-col ${
+                  isPopular
+                    ? "bg-slate-900 text-white lg:-mt-4 lg:mb-[-16px] shadow-2xl"
+                    : plan.isEnterprise
+                    ? "bg-gradient-to-br from-slate-800 to-slate-900 text-white"
+                    : isCurrent && !planLoading
+                    ? "bg-white border-2 border-[#16a34a]"
+                    : "bg-white border border-slate-200"
                 }`}
               >
-                {plan.popular && (!isCurrent || planLoading) && (
+                {isPopular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-blue-500 text-white">
-                      Most Popular
+                    <span className="px-4 py-1 bg-[#ffbe0b] text-black text-sm font-bold rounded-full">
+                      Most popular
                     </span>
                   </div>
                 )}
-                {isCurrent && !planLoading && (
+                {isCurrent && !planLoading && !isPopular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-green-500 text-white">
+                    <span className="px-4 py-1 bg-[#16a34a] text-white text-sm font-bold rounded-full">
                       Current Plan
                     </span>
                   </div>
                 )}
 
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                  <div className="mt-4 flex items-baseline justify-center gap-1">
-                    {plan.isEnterprise ? (
-                      <span className="text-2xl font-bold text-gray-900">Contact Sales</span>
-                    ) : (
-                      <>
-                        <span className="text-4xl font-bold text-gray-900">
-                          ${plan.price}
-                        </span>
-                        <span className="text-gray-500">{plan.period}</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="mt-2 text-sm text-gray-500">{plan.description}</p>
+                <div className="mb-6">
+                  <h3 className={`text-xl font-bold ${isPopular || plan.isEnterprise ? "text-white" : "text-slate-900"}`}>{plan.name}</h3>
+                  <p className={`text-sm mt-1 ${isPopular ? "text-slate-400" : plan.isEnterprise ? "text-slate-400" : "text-slate-500"}`}>{plan.description}</p>
+                </div>
+                <div className="mb-6">
+                  {plan.isEnterprise ? (
+                    <span className={`text-2xl font-bold ${isPopular || plan.isEnterprise ? "text-white" : "text-slate-900"}`}>Contact Sales</span>
+                  ) : (
+                    <>
+                      <span className={`text-5xl font-bold ${isPopular ? "text-white" : "text-slate-900"}`}>
+                        ${plan.price}
+                      </span>
+                      <span className={isPopular ? "text-slate-400" : "text-slate-500"}>{plan.period}</span>
+                    </>
+                  )}
                 </div>
 
-                <ul className="mt-8 space-y-3">
+                <ul className="space-y-4 mb-8">
                   {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3">
+                    <li key={i} className="flex items-center gap-3">
                       <svg
-                        className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
+                        className={`w-5 h-5 flex-shrink-0 ${isPopular ? "text-[#ffbe0b]" : "text-emerald-500"}`}
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -366,13 +376,13 @@ function PricingContent() {
                           d="M5 13l4 4L19 7"
                         />
                       </svg>
-                      <span className="text-sm text-gray-600">{feature}</span>
+                      <span className={`text-sm ${isPopular || plan.isEnterprise ? "text-white" : "text-slate-700"}`}>{feature}</span>
                     </li>
                   ))}
                   {plan.limitations.map((limitation, i) => (
-                    <li key={`lim-${i}`} className="flex items-start gap-3">
+                    <li key={`lim-${i}`} className="flex items-center gap-3">
                       <svg
-                        className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5"
+                        className="w-5 h-5 text-slate-400 flex-shrink-0"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -384,30 +394,30 @@ function PricingContent() {
                           d="M6 18L18 6M6 6l12 12"
                         />
                       </svg>
-                      <span className="text-sm text-gray-400">{limitation}</span>
+                      <span className={`text-sm ${isPopular ? "text-slate-400" : "text-slate-400"}`}>{limitation}</span>
                     </li>
                   ))}
                 </ul>
 
-                <div className="mt-auto pt-8">
+                <div className="mt-auto">
                   {(status === "loading" || (planLoading && status === "authenticated")) ? (
-                    // Loading skeleton while determining session or fetching user's plan
-                    <div className="w-full h-10 bg-gray-200 rounded-md animate-pulse" />
+                    <div className="w-full h-12 bg-slate-200 rounded-xl animate-pulse" />
                   ) : plan.isEnterprise ? (
                     <a href="mailto:sales@rfpmatrix.com?subject=Enterprise%20Plan%20Inquiry">
-                      <Button className="w-full bg-gray-900 hover:bg-gray-800">
+                      <Button variant="outline" className="w-full h-12 border-white/30 text-white hover:bg-white/10">
                         Contact Sales
                       </Button>
                     </a>
                   ) : showButton && (
                     <Button
-                      className={`w-full ${
+                      className={`w-full h-12 ${
                         isCurrent
-                          ? "bg-green-600 hover:bg-green-600 cursor-default"
-                          : plan.popular
-                          ? "bg-blue-600 hover:bg-blue-700"
-                          : ""
+                          ? "bg-[#16a34a] hover:bg-[#16a34a] cursor-default text-white"
+                          : isPopular
+                          ? "bg-[#ffbe0b] hover:bg-[#ffd60a] text-black font-semibold"
+                          : "border-slate-300 hover:bg-slate-50"
                       }`}
+                      variant={!isCurrent && !isPopular ? "outline" : "default"}
                       onClick={() => !isCurrent && handleSubscribe(plan.id)}
                       disabled={isCurrent || loading === plan.id || loadingBilling}
                     >
@@ -433,10 +443,10 @@ function PricingContent() {
         {/* Divider */}
         <div className="relative my-16">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
+            <div className="w-full border-t border-slate-300" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-gradient-to-b from-gray-50 to-white px-4 text-gray-500">
+            <span className="bg-[#f8f7f4] px-4 text-slate-500">
               Or pay once for a single project
             </span>
           </div>
@@ -445,31 +455,30 @@ function PricingContent() {
         {/* Single-use option */}
         <div className="mb-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Just need one RFP?</h2>
-            <p className="mt-2 text-gray-600">Pay once, no subscription required</p>
+            <h2 className="text-2xl font-bold text-slate-900">Just need one RFP?</h2>
+            <p className="mt-2 text-slate-600">Pay once, no subscription required</p>
           </div>
           <div className="max-w-md mx-auto">
-            <div className="relative rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 p-8 shadow-sm border-2 border-orange-300 hover:shadow-lg transition-shadow">
+            <div className="relative rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 p-8 border border-amber-200 hover:shadow-lg transition-shadow">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <span className="inline-flex items-center px-4 py-1 rounded-full text-sm font-medium bg-orange-500 text-white">
+                <span className="px-4 py-1 bg-amber-500 text-white text-sm font-bold rounded-full">
                   One-Time Purchase
                 </span>
               </div>
 
-              <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-900">{singleUsePlan.name}</h3>
-                <div className="mt-4 flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-bold text-gray-900">${singleUsePlan.price}</span>
-                  <span className="text-gray-500">{singleUsePlan.period}</span>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">{singleUsePlan.name}</h3>
+                  <p className="text-sm text-slate-600 mt-1">{singleUsePlan.description}</p>
                 </div>
-                <p className="mt-2 text-sm text-gray-500">{singleUsePlan.description}</p>
+                <span className="text-2xl font-bold text-slate-900">${singleUsePlan.price}</span>
               </div>
 
-              <ul className="mt-8 space-y-3">
+              <ul className="space-y-2 mb-6 text-sm text-slate-700">
                 {singleUsePlan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3">
+                  <li key={i} className="flex items-center gap-2">
                     <svg
-                      className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
+                      className="w-4 h-4 text-amber-600"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -481,13 +490,13 @@ function PricingContent() {
                         d="M5 13l4 4L19 7"
                       />
                     </svg>
-                    <span className="text-sm text-gray-600">{feature}</span>
+                    {feature}
                   </li>
                 ))}
                 {singleUsePlan.limitations.map((limitation, i) => (
-                  <li key={`lim-${i}`} className="flex items-start gap-3">
+                  <li key={`lim-${i}`} className="flex items-center gap-2 text-slate-400">
                     <svg
-                      className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5"
+                      className="w-4 h-4"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -499,78 +508,76 @@ function PricingContent() {
                         d="M6 18L18 6M6 6l12 12"
                       />
                     </svg>
-                    <span className="text-sm text-gray-400">{limitation}</span>
+                    {limitation}
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-8">
-                <Button
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={handleSingleUsePurchase}
-                  disabled={loading === "SINGLE_USE"}
-                >
-                  {loading === "SINGLE_USE" ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </span>
-                  ) : (
-                    `${singleUsePlan.cta} - $${singleUsePlan.price}`
-                  )}
-                </Button>
-              </div>
+              <Button
+                className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+                onClick={handleSingleUsePurchase}
+                disabled={loading === "SINGLE_USE"}
+              >
+                {loading === "SINGLE_USE" ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : (
+                  `${singleUsePlan.cta} - $${singleUsePlan.price}`
+                )}
+              </Button>
             </div>
           </div>
         </div>
 
         {/* FAQ or trust indicators */}
         <div className="mt-20 text-center">
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-slate-900">
             Frequently Asked Questions
           </h2>
           <div className="mt-8 max-w-3xl mx-auto grid gap-6 text-left">
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900">Can I change plans later?</h3>
-              <p className="mt-2 text-gray-600">
+            <div className="p-6 bg-white rounded-2xl border border-slate-200">
+              <h3 className="font-semibold text-slate-900">Can I change plans later?</h3>
+              <p className="mt-2 text-slate-600">
                 Yes! You can upgrade or downgrade your plan at any time. Changes take effect on your next billing cycle.
               </p>
             </div>
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900">What happens if I exceed my limits?</h3>
-              <p className="mt-2 text-gray-600">
-                You'll be prompted to upgrade or wait until your limits reset at the start of your next billing period.
+            <div className="p-6 bg-white rounded-2xl border border-slate-200">
+              <h3 className="font-semibold text-slate-900">What happens if I exceed my limits?</h3>
+              <p className="mt-2 text-slate-600">
+                You&apos;ll be prompted to upgrade or wait until your limits reset at the start of your next billing period.
               </p>
             </div>
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900">Can I cancel anytime?</h3>
-              <p className="mt-2 text-gray-600">
-                Absolutely. Cancel anytime from your account settings. You'll retain access until the end of your current billing period.
+            <div className="p-6 bg-white rounded-2xl border border-slate-200">
+              <h3 className="font-semibold text-slate-900">Can I cancel anytime?</h3>
+              <p className="mt-2 text-slate-600">
+                Absolutely. Cancel anytime from your account settings. You&apos;ll retain access until the end of your current billing period.
               </p>
             </div>
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900">Is my data secure?</h3>
-              <p className="mt-2 text-gray-600">
-                Yes. All data is encrypted at rest and in transit. We're GDPR and CCPA compliant. Your RFP documents are never shared or used for training.
+            <div className="p-6 bg-white rounded-2xl border border-slate-200">
+              <h3 className="font-semibold text-slate-900">Is my data secure?</h3>
+              <p className="mt-2 text-slate-600">
+                Yes. All data is encrypted at rest and in transit. We&apos;re GDPR and CCPA compliant. Your RFP documents are never shared or used for training.
               </p>
             </div>
           </div>
         </div>
 
         {/* CTA */}
-        <div className="mt-20 text-center p-12 bg-blue-50 rounded-2xl">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="mt-20 text-center p-12 bg-gradient-to-br from-[#0d9488] to-[#0f766e] rounded-3xl text-white shadow-lg">
+          <h2 className="text-2xl font-bold">
             Ready to respond to RFPs faster?
           </h2>
-          <p className="mt-4 text-gray-600 max-w-xl mx-auto">
+          <p className="mt-4 text-white/80 max-w-xl mx-auto">
             Join businesses saving hours on every RFP response with AI-powered extraction and drafting.
           </p>
           <div className="mt-8">
             <Link href={status === "authenticated" ? "/dashboard" : "/signup"}>
-              <Button size="lg" className="px-8">
+              <Button size="lg" className="px-8 bg-white text-[#0d9488] hover:bg-slate-50 font-semibold">
                 {status === "authenticated" ? "Go to Dashboard" : "Get Started"}
               </Button>
             </Link>
@@ -579,16 +586,16 @@ function PricingContent() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t mt-20 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <footer className="bg-white border-t border-slate-200 mt-20 py-8">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-500">
               &copy; {new Date().getFullYear()} RFP Matrix. All rights reserved.
             </p>
-            <div className="flex gap-6 text-sm text-gray-500">
-              <Link href="/privacy" className="hover:text-gray-900">Privacy Policy</Link>
-              <Link href="/terms" className="hover:text-gray-900">Terms of Service</Link>
-              <Link href="/cookies" className="hover:text-gray-900">Cookie Policy</Link>
+            <div className="flex gap-6 text-sm text-slate-500">
+              <Link href="/privacy" className="hover:text-[#0d9488] transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-[#0d9488] transition-colors">Terms of Service</Link>
+              <Link href="/cookies" className="hover:text-[#0d9488] transition-colors">Cookie Policy</Link>
             </div>
           </div>
         </div>
@@ -600,8 +607,8 @@ function PricingContent() {
 export default function PricingPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <svg className="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f7f4]">
+        <svg className="animate-spin h-8 w-8 text-[#14b8a6]" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>

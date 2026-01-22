@@ -131,23 +131,28 @@ export default function LoginPage() {
   // 2FA verification screen
   if (requires2FA) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold">Two-Factor Authentication</CardTitle>
-            <CardDescription>
+      <div className="min-h-screen flex items-center justify-center bg-[#faf9f7] px-4">
+        <Card className="w-full max-w-md rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="space-y-1 text-center pb-2">
+            <div className="w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-[#14b8a6] to-[#0d9488] flex items-center justify-center mb-4">
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <CardTitle className="text-2xl font-bold text-slate-800">Two-Factor Authentication</CardTitle>
+            <CardDescription className="text-slate-500">
               Enter the 6-digit code from your authenticator app
             </CardDescription>
           </CardHeader>
           <form onSubmit={handle2FASubmit}>
             <CardContent className="space-y-4">
               {error && (
-                <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+                <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm border border-red-200">
                   {error}
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="twoFactorCode">Verification Code</Label>
+                <Label htmlFor="twoFactorCode" className="text-slate-700">Verification Code</Label>
                 <Input
                   id="twoFactorCode"
                   type="text"
@@ -155,23 +160,23 @@ export default function LoginPage() {
                   placeholder="000000"
                   value={twoFactorCode}
                   onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                  className="text-center font-mono text-lg tracking-widest"
+                  className="text-center font-mono text-lg tracking-widest border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
                   autoFocus
                   required
                 />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-slate-400">
                   You can also use a backup code if you don&apos;t have access to your authenticator
                 </p>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4 pt-6">
-              <Button type="submit" className="w-full" disabled={verifying2FA}>
+              <Button type="submit" className="w-full bg-[#14b8a6] hover:bg-[#0d9488] text-white" disabled={verifying2FA}>
                 {verifying2FA ? "Verifying..." : "Verify"}
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full"
+                className="w-full text-slate-600 hover:text-slate-800"
                 onClick={cancelTwoFactor}
               >
                 Back to login
@@ -185,38 +190,42 @@ export default function LoginPage() {
 
   // Normal login screen
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
-          <CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-[#faf9f7] px-4">
+      <Card className="w-full max-w-md rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="space-y-1 text-center pb-2">
+          <Link href="/" className="font-extrabold text-2xl text-slate-800 tracking-tight mb-4 block">
+            RFP Matrix
+          </Link>
+          <CardTitle className="text-2xl font-bold text-slate-800">Welcome back</CardTitle>
+          <CardDescription className="text-slate-500">
             Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm border border-red-200">
                 {error}
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-slate-700">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
                 required
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-slate-700">Password</Label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-[#0d9488] hover:text-[#0f766e]"
                 >
                   Forgot password?
                 </Link>
@@ -226,6 +235,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="border-slate-200 focus:border-[#14b8a6] focus:ring-[#14b8a6]"
                 required
               />
             </div>
@@ -235,20 +245,20 @@ export default function LoginPage() {
                 id="rememberMe"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="h-4 w-4 rounded border-slate-300 text-[#14b8a6] focus:ring-[#14b8a6]"
               />
-              <Label htmlFor="rememberMe" className="text-sm font-normal text-gray-600 cursor-pointer">
+              <Label htmlFor="rememberMe" className="text-sm font-normal text-slate-500 cursor-pointer">
                 Remember me for 30 days
               </Label>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 pt-6">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-[#14b8a6] hover:bg-[#0d9488] text-white" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
-            <p className="text-sm text-gray-600 text-center">
+            <p className="text-sm text-slate-500 text-center">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-blue-600 hover:underline">
+              <Link href="/signup" className="text-[#0d9488] hover:text-[#0f766e] font-medium">
                 Sign up
               </Link>
             </p>
