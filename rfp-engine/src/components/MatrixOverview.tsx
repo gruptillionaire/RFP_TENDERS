@@ -18,13 +18,13 @@ interface MatrixOverviewProps {
 const getStatusColor = (status: Requirement["status"], isMandatory: boolean): string => {
   switch (status) {
     case "ANSWERED":
-      return "bg-primary hover:bg-primary/80";
+      return "bg-green-500 hover:bg-green-600";
     case "PARTIAL":
-      return "bg-warning hover:bg-warning/80";
+      return "bg-yellow-400 hover:bg-yellow-500";
     default:
       return isMandatory
-        ? "bg-destructive/30 hover:bg-destructive/40"
-        : "bg-muted hover:bg-muted/80";
+        ? "bg-red-200 hover:bg-red-300"
+        : "bg-gray-200 hover:bg-gray-300";
   }
 };
 
@@ -44,7 +44,7 @@ const MatrixCell = React.memo(function MatrixCell({ req, index }: MatrixCellProp
   return (
     <button
       data-req-id={req.id}
-      className={`w-6 h-6 rounded text-[10px] font-medium text-white flex items-center justify-center transition-all cursor-pointer ${getStatusColor(req.status, req.isMandatory)} ${req.isMandatory ? "ring-1 ring-destructive ring-offset-1" : ""}`}
+      className={`w-6 h-6 rounded text-[10px] font-medium text-white flex items-center justify-center transition-all cursor-pointer ${getStatusColor(req.status, req.isMandatory)} ${req.isMandatory ? "ring-1 ring-red-400 ring-offset-1" : ""}`}
       title={getStatusTooltip(index, req.status, req.isMandatory)}
     >
       {index + 1}
@@ -104,7 +104,7 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex items-center gap-1.5 cursor-help">
-                  <span className="w-3 h-3 rounded bg-primary"></span>
+                  <span className="w-3 h-3 rounded bg-green-500"></span>
                   Answered ({stats.answered})
                 </span>
               </TooltipTrigger>
@@ -113,7 +113,7 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex items-center gap-1.5 cursor-help">
-                  <span className="w-3 h-3 rounded bg-warning"></span>
+                  <span className="w-3 h-3 rounded bg-yellow-400"></span>
                   Partial ({stats.partial})
                 </span>
               </TooltipTrigger>
@@ -122,7 +122,7 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex items-center gap-1.5 cursor-help">
-                  <span className="w-3 h-3 rounded bg-muted"></span>
+                  <span className="w-3 h-3 rounded bg-gray-200"></span>
                   Unanswered ({stats.unanswered})
                 </span>
               </TooltipTrigger>
@@ -131,7 +131,7 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex items-center gap-1.5 cursor-help">
-                  <span className="w-3 h-3 rounded bg-destructive/30"></span>
+                  <span className="w-3 h-3 rounded bg-red-200"></span>
                   Mandatory Unanswered
                 </span>
               </TooltipTrigger>
@@ -145,32 +145,32 @@ export const MatrixOverview = React.memo(function MatrixOverview({ requirements,
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-muted-foreground flex items-center gap-1">
+            <span className="text-gray-600 flex items-center gap-1">
               Overall Progress
               <InfoTooltip content="Percentage of all requirements marked as Answered." />
             </span>
             <span className="font-medium">{overallProgress}%</span>
           </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-primary transition-all duration-300"
+              className="h-full bg-green-500 transition-all duration-300"
               style={{ width: `${overallProgress}%` }}
             />
           </div>
         </div>
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-muted-foreground flex items-center gap-1">
+            <span className="text-gray-600 flex items-center gap-1">
               Mandatory Requirements
               <InfoTooltip content="Must be completed. Missing mandatory requirements may disqualify your submission." />
             </span>
-            <span className={`font-medium ${mandatoryProgress === 100 ? "text-success-foreground" : "text-warning-foreground"}`}>
+            <span className={`font-medium ${mandatoryProgress === 100 ? "text-green-600" : "text-orange-600"}`}>
               {stats.mandatoryAnswered}/{stats.mandatory} ({mandatoryProgress}%)
             </span>
           </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-300 ${mandatoryProgress === 100 ? "bg-primary" : "bg-warning"}`}
+              className={`h-full transition-all duration-300 ${mandatoryProgress === 100 ? "bg-green-500" : "bg-orange-500"}`}
               style={{ width: `${mandatoryProgress}%` }}
             />
           </div>

@@ -56,35 +56,35 @@ export function ActionableInsights({
             {criterionScores.map((criterion) => (
               <div key={criterion.criterionId}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-foreground">
+                  <span className="text-sm text-gray-700">
                     {criterion.name}{" "}
-                    <span className="text-muted-foreground">({criterion.weight}%)</span>
+                    <span className="text-gray-400">({criterion.weight}%)</span>
                   </span>
                   <span
                     className={`text-sm font-medium ${
                       criterion.score >= 80
-                        ? "text-success-foreground"
+                        ? "text-green-600"
                         : criterion.score >= 50
-                        ? "text-warning-foreground"
-                        : "text-destructive"
+                        ? "text-yellow-600"
+                        : "text-red-600"
                     }`}
                   >
                     {criterion.score}%
                   </span>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all ${
                       criterion.score >= 80
-                        ? "bg-primary"
+                        ? "bg-green-500"
                         : criterion.score >= 50
-                        ? "bg-warning"
-                        : "bg-destructive"
+                        ? "bg-yellow-500"
+                        : "bg-red-500"
                     }`}
                     style={{ width: `${criterion.score}%` }}
                   />
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
+                <div className="text-xs text-gray-400 mt-0.5">
                   {criterion.answeredCount}/{criterion.requirementCount} requirements
                 </div>
               </div>
@@ -181,16 +181,16 @@ export function ActionableInsights({
                 key={index}
                 className={`p-2 rounded border ${
                   insight.priority === "high"
-                    ? "bg-destructive/10 border-destructive/30"
+                    ? "bg-red-50 border-red-200"
                     : insight.priority === "medium"
-                    ? "bg-warning/20 border-warning/30"
-                    : "bg-muted border-border"
+                    ? "bg-yellow-50 border-yellow-200"
+                    : "bg-gray-50 border-gray-200"
                 }`}
               >
                 <div className="flex items-start gap-2">
                   {insight.priority === "high" ? (
                     <svg
-                      className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5"
+                      className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -202,7 +202,7 @@ export function ActionableInsights({
                     </svg>
                   ) : insight.priority === "medium" ? (
                     <svg
-                      className="w-4 h-4 text-warning-foreground flex-shrink-0 mt-0.5"
+                      className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -214,7 +214,7 @@ export function ActionableInsights({
                     </svg>
                   ) : (
                     <svg
-                      className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5"
+                      className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -229,10 +229,10 @@ export function ActionableInsights({
                     <p
                       className={`text-sm ${
                         insight.priority === "high"
-                          ? "text-destructive"
+                          ? "text-red-700"
                           : insight.priority === "medium"
-                          ? "text-warning-foreground"
-                          : "text-muted-foreground"
+                          ? "text-yellow-700"
+                          : "text-gray-600"
                       }`}
                     >
                       {insight.message}
@@ -240,7 +240,7 @@ export function ActionableInsights({
                     {insight.requirementIds && insight.requirementIds.length > 0 && onRequirementClick && (
                       <button
                         onClick={() => onRequirementClick(insight.requirementIds![0])}
-                        className="text-xs text-primary hover:underline mt-1 cursor-pointer"
+                        className="text-xs text-blue-600 hover:underline mt-1 cursor-pointer"
                       >
                         View {insight.count === 1 ? "item" : `${insight.count} items`}
                       </button>

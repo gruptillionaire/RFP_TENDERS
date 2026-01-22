@@ -94,16 +94,16 @@ export function ComplianceScoreCard({
 
         {/* Progress bar */}
         <div className="mb-4">
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-500 ${
                 score.overall >= 80
-                  ? "bg-primary"
+                  ? "bg-green-500"
                   : score.overall >= 60
-                  ? "bg-warning"
+                  ? "bg-yellow-500"
                   : score.overall >= 40
-                  ? "bg-warning"
-                  : "bg-destructive"
+                  ? "bg-orange-500"
+                  : "bg-red-500"
               }`}
               style={{ width: `${score.overall}%` }}
             />
@@ -114,27 +114,27 @@ export function ComplianceScoreCard({
         <div className="grid grid-cols-3 gap-2 text-center">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="bg-accent rounded p-2 cursor-help">
-                <div className="text-lg font-semibold text-success-foreground">{score.answered}</div>
-                <div className="text-xs text-muted-foreground">Complete</div>
+              <div className="bg-gray-50 rounded p-2 cursor-help">
+                <div className="text-lg font-semibold text-green-600">{score.answered}</div>
+                <div className="text-xs text-gray-500">Complete</div>
               </div>
             </TooltipTrigger>
             <TooltipContent>Requirements with full draft responses ready for export.</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="bg-accent rounded p-2 cursor-help">
-                <div className="text-lg font-semibold text-warning-foreground">{score.partial}</div>
-                <div className="text-xs text-muted-foreground">Partial</div>
+              <div className="bg-gray-50 rounded p-2 cursor-help">
+                <div className="text-lg font-semibold text-yellow-600">{score.partial}</div>
+                <div className="text-xs text-gray-500">Partial</div>
               </div>
             </TooltipTrigger>
             <TooltipContent>Requirements with incomplete drafts that need more work.</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="bg-accent rounded p-2 cursor-help">
-                <div className="text-lg font-semibold text-destructive">{score.unanswered}</div>
-                <div className="text-xs text-muted-foreground">Open</div>
+              <div className="bg-gray-50 rounded p-2 cursor-help">
+                <div className="text-lg font-semibold text-red-600">{score.unanswered}</div>
+                <div className="text-xs text-gray-500">Open</div>
               </div>
             </TooltipTrigger>
             <TooltipContent>Requirements with no draft response yet.</TooltipContent>
@@ -144,18 +144,18 @@ export function ComplianceScoreCard({
         {/* Mandatory progress */}
         <div className="mt-4 pt-4 border-t">
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-muted-foreground flex items-center gap-1">
+            <span className="text-gray-600 flex items-center gap-1">
               Mandatory Requirements
               <InfoTooltip content="Requirements marked as mandatory by the RFP. Missing these may disqualify your submission." />
             </span>
-            <span className={`font-medium ${score.mandatory === 100 ? "text-success-foreground" : "text-foreground"}`}>
+            <span className={`font-medium ${score.mandatory === 100 ? "text-green-600" : "text-gray-900"}`}>
               {score.mandatory}%
             </span>
           </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-500 ${
-                score.mandatory === 100 ? "bg-primary" : "bg-info"
+                score.mandatory === 100 ? "bg-green-500" : "bg-blue-500"
               }`}
               style={{ width: `${score.mandatory}%` }}
             />

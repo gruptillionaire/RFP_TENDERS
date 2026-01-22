@@ -88,7 +88,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   };
 
   return (
-    <Card className={`hover:border-primary/50 transition-colors ${project.stats.percentage === 100 ? "border-success/50 bg-success/10" : ""}`}>
+    <Card className={`hover:border-blue-300 transition-colors ${project.stats.percentage === 100 ? "border-green-200 bg-green-50/30" : ""}`}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
@@ -146,10 +146,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
             </Link>
             {project.deadline && (
               <div className="flex items-center gap-1.5 mt-1 text-xs">
-                <svg className={`w-3.5 h-3.5 ${project.isPastDeadline ? "text-destructive" : "text-warning-foreground"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className={`w-3.5 h-3.5 ${project.isPastDeadline ? "text-red-500" : "text-amber-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className={project.isPastDeadline ? "text-destructive" : "text-warning-foreground"}>
+                <span className={project.isPastDeadline ? "text-red-600" : "text-amber-600"}>
                   {new Date(project.deadline).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",
@@ -157,7 +157,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
                   })}
                   {project.isPastDeadline && " (overdue)"}
                   {!project.isPastDeadline && (
-                    <span className="text-muted-foreground ml-1">
+                    <span className="text-gray-500 ml-1">
                       ({Math.ceil((new Date(project.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}d left)
                     </span>
                   )}
@@ -182,23 +182,23 @@ export function ProjectCard({ project }: ProjectCardProps) {
       </CardHeader>
       <Link href={`/projects/${project.id}`}>
         <CardContent className="cursor-pointer">
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+          <div className="flex items-center gap-6 text-sm text-gray-600">
             <div>
-              <span className="font-medium text-foreground">{project.stats.total}</span> requirements
+              <span className="font-medium">{project.stats.total}</span> requirements
             </div>
             <div>
-              <span className="font-medium text-success-foreground">{project.stats.answered}</span> answered
+              <span className="font-medium text-green-600">{project.stats.answered}</span> answered
             </div>
             <div>
-              <span className="font-medium text-warning-foreground">{project.stats.partial}</span> partial
+              <span className="font-medium text-yellow-600">{project.stats.partial}</span> partial
             </div>
             <div className="ml-auto">
-              <span className="font-medium text-foreground">{project.stats.percentage}%</span> complete
+              <span className="font-medium">{project.stats.percentage}%</span> complete
             </div>
           </div>
-          <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+          <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-primary transition-all"
+              className="h-full bg-green-500 transition-all"
               style={{ width: `${project.stats.percentage}%` }}
             />
           </div>

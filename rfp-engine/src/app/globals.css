@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -42,113 +44,75 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-
-  /* Status colors */
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
-  --color-info: var(--info);
-  --color-info-foreground: var(--info-foreground);
-
-  /* Category pill colors */
-  --color-pill-teal: var(--pill-teal);
-  --color-pill-teal-foreground: var(--pill-teal-foreground);
-  --color-pill-blue: var(--pill-blue);
-  --color-pill-blue-foreground: var(--pill-blue-foreground);
-  --color-pill-purple: var(--pill-purple);
-  --color-pill-purple-foreground: var(--pill-purple-foreground);
-  --color-pill-pink: var(--pill-pink);
-  --color-pill-pink-foreground: var(--pill-pink-foreground);
-  --color-pill-orange: var(--pill-orange);
-  --color-pill-orange-foreground: var(--pill-orange-foreground);
-  --color-pill-yellow: var(--pill-yellow);
-  --color-pill-yellow-foreground: var(--pill-yellow-foreground);
-  --color-pill-green: var(--pill-green);
-  --color-pill-green-foreground: var(--pill-green-foreground);
-  --color-pill-cyan: var(--pill-cyan);
-  --color-pill-cyan-foreground: var(--pill-cyan-foreground);
 }
 
 :root {
   --radius: 0.625rem;
-
-  /* Core colors - Airtable-inspired vibrant palette */
-  --background: oklch(0.99 0.002 250);
-  --foreground: oklch(0.20 0.02 260);
-
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.20 0.02 260);
-
+  --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.20 0.02 260);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
 
-  /* Primary - Vibrant teal */
-  --primary: oklch(0.55 0.18 195);
-  --primary-foreground: oklch(0.99 0 0);
-
-  /* Secondary - Light lavender */
-  --secondary: oklch(0.95 0.03 280);
-  --secondary-foreground: oklch(0.30 0.04 260);
-
-  /* Muted */
-  --muted: oklch(0.96 0.01 260);
-  --muted-foreground: oklch(0.50 0.02 260);
-
-  /* Accent - Purple tint */
-  --accent: oklch(0.92 0.05 280);
-  --accent-foreground: oklch(0.30 0.04 260);
-
-  /* Destructive - Red */
-  --destructive: oklch(0.60 0.22 25);
-
-  /* Border/Input/Ring */
-  --border: oklch(0.90 0.02 260);
-  --input: oklch(0.90 0.02 260);
-  --ring: oklch(0.55 0.18 195);
-
-  /* Chart colors - vibrant spectrum */
-  --chart-1: oklch(0.55 0.18 195);
-  --chart-2: oklch(0.55 0.18 260);
-  --chart-3: oklch(0.60 0.18 310);
-  --chart-4: oklch(0.75 0.18 85);
-  --chart-5: oklch(0.65 0.20 155);
-
-  /* Sidebar */
-  --sidebar: oklch(0.98 0.005 260);
-  --sidebar-foreground: oklch(0.20 0.02 260);
-  --sidebar-primary: oklch(0.55 0.18 195);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.92 0.05 280);
-  --sidebar-accent-foreground: oklch(0.30 0.04 260);
-  --sidebar-border: oklch(0.90 0.02 260);
-  --sidebar-ring: oklch(0.55 0.18 195);
-
-  /* Status colors */
-  --success: oklch(0.65 0.20 155);
-  --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.75 0.18 85);
-  --warning-foreground: oklch(0.25 0.05 85);
-  --info: oklch(0.55 0.18 260);
-  --info-foreground: oklch(0.99 0 0);
-
-  /* Category pill colors - 8 vibrant colors */
-  --pill-teal: oklch(0.85 0.10 195);
-  --pill-teal-foreground: oklch(0.30 0.10 195);
-  --pill-blue: oklch(0.85 0.10 260);
-  --pill-blue-foreground: oklch(0.30 0.10 260);
-  --pill-purple: oklch(0.85 0.10 300);
-  --pill-purple-foreground: oklch(0.30 0.10 300);
-  --pill-pink: oklch(0.85 0.12 350);
-  --pill-pink-foreground: oklch(0.30 0.12 350);
-  --pill-orange: oklch(0.88 0.12 55);
-  --pill-orange-foreground: oklch(0.30 0.12 55);
-  --pill-yellow: oklch(0.92 0.10 95);
-  --pill-yellow-foreground: oklch(0.30 0.10 95);
-  --pill-green: oklch(0.85 0.12 155);
-  --pill-green-foreground: oklch(0.30 0.12 155);
-  --pill-cyan: oklch(0.85 0.10 210);
-  --pill-cyan-foreground: oklch(0.30 0.10 210);
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -157,93 +121,5 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-
-  /* Typography styles */
-  h1 {
-    @apply text-4xl font-bold tracking-tight lg:text-5xl;
-  }
-  h2 {
-    @apply text-2xl font-bold lg:text-3xl;
-  }
-  h3 {
-    @apply text-xl font-semibold;
-  }
-  h4 {
-    @apply text-lg font-semibold;
-  }
-  p {
-    @apply leading-relaxed;
-  }
-}
-
-/* Gradient utility classes */
-@layer utilities {
-  .gradient-hero {
-    background: linear-gradient(
-      135deg,
-      oklch(0.55 0.18 195) 0%,
-      oklch(0.55 0.18 260) 50%,
-      oklch(0.60 0.18 310) 100%
-    );
-  }
-
-  .gradient-hero-subtle {
-    background: linear-gradient(
-      135deg,
-      oklch(0.95 0.05 195) 0%,
-      oklch(0.95 0.05 260) 50%,
-      oklch(0.95 0.05 310) 100%
-    );
-  }
-
-  .gradient-section {
-    background: linear-gradient(
-      180deg,
-      oklch(0.99 0.002 250) 0%,
-      oklch(0.96 0.03 280) 100%
-    );
-  }
-
-  .gradient-cta {
-    background: linear-gradient(
-      135deg,
-      oklch(0.55 0.18 195) 0%,
-      oklch(0.55 0.18 260) 100%
-    );
-  }
-
-  .gradient-text {
-    background: linear-gradient(
-      135deg,
-      oklch(0.55 0.18 195) 0%,
-      oklch(0.55 0.18 260) 50%,
-      oklch(0.60 0.18 310) 100%
-    );
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .gradient-border {
-    position: relative;
-  }
-
-  .gradient-border::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 2px;
-    background: linear-gradient(
-      135deg,
-      oklch(0.55 0.18 195) 0%,
-      oklch(0.55 0.18 260) 50%,
-      oklch(0.60 0.18 310) 100%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
   }
 }
