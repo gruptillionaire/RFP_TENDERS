@@ -22,6 +22,14 @@ export const metadata: Metadata = {
     template: "%s | RFP Matrix"
   },
   description: "RFP Matrix extracts every requirement from your RFP documents using AI. Track compliance, generate draft responses, and never miss a requirement again.",
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/apple-icon.png',
+  },
   keywords: ["RFP Matrix", "RFP software", "tender management", "proposal automation", "AI RFP response", "bid management", "compliance matrix", "RFP response tool"],
   authors: [{ name: "RFP Matrix" }],
   creator: "RFP Matrix",
