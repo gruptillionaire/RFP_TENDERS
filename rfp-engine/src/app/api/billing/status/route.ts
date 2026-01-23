@@ -31,6 +31,7 @@ export async function GET() {
         monthlyExtractionsUsed: true,
         monthlyDraftsUsed: true,
         stripeCustomerId: true,
+        stripeSubscriptionId: true,
         // Single-use credits
         singleUseExtractionsRemaining: true,
         singleUseDraftsRemaining: true,
@@ -42,9 +43,20 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get plan details and limits
-    const planConfig = user.plan !== "FREE" ? PLAN_CONFIG[user.plan as PlanType] : null;
-    const planLimits = getPlanLimits(user.plan);
+    // Check if this is an expired granted subscription (no Stripe ID, past currentPeriodEnd)
+    const isGrantedSubscription =
+      ["STARTER", "PRO", "BUSINESS"].includes(user.plan) && !user.stripeSubscriptionId;
+    const grantExpired =
+      isGrantedSubscription &&
+      user.currentPeriodEnd &&
+      new Date() > user.currentPeriodEnd;
+
+    // Use effective plan for expired grants
+    const effectivePlan = grantExpired ? "FREE" : user.plan;
+
+    // Get plan details and limits based on effective plan
+    const planConfig = effectivePlan !== "FREE" ? PLAN_CONFIG[effectivePlan as PlanType] : null;
+    const planLimits = getPlanLimits(effectivePlan);
 
     // Calculate single-use status
     const singleUseExpired = user.singleUseExpiresAt
@@ -54,10 +66,10 @@ export async function GET() {
       user.singleUseExtractionsRemaining > 0 && !singleUseExpired;
 
     return NextResponse.json({
-      plan: user.plan,
+      plan: effectivePlan,
       planName: planConfig?.name || "No Subscription",
-      subscriptionStatus: user.subscriptionStatus,
-      currentPeriodEnd: user.currentPeriodEnd?.toISOString() || null,
+      subscriptionStatus: grantExpired ? null : user.subscriptionStatus,
+      currentPeriodEnd: grantExpired ? null : user.currentPeriodEnd?.toISOString() || null,
       cancelAtPeriodEnd: user.cancelAtPeriodEnd,
       usage: {
         extractionsUsed: user.monthlyExtractionsUsed,

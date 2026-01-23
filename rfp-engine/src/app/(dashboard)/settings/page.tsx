@@ -23,6 +23,7 @@ export default async function SettingsPage() {
       currentPeriodEnd: true,
       cancelAtPeriodEnd: true,
       stripeCustomerId: true,
+      stripeSubscriptionId: true,
       monthlyExtractionsUsed: true,
       monthlyDraftsUsed: true,
       // Single-use credits
@@ -32,8 +33,19 @@ export default async function SettingsPage() {
     },
   });
 
-  // Get plan limits for the user's plan
-  const planLimits = getPlanLimits(user?.plan || "FREE");
+  // Check if this is an expired granted subscription (no Stripe ID, past currentPeriodEnd)
+  const isGrantedSubscription =
+    user?.plan && ["STARTER", "PRO", "BUSINESS"].includes(user.plan) && !user.stripeSubscriptionId;
+  const grantExpired =
+    isGrantedSubscription &&
+    user?.currentPeriodEnd &&
+    new Date() > user.currentPeriodEnd;
+
+  // Use effective plan for expired grants
+  const effectivePlan = grantExpired ? "FREE" : (user?.plan || "FREE");
+
+  // Get plan limits for the effective plan
+  const planLimits = getPlanLimits(effectivePlan);
 
   // Calculate single-use status
   const singleUseExpired = user?.singleUseExpiresAt
@@ -46,9 +58,9 @@ export default async function SettingsPage() {
       userName={user?.name || session.user.name || null}
       initialCcpaOptOut={user?.doNotSellData || false}
       billingInfo={{
-        plan: user?.plan || "FREE",
-        subscriptionStatus: user?.subscriptionStatus || null,
-        currentPeriodEnd: user?.currentPeriodEnd?.toISOString() || null,
+        plan: effectivePlan,
+        subscriptionStatus: grantExpired ? null : (user?.subscriptionStatus || null),
+        currentPeriodEnd: grantExpired ? null : (user?.currentPeriodEnd?.toISOString() || null),
         cancelAtPeriodEnd: user?.cancelAtPeriodEnd || false,
         hasStripeAccount: !!user?.stripeCustomerId,
         usage: {

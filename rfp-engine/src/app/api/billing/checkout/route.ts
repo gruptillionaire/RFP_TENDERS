@@ -140,12 +140,36 @@ export async function POST(request: NextRequest) {
 
     // Prevent creating checkout if already on paid plan
     if (user.plan !== "FREE") {
-      return NextResponse.json(
-        {
-          error: "You already have an active subscription. Use the billing portal to manage it.",
-        },
-        { status: 400 }
-      );
+      // Check if this is a granted subscription (no Stripe) or a paid one
+      const userSubscription = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { stripeSubscriptionId: true, currentPeriodEnd: true },
+      });
+
+      if (userSubscription?.stripeSubscriptionId) {
+        // Has Stripe subscription - direct to billing portal
+        return NextResponse.json(
+          {
+            error: "You already have an active subscription. Use the billing portal to manage it.",
+          },
+          { status: 400 }
+        );
+      } else {
+        // Granted subscription - different message
+        const expiresAt = userSubscription?.currentPeriodEnd
+          ? new Date(userSubscription.currentPeriodEnd).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "soon";
+        return NextResponse.json(
+          {
+            error: `You have a complimentary ${user.plan} subscription that expires on ${expiresAt}. You can purchase a subscription after it expires.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const successUrl = `${baseUrl}/dashboard?subscription=success`;
