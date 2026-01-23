@@ -87,6 +87,12 @@ model User {
   twoFactorBackupCodes    String[]       // Hashed backup codes
   twoFactorVerifiedAt     DateTime?      // When 2FA was successfully set up
 
+  // Referral tracking
+  referralCode            String?        @unique // User's unique referral code (e.g., "abc123")
+  referredByUserId        String?        // Who referred this user (nullable)
+  referredByUser          User?          @relation("Referrals", fields: [referredByUserId], references: [id])
+  referredUsers           User[]         @relation("Referrals") // Users this person referred
+
   // Relations
   accounts                Account[]
   sessions                Session[]
@@ -97,6 +103,7 @@ model User {
   dataExportRequests      DataExportRequest[]
   requirementVersions     RequirementVersion[]
   singleUsePurchases      SingleUsePurchase[]
+  referralConversions     ReferralConversion[] // Conversions for users this person referred
 
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
@@ -105,6 +112,7 @@ model User {
   // stripeCustomerId already has @unique which creates an index
   @@index([deletedAt]) // For filtering active users
   @@index([singleUseExpiresAt]) // For cron cleanup queries
+  @@index([referredByUserId]) // For referral queries
 }
 
 enum Plan {
@@ -312,6 +320,24 @@ model DataExportRequest {
 
   @@index([userId])
   @@index([status])
+}
+
+// =============================================================================
+// REFERRAL TRACKING
+// =============================================================================
+
+// Tracks when a referred user converts to a paid subscription
+model ReferralConversion {
+  id            String   @id @default(cuid())
+  referrerId    String   // The user who made the referral
+  referrer      User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeEmail  String   // Email of the user who converted (for admin visibility)
+  refereeUserId String   // The user who was referred and converted
+  plan          String   // Plan they converted to (STARTER, PRO, BUSINESS)
+  convertedAt   DateTime @default(now()) // When they paid
+
+  @@index([referrerId])
+  @@index([convertedAt])
 }
 
 // =============================================================================

@@ -279,6 +279,12 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
         { stripeSubscriptionId: subscriptionId },
       ],
     },
+    select: {
+      id: true,
+      email: true,
+      plan: true,
+      referredByUserId: true,
+    },
   });
 
   if (!user) {
@@ -353,6 +359,23 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     sendSubscriptionStartedEmail(user.email, planNames[plan] || plan).catch((err) =>
       console.error("Failed to send subscription started email:", err)
     );
+
+    // Track referral conversion if this user was referred
+    if (user.referredByUserId) {
+      try {
+        await prisma.referralConversion.create({
+          data: {
+            referrerId: user.referredByUserId,
+            refereeEmail: user.email,
+            refereeUserId: user.id,
+            plan,
+          },
+        });
+        console.log(`Referral conversion tracked: ${user.email} -> ${plan} (referred by ${user.referredByUserId})`);
+      } catch (err) {
+        console.error("Failed to track referral conversion:", err);
+      }
+    }
   }
 
   console.log(`Subscription updated for user ${user.id}: ${plan} (${subscription.status})`);

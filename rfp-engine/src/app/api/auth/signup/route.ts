@@ -39,6 +39,16 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
   return { valid: true };
 }
 
+// Generate a unique referral code (6 alphanumeric chars)
+function generateReferralCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 // Email validation
 function validateEmail(email: string): { valid: boolean; normalized?: string; error?: string } {
   if (!email || typeof email !== "string") {
@@ -75,7 +85,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password, name, acceptTerms, acceptPrivacy, acceptMarketing } = await request.json();
+    const { email, password, name, acceptTerms, acceptPrivacy, acceptMarketing, referralCode } = await request.json();
 
     // Validate consent - Terms and Privacy are required
     if (!acceptTerms || !acceptPrivacy) {
@@ -136,6 +146,31 @@ export async function POST(request: Request) {
 
     const now = new Date();
 
+    // Look up referrer if a referral code was provided
+    let referrerId: string | null = null;
+    if (referralCode && typeof referralCode === "string") {
+      const referrer = await prisma.user.findUnique({
+        where: { referralCode: referralCode.toLowerCase().trim() },
+        select: { id: true },
+      });
+      if (referrer) {
+        referrerId = referrer.id;
+      }
+      // Silently ignore invalid referral codes - don't block signup
+    }
+
+    // Generate a unique referral code for this user (retry if collision)
+    let newUserReferralCode: string;
+    let attempts = 0;
+    do {
+      newUserReferralCode = generateReferralCode();
+      const existing = await prisma.user.findUnique({
+        where: { referralCode: newUserReferralCode },
+      });
+      if (!existing) break;
+      attempts++;
+    } while (attempts < 5);
+
     // Create user with normalized email and consent timestamps
     const user = await prisma.user.create({
       data: {
@@ -145,6 +180,8 @@ export async function POST(request: Request) {
         termsAcceptedAt: now,
         privacyPolicyAcceptedAt: now,
         marketingConsentGiven: acceptMarketing || false,
+        referralCode: newUserReferralCode,
+        referredByUserId: referrerId,
       },
     });
 
