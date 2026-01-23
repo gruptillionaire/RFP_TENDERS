@@ -120,6 +120,36 @@ export default function DPAPage() {
           <li>Delete or return Personal Data upon termination (at Customer&apos;s choice)</li>
           <li>Make available information necessary to demonstrate compliance</li>
         </ul>
+
+        <h3>4.1 AI Processing and Model Training</h3>
+        <p>
+          Customer Data processed through AI sub-processors (including Google Gemini API) is subject
+          to the following protections:
+        </p>
+        <ul>
+          <li>
+            <strong>Purpose limitation:</strong> Data is used solely to provide the Service
+            (document analysis, requirement extraction, response generation)
+          </li>
+          <li>
+            <strong>No model training:</strong> Customer Data is not used to train, improve,
+            or fine-tune any AI or machine learning models
+          </li>
+          <li>
+            <strong>No retention for training:</strong> AI sub-processors do not retain Customer
+            Data beyond the immediate processing request, except for temporary abuse monitoring
+            as required by their service terms (maximum 55 days, not used for training)
+          </li>
+          <li>
+            <strong>Confidentiality:</strong> Customer Data processed by AI sub-processors is
+            subject to the same confidentiality and security obligations as all other Customer Data
+          </li>
+        </ul>
+        <p>
+          RFP Matrix has verified that its AI sub-processors&apos; terms prohibit the use of API
+          inputs and outputs for model training purposes. Customers may request documentation
+          of these terms by contacting <a href="mailto:dpo@rfpmatrix.com">dpo@rfpmatrix.com</a>.
+        </p>
       </section>
 
       <section>
@@ -226,10 +256,10 @@ export default function DPAPage() {
           </thead>
           <tbody>
             <tr>
-              <td className="border border-gray-300 px-4 py-2">OpenAI, LLC</td>
+              <td className="border border-gray-300 px-4 py-2">Google LLC (Gemini API)</td>
               <td className="border border-gray-300 px-4 py-2">AI processing for document analysis and response generation</td>
               <td className="border border-gray-300 px-4 py-2">United States</td>
-              <td className="border border-gray-300 px-4 py-2">SCCs, DPA, API zero-retention</td>
+              <td className="border border-gray-300 px-4 py-2">SCCs, DPA, no model training on API data</td>
             </tr>
             <tr>
               <td className="border border-gray-300 px-4 py-2">Stripe, Inc.</td>
