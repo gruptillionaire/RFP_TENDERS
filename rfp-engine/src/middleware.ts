@@ -1,8 +1,9 @@
-import { auth } from "@/lib/auth";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 // CSRF protection: Verify origin for state-changing requests
-function verifyOrigin(request: Request): boolean {
+function verifyOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
 
@@ -33,7 +34,7 @@ function verifyOrigin(request: Request): boolean {
   }
 }
 
-export default auth((req) => {
+export async function middleware(req: NextRequest) {
   // CSRF protection for API routes (skip webhooks)
   if (req.nextUrl.pathname.startsWith("/api/") &&
       !req.nextUrl.pathname.startsWith("/api/billing/webhook")) {
@@ -42,7 +43,10 @@ export default auth((req) => {
     }
   }
 
-  const isLoggedIn = !!req.auth;
+  // Use lightweight JWT verification (no Prisma/bcrypt imports)
+  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+  const isLoggedIn = !!token;
+
   const isAuthPage = req.nextUrl.pathname.startsWith("/login") ||
                      req.nextUrl.pathname.startsWith("/signup") ||
                      req.nextUrl.pathname.startsWith("/forgot-password") ||
@@ -66,7 +70,7 @@ export default auth((req) => {
   // This avoids stale JWT token issues since routes can query the database
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [
