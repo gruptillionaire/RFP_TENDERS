@@ -44,7 +44,7 @@ export default async function Home() {
                   <Button variant="ghost">Sign in</Button>
                 </Link>
                 <Link href="/signup">
-                  <Button className="bg-blue-600 hover:bg-blue-700">Start for free</Button>
+                  <Button className="bg-blue-600 hover:bg-blue-700">Sign up</Button>
                 </Link>
               </>
             )}
@@ -53,8 +53,93 @@ export default async function Home() {
       </header>
 
       {/* Hero - Split layout with product preview */}
-      <section className="bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] min-h-[90vh] relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 py-20">
+      <section className="bg-[#1a1a2e] min-h-[90vh] relative overflow-hidden">
+        {/* Scrolling response templates background */}
+        <div className="absolute inset-0 overflow-hidden opacity-[0.15]">
+          {/* Row 1 - scrolling left */}
+          <div className="absolute top-[5%] left-0 right-0 flex gap-6 animate-marquee-slow">
+            {[...Array(8)].map((_, i) => (
+              <div key={`r1-${i}`} className="flex-shrink-0 w-80 bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
+                  <div className="h-2 bg-white/40 rounded w-32"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-white/30 rounded w-full"></div>
+                  <div className="h-2 bg-white/20 rounded w-4/5"></div>
+                  <div className="h-2 bg-white/20 rounded w-3/5"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Row 2 - scrolling right */}
+          <div className="absolute top-[25%] left-0 right-0 flex gap-6 animate-marquee-slow-reverse">
+            {[...Array(8)].map((_, i) => (
+              <div key={`r2-${i}`} className="flex-shrink-0 w-72 bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-blue-400"></div>
+                  <div className="h-2 bg-white/40 rounded w-28"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-white/30 rounded w-full"></div>
+                  <div className="h-2 bg-white/20 rounded w-2/3"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Row 3 - scrolling left */}
+          <div className="absolute top-[45%] left-0 right-0 flex gap-6 animate-marquee-slow">
+            {[...Array(8)].map((_, i) => (
+              <div key={`r3-${i}`} className="flex-shrink-0 w-96 bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                  <div className="h-2 bg-white/40 rounded w-40"></div>
+                  <div className="ml-auto px-2 py-0.5 bg-white/20 rounded text-[10px]"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-white/30 rounded w-full"></div>
+                  <div className="h-2 bg-white/20 rounded w-5/6"></div>
+                  <div className="h-2 bg-white/20 rounded w-4/5"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Row 4 - scrolling right */}
+          <div className="absolute top-[65%] left-0 right-0 flex gap-6 animate-marquee-slow-reverse">
+            {[...Array(8)].map((_, i) => (
+              <div key={`r4-${i}`} className="flex-shrink-0 w-80 bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-purple-400"></div>
+                  <div className="h-2 bg-white/40 rounded w-36"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-white/30 rounded w-full"></div>
+                  <div className="h-2 bg-white/20 rounded w-3/4"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Row 5 - scrolling left */}
+          <div className="absolute top-[85%] left-0 right-0 flex gap-6 animate-marquee-slow">
+            {[...Array(8)].map((_, i) => (
+              <div key={`r5-${i}`} className="flex-shrink-0 w-64 bg-white/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-pink-400"></div>
+                  <div className="h-2 bg-white/40 rounded w-24"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-white/30 rounded w-full"></div>
+                  <div className="h-2 bg-white/20 rounded w-1/2"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Gradient overlay for depth */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a1a2e] via-transparent to-[#1a1a2e]"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-[#1a1a2e] via-transparent to-[#1a1a2e]"></div>
+
+        <div className="relative max-w-7xl mx-auto px-6 py-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left - Text content */}
             <div className="text-white">
@@ -69,10 +154,10 @@ export default async function Home() {
                 AI extracts every question, tracks your compliance, and drafts responses.
                 Focus on winning, not on spreadsheets.
               </p>
-              <div className="flex flex-wrap gap-4 mb-8">
+              <div className="flex flex-wrap gap-4">
                 <Link href={isSignedIn ? "/dashboard" : "/signup"}>
                   <Button size="lg" className="bg-[#ffbe0b] hover:bg-[#ffd60a] text-black font-semibold px-8 h-14 text-lg">
-                    {isSignedIn ? "Go to Dashboard" : "Start free trial"}
+                    {isSignedIn ? "Go to Dashboard" : "Sign up"}
                   </Button>
                 </Link>
                 <Link href="#features">
@@ -81,7 +166,6 @@ export default async function Home() {
                   </Button>
                 </Link>
               </div>
-              <p className="text-white/50 text-sm">No credit card required. Plans from $150/mo.</p>
             </div>
 
             {/* Right - Product preview mockup */}
@@ -158,12 +242,6 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* Wave decoration */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z" fill="#f8f7f4"/>
-          </svg>
-        </div>
       </section>
 
       {/* Features - Bento grid layout */}
@@ -371,7 +449,7 @@ export default async function Home() {
               Simple, transparent pricing
             </h2>
             <p className="text-lg text-slate-600">
-              No hidden fees. Cancel anytime. Start with a free trial.
+              No hidden fees. Cancel anytime.
             </p>
           </div>
 
@@ -590,7 +668,7 @@ export default async function Home() {
           <div className="flex flex-wrap justify-center gap-4">
             <Link href={isSignedIn ? "/dashboard" : "/signup"}>
               <Button size="lg" className="bg-[#ffbe0b] hover:bg-[#ffd60a] text-black font-semibold px-8 h-14 text-lg">
-                {isSignedIn ? "Go to Dashboard" : "Start your free trial"}
+                {isSignedIn ? "Go to Dashboard" : "Sign up"}
               </Button>
             </Link>
             <Link href="/blog/go-no-go-decision-framework">
