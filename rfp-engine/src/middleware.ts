@@ -1,4 +1,3 @@
-import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -43,9 +42,10 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Use lightweight JWT verification (no Prisma/bcrypt imports)
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-  const isLoggedIn = !!token;
+  // Check for session cookie (lightweight - no JWT decoding needed)
+  const sessionCookie = req.cookies.get("authjs.session-token") ??
+                        req.cookies.get("__Secure-authjs.session-token");
+  const isLoggedIn = !!sessionCookie;
 
   const isAuthPage = req.nextUrl.pathname.startsWith("/login") ||
                      req.nextUrl.pathname.startsWith("/signup") ||
