@@ -24,8 +24,34 @@ export function BlogPostLayout({
     day: "numeric",
   });
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: title,
+    description: description,
+    datePublished: date,
+    author: {
+      "@type": "Organization",
+      name: "RFP Matrix",
+      url: "https://rfpmatrix.com",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "RFP Matrix",
+      url: "https://rfpmatrix.com",
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+    },
+  };
+
   return (
     <div className="min-h-screen bg-[#faf9f7]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -63,9 +89,9 @@ export function BlogPostLayout({
 
         {/* CTA */}
         <div className="mt-16 bg-gradient-to-br from-[#0d9488] to-[#0f766e] rounded-2xl p-8 text-center text-white shadow-lg">
-          <h2 className="text-2xl font-bold mb-3">
+          <p className="text-2xl font-bold mb-3">
             Ready to respond to RFPs 10x faster?
-          </h2>
+          </p>
           <p className="text-white/80 mb-6 max-w-lg mx-auto">
             RFP Matrix uses AI to extract requirements and generate draft responses automatically.
           </p>

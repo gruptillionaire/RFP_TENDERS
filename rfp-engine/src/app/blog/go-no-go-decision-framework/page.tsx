@@ -60,7 +60,10 @@ export default function GoNoGoFrameworkPost() {
       </div>
 
       <p>
-        Consider the math: if your win rate is 20% and each response costs $15,000 in labor, you&apos;re effectively spending $75,000 to win each contract. Better selectivity improves this ratio.
+        Consider the math: if your win rate is 20% and each response costs $15,000 in labor, you&apos;re effectively spending $75,000 to win each contract. Better selectivity improves this ratio. We break down these hidden expenses in detail in our article on the{" "}
+        <Link href="/blog/true-cost-of-responding-to-rfps" className="text-blue-600 hover:underline">
+          true cost of responding to RFPs
+        </Link>.
       </p>
 
       <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">The Framework</h2>
@@ -431,7 +434,11 @@ export default function GoNoGoFrameworkPost() {
           <span className="text-green-600 text-lg">✓</span>
           <div>
             <p className="font-medium text-gray-900">Low competition</p>
-            <p className="text-sm text-gray-600">Few qualified bidders means higher odds of winning.</p>
+            <p className="text-sm text-gray-600">Few qualified bidders means higher odds of winning. Learn more about{" "}
+            <Link href="/blog/small-bid-teams-advantage" className="text-blue-600 hover:underline">
+              why small bid teams win
+            </Link>{" "}
+            in these situations.</p>
           </div>
         </div>
       </div>
@@ -464,7 +471,11 @@ export default function GoNoGoFrameworkPost() {
       </div>
 
       <p>
-        Document the decision and reasoning. A no-go decision has value too: you&apos;ve freed up resources for better opportunities.
+        Document the decision and reasoning. A no-go decision has value too: you&apos;ve freed up resources for better opportunities. If your team is juggling several live bids at once, our guide on{" "}
+        <Link href="/blog/managing-multiple-tenders" className="text-blue-600 hover:underline">
+          managing multiple tenders
+        </Link>{" "}
+        offers practical strategies for keeping everything on track.
       </p>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 my-6">

@@ -33,7 +33,13 @@ export default function BestRfpSoftwarePost() {
 
       <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">What Matters When Choosing RFP Software</h2>
 
-      <p>Before looking at specific tools, here are the capabilities that matter most:</p>
+      <p>
+        Before looking at specific tools, here are the capabilities that matter most. If you are still deciding whether to move away from Excel, our{" "}
+        <Link href="/blog/spreadsheets-vs-bid-software" className="text-blue-600 hover:underline">
+          spreadsheets vs bid software comparison
+        </Link>{" "}
+        covers the signs it is time to switch.
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
         <div className="bg-gray-50 rounded-lg p-4">
@@ -382,7 +388,10 @@ export default function BestRfpSoftwarePost() {
       </p>
 
       <p>
-        Large enterprises with dedicated proposal teams and substantial budgets will find the established players offer comprehensive features. Smaller teams looking for AI-powered efficiency without enterprise pricing will find newer tools like RFP Matrix offer better value.
+        Large enterprises with dedicated proposal teams and substantial budgets will find the established players offer comprehensive features. Smaller teams looking for AI-powered efficiency without enterprise pricing will find newer tools like RFP Matrix offer better value. To understand how these tools pay for themselves, read our breakdown of the{" "}
+        <Link href="/blog/true-cost-of-responding-to-rfps" className="text-blue-600 hover:underline">
+          true cost of responding to RFPs
+        </Link>.
       </p>
 
       <div className="bg-slate-100 border border-slate-200 rounded-lg p-5 mt-8">

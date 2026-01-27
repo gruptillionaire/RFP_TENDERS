@@ -18,6 +18,70 @@ interface BlogPost {
 
 const blogPosts: BlogPost[] = [
   {
+    slug: "scoring-quality-submissions",
+    title: "How to Score Higher on Quality Submissions",
+    description: "Price gets you shortlisted. Quality scores win the contract. Here is how evaluators grade quality responses and what separates a 3 from a 5.",
+    date: "2025-05-01",
+    readTime: "10 min read",
+    category: "Strategy",
+  },
+  {
+    slug: "faster-rfp-turnaround",
+    title: "The Bid Manager's Guide to Faster RFP Turnaround",
+    description: "Most RFP responses take two to three weeks. The best teams do it in five days. Here is how they cut the fat without cutting corners.",
+    date: "2025-04-16",
+    readTime: "9 min read",
+    category: "Process",
+  },
+  {
+    slug: "spreadsheets-vs-bid-software",
+    title: "Spreadsheets vs Bid Management Software: When to Switch",
+    description: "Excel works until it does not. Here are the signs your bid team has outgrown spreadsheets and what to look for in dedicated software.",
+    date: "2025-04-02",
+    readTime: "8 min read",
+    category: "Tools",
+  },
+  {
+    slug: "winning-public-sector-contracts",
+    title: "How to Win Public Sector Contracts as an SME",
+    description: "Public sector procurement looks intimidating, but it is designed to give SMEs a fair shot. Here is how to find, qualify for, and win government contracts.",
+    date: "2025-03-19",
+    readTime: "12 min read",
+    category: "Strategy",
+  },
+  {
+    slug: "health-safety-tender-requirements",
+    title: "Health and Safety Requirements in Tenders: What Evaluators Check",
+    description: "Health and safety sections carry heavy weighting in construction and facilities tenders. Here is exactly what evaluators look for and how to present it.",
+    date: "2025-03-05",
+    readTime: "10 min read",
+    category: "Compliance",
+  },
+  {
+    slug: "common-rfp-mistakes",
+    title: "7 RFP Mistakes That Cost You the Contract",
+    description: "You wrote a solid proposal and still lost. Odds are, one of these seven mistakes buried your score before the evaluator finished reading.",
+    date: "2025-02-19",
+    readTime: "8 min read",
+    category: "Strategy",
+  },
+  {
+    slug: "managing-multiple-tenders",
+    title: "How to Manage Multiple Tenders Without Burning Out",
+    description: "Running five tenders at once with a two-person team is normal in SMEs. Here is how to stay on top of deadlines without working weekends.",
+    date: "2025-02-05",
+    readTime: "9 min read",
+    category: "Process",
+  },
+  {
+    slug: "construction-tender-compliance",
+    title: "Construction Tender Compliance: A Practical Guide",
+    description: "Construction tenders have specific compliance demands that generic bid advice ignores. This guide covers what evaluators actually check and how to pass.",
+    date: "2025-01-22",
+    readTime: "11 min read",
+    category: "Industry",
+  },
+  {
     slug: "rfp-vs-rfq-vs-rfi",
     title: "RFP vs RFQ vs RFI: What's the Difference?",
     description: "Understand the key differences between Requests for Proposals, Quotes, and Information. Learn when each is used and how to respond effectively.",
@@ -57,6 +121,38 @@ const blogPosts: BlogPost[] = [
     readTime: "9 min read",
     category: "Business",
   },
+  {
+    slug: "small-bid-teams-advantage",
+    title: "Why Small Bid Teams Win More Than You Think",
+    description: "A two-person bid team can outperform a department of ten. Here is why smaller teams have a structural advantage in competitive tenders.",
+    date: "2025-01-06",
+    readTime: "8 min read",
+    category: "Strategy",
+  },
+  {
+    slug: "pqq-checklist",
+    title: "PQQ Checklist: Pre-Qualification Questions Made Simple",
+    description: "Pre-Qualification Questionnaires filter out most bidders before the real evaluation starts. Use this checklist so yours does not end up in the reject pile.",
+    date: "2024-12-16",
+    readTime: "10 min read",
+    category: "Fundamentals",
+  },
+  {
+    slug: "what-bid-managers-wish-sales-knew",
+    title: "What Bid Managers Wish Their Sales Teams Understood",
+    description: "The tension between sales and bid teams costs companies winnable contracts. Here are the five things bid managers want sales to know.",
+    date: "2024-12-02",
+    readTime: "7 min read",
+    category: "Business",
+  },
+  {
+    slug: "compliance-matrix-guide",
+    title: "How to Build a Compliance Matrix That Evaluators Actually Use",
+    description: "Most compliance matrices get ignored because they are hard to read. Here is how to structure yours so evaluators can score it in seconds.",
+    date: "2024-11-18",
+    readTime: "9 min read",
+    category: "Compliance",
+  },
 ];
 
 function formatDate(dateString: string): string {
@@ -74,6 +170,9 @@ export default function BlogPage() {
     Strategy: "bg-[#f3e8ff] text-[#7c3aed]",
     Tools: "bg-[#dcfce7] text-[#166534]",
     Business: "bg-[#fef9c3] text-[#a16207]",
+    Compliance: "bg-[#fce7f3] text-[#9d174d]",
+    Process: "bg-[#e0f2fe] text-[#0369a1]",
+    Industry: "bg-[#fef3c7] text-[#92400e]",
   };
 
   return (

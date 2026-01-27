@@ -216,7 +216,10 @@ export default function RfpVsRfqVsRfiPost() {
         </p>
 
         <p className="mt-4">
-          Success requires reading every requirement, mapping your capabilities to their needs, and telling a story about your solution - not just checking boxes. It&apos;s also a coordination challenge: you&apos;ll need input from multiple people, and someone has to keep it all on track.
+          Success requires reading every requirement, mapping your capabilities to their needs, and telling a story about your solution - not just checking boxes. For a deeper dive, read our guide on{" "}
+          <Link href="/blog/how-to-write-winning-rfp-response" className="text-blue-600 hover:underline">
+            how to write a winning RFP response
+          </Link>. It&apos;s also a coordination challenge: you&apos;ll need input from multiple people, and someone has to keep it all on track.
         </p>
       </div>
 
@@ -322,7 +325,11 @@ export default function RfpVsRfqVsRfiPost() {
         </div>
 
         <p className="mt-6">
-          Knowing which type of document you&apos;re dealing with is the first step to responding well. It determines how much time to invest, what to emphasize, and how to structure your response.
+          Knowing which type of document you&apos;re dealing with is the first step to responding well. It determines how much time to invest, what to emphasize, and how to structure your response. Before committing resources, use a{" "}
+          <Link href="/blog/go-no-go-decision-framework" className="text-blue-600 hover:underline">
+            Go/No-Go decision framework
+          </Link>{" "}
+          to evaluate whether the opportunity is worth pursuing.
         </p>
       </div>
 
