@@ -99,6 +99,10 @@ async function loadFonts(pdfDoc: PDFDocument): Promise<FontSet> {
 // TEXT UTILITIES
 // =============================================================================
 
+/**
+ * Wrap text to fit within maxWidth, preserving explicit line breaks.
+ * Handles bullet points (-, *, •) and numbered lists.
+ */
 function wrapText(
   text: string,
   font: PDFFont,
@@ -107,49 +111,74 @@ function wrapText(
 ): string[] {
   if (!text) return [""];
 
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let currentLine = "";
+  // First, split by explicit line breaks to preserve paragraph structure
+  const paragraphs = text.split(/\r?\n/);
+  const allLines: string[] = [];
 
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+  for (const paragraph of paragraphs) {
+    // Empty paragraph = blank line (preserve intentional spacing)
+    if (!paragraph.trim()) {
+      allLines.push("");
+      continue;
+    }
 
-    if (testWidth <= maxWidth) {
-      currentLine = testLine;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      // Handle very long words that exceed maxWidth
-      if (font.widthOfTextAtSize(word, fontSize) > maxWidth) {
-        // Break long word
-        let remaining = word;
-        while (remaining) {
-          let fit = "";
-          for (let i = 1; i <= remaining.length; i++) {
-            const substr = remaining.substring(0, i);
-            if (font.widthOfTextAtSize(substr, fontSize) <= maxWidth) {
-              fit = substr;
-            } else {
-              break;
-            }
-          }
-          if (fit) {
-            lines.push(fit);
-            remaining = remaining.substring(fit.length);
-          } else {
-            lines.push(remaining.charAt(0));
-            remaining = remaining.substring(1);
-          }
-        }
-        currentLine = "";
+    // Check if this line is a bullet point or numbered list item
+    const bulletMatch = paragraph.match(/^(\s*)([-*•]|\d+[.):])\s*/);
+    const indent = bulletMatch ? bulletMatch[0] : "";
+    const indentWidth = indent ? font.widthOfTextAtSize(indent, fontSize) : 0;
+    const contentStart = bulletMatch ? paragraph.substring(indent.length) : paragraph;
+
+    const words = contentStart.split(/\s+/).filter(w => w.length > 0);
+    let currentLine = indent;
+    let isFirstLine = true;
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
       } else {
-        currentLine = word;
+        if (currentLine.trim()) allLines.push(currentLine);
+        // Handle very long words that exceed maxWidth
+        if (font.widthOfTextAtSize(word, fontSize) > maxWidth - (isFirstLine ? 0 : indentWidth)) {
+          // Break long word
+          let remaining = word;
+          const continuationIndent = bulletMatch ? " ".repeat(indent.length) : "";
+          while (remaining) {
+            let fit = "";
+            const lineIndent = allLines.length > 0 || !isFirstLine ? continuationIndent : "";
+            const availableWidth = maxWidth - font.widthOfTextAtSize(lineIndent, fontSize);
+            for (let i = 1; i <= remaining.length; i++) {
+              const substr = remaining.substring(0, i);
+              if (font.widthOfTextAtSize(substr, fontSize) <= availableWidth) {
+                fit = substr;
+              } else {
+                break;
+              }
+            }
+            if (fit) {
+              allLines.push(lineIndent + fit);
+              remaining = remaining.substring(fit.length);
+            } else {
+              allLines.push(lineIndent + remaining.charAt(0));
+              remaining = remaining.substring(1);
+            }
+            isFirstLine = false;
+          }
+          currentLine = bulletMatch ? " ".repeat(indent.length) : "";
+        } else {
+          // Continuation lines for bullets are indented to align with content
+          currentLine = bulletMatch ? " ".repeat(indent.length) + word : word;
+        }
+        isFirstLine = false;
       }
     }
+
+    if (currentLine.trim()) allLines.push(currentLine);
   }
 
-  if (currentLine) lines.push(currentLine);
-  return lines.length > 0 ? lines : [""];
+  return allLines.length > 0 ? allLines : [""];
 }
 
 function formatDate(date: Date): string {
@@ -384,16 +413,27 @@ function drawTitleSection(
   const page = pageManager.getCurrentPage();
   const fonts = pageManager.getFonts();
   const x = pageManager.getLeftMargin();
+  const contentWidth = pageManager.getContentWidth();
 
-  // Title
-  page.drawText(options.projectName, {
-    x,
-    y: pageManager.getY(),
-    size: PDF_CONFIG.FONT_SIZE_TITLE,
-    font: fonts.bold,
-    color: COLORS.TEXT_DARK,
-  });
-  pageManager.moveDown(24);
+  // Title (wrapped if too long)
+  const titleLines = wrapText(
+    options.projectName,
+    fonts.bold,
+    PDF_CONFIG.FONT_SIZE_TITLE,
+    contentWidth
+  );
+
+  for (const line of titleLines) {
+    page.drawText(line, {
+      x,
+      y: pageManager.getY(),
+      size: PDF_CONFIG.FONT_SIZE_TITLE,
+      font: fonts.bold,
+      color: COLORS.TEXT_DARK,
+    });
+    pageManager.moveDown(PDF_CONFIG.FONT_SIZE_TITLE + 4);
+  }
+  pageManager.moveDown(4);
 
   // Subtitle
   page.drawText(subtitle, {
