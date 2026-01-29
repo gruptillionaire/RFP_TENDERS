@@ -164,8 +164,14 @@ RIGHT: {"s":"3.1", "t":"...", "y":1}
     Pattern: "Provide CVs...", "Describe team structure..."
     Keywords: staff, personnel, team, CV, resume, qualifications, FTE
 
-8 = CONTEXTUAL - Section headers, titles (usually filtered)
-    Short title-case text without question marks or imperatives
+8 = CONTEXTUAL - Context that does NOT require a vendor response
+    Includes: section headers, contract obligation statements, specification terms,
+    scope descriptions, background info, submission instructions, cross-references,
+    document overviews, tender process instructions
+    "The Contractor shall...", "The Provider must..." → y=8 if no written response requested
+    "Tenderers must submit via..." → y=8 (submission instruction)
+    "Please see Section 4 for..." → y=8 (cross-reference)
+    Key test: Does this require the vendor to WRITE something in their proposal? If no → y=8
 
 ## DOMAIN CODES (d)
 
@@ -213,24 +219,49 @@ The key distinction:
 - "Detail hardware requirements if applicable" → m=0 (whole requirement is conditional)
 - "Does the system support optional plugins?" → m=1 (asking about optional plugins)
 
-## WHAT TO EXTRACT
+## WHAT TO EXTRACT - THE KEY TEST
 
-1. QUESTIONS - Any sentence ending with "?"
+For EVERY item, apply this gate:
+  "Does this require the tenderer to WRITE CONTENT in their proposal response?"
+  If YES → extract it. If NO → skip it or mark y=8.
+
+Submission instructions, process rules, cross-references, document summaries, and contract
+obligations all FAIL this test. They tell the tenderer what to DO (submit, comply, read) not
+what to WRITE (describe, explain, provide details, answer a question).
+
+1. QUESTIONS - Any sentence ending with "?" that asks for vendor input
    - Capability: "Does your solution support...?"
    - Process: "How will you handle...?"
    - Approach: "What is your approach to...?"
 
 2. PROPOSAL RESPONSE REQUESTS - Sentences asking vendor to WRITE something in their proposal:
-   - "Describe...", "Explain...", "Provide...", "List..."
+   - "Describe...", "Explain...", "Provide [details/evidence/examples]...", "List..."
    - "Demonstrate...", "Detail...", "Outline..."
-   - "Include...", "Submit...", "Specify..."
+   - "Please provide a written submission..."
    - NOT delivery verbs like "Develop", "Build", "Create", "Implement", "Integrate", "Design"
-   - Those describe what to BUILD, not what to WRITE in the proposal
+   - NOT submission verbs like "Submit [the form]", "Complete [and return]", "Return [by date]"
+   - Those describe what to BUILD or how to SUBMIT, not what to WRITE in the proposal
 
-3. OBLIGATION STATEMENTS - Sentences containing:
-   - "shall", "must", "will", "should"
-   - "is required to", "are expected to"
-   - "The vendor/contractor/proposer shall..."
+3. OBLIGATION STATEMENTS THAT REQUEST A RESPONSE:
+   Only extract "shall/must/will" statements that ask the vendor to WRITE, DESCRIBE, EXPLAIN, or PROVIDE something in their proposal:
+   - "The vendor shall describe their approach to..." → EXTRACT
+   - "Respondents must provide evidence of..." → EXTRACT
+
+   DO NOT extract pure contract obligations stating what the vendor must DO under contract:
+   - "The Contractor shall maintain insurance of £5M" → SKIP (contract term)
+   - "The Provider shall comply with GDPR" → SKIP (obligation)
+   - "Services must be delivered within 30 days" → SKIP (contract timeline)
+   - "The successful bidder will provide 24/7 support" → SKIP (deliverable)
+   - "All data shall be stored within the UK" → SKIP (specification constraint)
+   - "The Concessionaire shall ensure staff are DBS checked" → SKIP (contract obligation)
+   Test: Does this "shall/must" statement ask for a WRITTEN RESPONSE? If not → SKIP or y=8
+
+   DO NOT extract tender submission instructions disguised as "must" statements:
+   - "Tenderers must complete and return all relevant Sections" → SKIP (submission instruction)
+   - "Tenderers must submit via The Chest" → SKIP (submission method)
+   - "An electronic submission must be submitted" → SKIP (submission format)
+   - "Tenders must be received by 5pm" → SKIP (deadline)
+   Test: Does this "must" statement tell the tenderer HOW/WHEN/WHERE to submit? → SKIP
 
 4. YES/NO ATTESTATIONS - Questions expecting yes/no:
    - "Does the...", "Can the...", "Is the..."
@@ -244,9 +275,37 @@ The key distinction:
 - Evaluation criteria descriptions (how scoring works)
 - Award process descriptions (selection methodology)
 - Terms and conditions boilerplate
+- Contract obligation statements that do NOT ask for a response:
+  - "The Contractor shall...", "The Provider must..." (unless asking to WRITE/DESCRIBE/EXPLAIN)
+  - Specification constraints ("All data shall be stored in...", "Services must comply with...")
+  - Compliance obligations ("The vendor shall adhere to...", "Staff must hold valid DBS checks")
+  - Performance obligations ("The contractor shall deliver within...", "SLA of 99.9% uptime")
 - Contact information, submission addresses
 - Transmittal letter instructions
 - RFP timeline/process information
+
+CRITICAL - SKIP TENDER SUBMISSION & PROCESS INSTRUCTIONS:
+These tell tenderers HOW, WHEN, and WHERE to submit. They are NOT questions requiring a written response:
+- Submission method: "Submit via [portal/email/post]", "An electronic submission must be submitted via..."
+- Submission deadline: "Return by 5.00pm on [date]", "Tender related queries no later than..."
+- Tender examination: "The Tenderer is required to examine the Tender Documents..."
+- Completeness instructions: "Tenderers must complete and return all relevant Sections..."
+- Discrepancy reporting: "Should the Tenderer find discrepancies... notify the Procurement Officer..."
+- Reserved rights: "RBH reserves the right to require additional information..."
+- Clarification process: "Tenderers shall communicate all queries via [portal]..."
+- General compliance: "The Tenderer shall be deemed to have satisfied itself as to the correctness..."
+These appear in sections like "Instructions to Tenderers", "Submission Requirements", "General Conditions".
+Test: Does this instruct the tenderer about the SUBMISSION PROCESS rather than ask for CONTENT? → SKIP
+
+CRITICAL - SKIP OR MARK y=8 FOR DOCUMENT OVERVIEWS, SUMMARIES, AND CROSS-REFERENCES:
+- Table-of-contents items: "Tenderers Must Complete and submit a CDP form" → y=8 (summary bullet, not a question)
+- Overview bullets describing what sections to complete (these are navigation aids, not questions) → y=8
+- Cross-references: "Please include a response to the question at Section 4" → y=8 (points elsewhere)
+- Section summaries: "This section covers...", "The following sections outline..." → y=8
+- Items from "ITT Document Summary", "Tender Summary", "Document Overview" sections → ALWAYS y=8
+- These items summarise what to do ("Complete the form", "Read the spec", "Sign the certificate")
+  but do NOT ask for written content. They are checklists/navigation, not questions.
+Test: Does this summarise or point to content elsewhere instead of asking a question? → SKIP or y=8
 
 CRITICAL - These are NOT requirements (do NOT extract):
 - "Preferred Qualifications" or "Desired Capabilities" sections - these describe what the buyer WANTS in a vendor, not questions to answer
@@ -336,6 +395,30 @@ These are legitimate requirements even if they appear in form-like sections.
 5. NO DUPLICATES
    - You have the complete document - extract each requirement once
    - Same text with different section numbers = extraction error, keep first
+
+6. PRESERVE TEXT FORMATTING AND STRUCTURE
+   When requirement text contains lists, bullet points, sub-items, or hierarchical content,
+   preserve the structure using newlines (\\n) in the "t" field. Do NOT flatten structured
+   content into a single run-on paragraph.
+
+   WRONG (text vomit):
+   "t": "Data Protection The Contractor shall: Comply with GDPR Process data only as instructed Appoint a DPO Maintain records of processing activities"
+
+   RIGHT (structure preserved):
+   "t": "Data Protection\\n\\nThe Contractor shall:\\n- Comply with GDPR\\n- Process data only as instructed\\n- Appoint a DPO\\n- Maintain records of processing activities"
+
+   WRONG (sub-items lost):
+   "t": "Describe your approach to: a) Security architecture b) Data encryption c) Access controls d) Incident response"
+
+   RIGHT (sub-items preserved):
+   "t": "Describe your approach to:\\na) Security architecture\\nb) Data encryption\\nc) Access controls\\nd) Incident response"
+
+   Rules:
+   - Bullet lists: Use "\\n- " or "\\n• " between items
+   - Numbered lists: Use "\\n1. ", "\\n2. " etc.
+   - Lettered sub-items: Use "\\na) ", "\\nb) " etc.
+   - Paragraph breaks: Use "\\n\\n"
+   - Section sub-headers within a requirement: Preserve on their own line
 
 ## EXAMPLE OUTPUT
 

@@ -477,6 +477,47 @@ REQUIREMENT TYPES (with TRIGGER KEYWORDS - match keywords FIRST, then context)
      - "We require omnichannel tools" → CONTEXTUAL (buyer stating their requirement)
      - "Describe your omnichannel tools" → DESCRIPTIVE (asking bidder to explain)
 
+  F. CONTRACT OBLIGATION/SPECIFICATION STATEMENTS (ALWAYS CONTEXTUAL):
+     ==============================================================================
+     THIS IS CRITICAL - Many specification/tender documents consist almost entirely
+     of contract obligations stated as "The Contractor/Concessionaire/Provider shall..."
+     These are NOT questions. They are contract terms accepted by signing/tendering.
+     ==============================================================================
+
+     PATTERNS (ALWAYS CONTEXTUAL):
+     • "The [Contractor/Concessionaire/Provider/Supplier/Appointed Firm] shall [verb]..."
+     • "The [Contractor/Concessionaire/Provider/Supplier/Appointed Firm] must [verb]..."
+     • "The [Contractor/Concessionaire/Provider/Supplier/Appointed Firm] will [verb]..."
+     • "The [Contractor/Concessionaire] is required to [verb]..."
+     • "The [Contractor/Concessionaire] is responsible for [noun]..."
+
+     These state what the winning party WILL DO under the contract. The bidder accepts
+     these obligations by tendering - they do NOT write a response explaining how.
+
+     CONTEXTUAL (contract obligation - accepted by tendering, no written response):
+     • "The Concessionaire shall manage bookings via the Clubspark system" → CONTEXTUAL
+     • "The Contractor shall ensure the facility is clean at all times" → CONTEXTUAL
+     • "The Provider shall comply with all relevant legislation" → CONTEXTUAL
+     • "The Concessionaire shall pay the agreed fee to the Council" → CONTEXTUAL
+     • "The Contractor shall carry out routine maintenance" → CONTEXTUAL
+     • "The Concessionaire shall report any instances of graffiti to the Council" → CONTEXTUAL
+     • "The Contractor shall maintain comprehensive records of all accidents" → CONTEXTUAL
+     • "The courts shall be open for play from 8:00 am to 9:00 pm daily" → CONTEXTUAL
+
+     NOT CONTEXTUAL (despite "shall/must" language - these ASK for something):
+     • "The Contractor must show how it intends to use volunteers" → DESCRIPTIVE (asks to show/describe)
+     • "The Contractor must show its policy on recruitment" → DESCRIPTIVE (asks to demonstrate)
+     • "Please provide your GDPR policy and method statement" → DESCRIPTIVE (asks for a deliverable)
+     • "The staffing structure must be submitted as part of the tender" → STAFFING (asks for a deliverable IN the response)
+     • "You should indicate whether you would plan to open on bank holidays" → DESCRIPTIVE (asks for input)
+
+     KEY DISTINGUISHER - Is it a TERM or a QUESTION?
+     CONTRACT TERM (CONTEXTUAL): States an obligation. No "describe", "show", "provide",
+       "demonstrate", "explain", "indicate", "submit as part of tender" language.
+       The bidder reads it and accepts it.
+     QUESTION (NOT CONTEXTUAL): Asks the bidder to write, show, describe, demonstrate,
+       explain, provide a policy/document, or submit something in their tender response.
+
   ==============================================================================
   CRITICAL: CONTEXTUAL vs DECLARATIVE - Common Confusion Points
   ==============================================================================
@@ -607,6 +648,10 @@ CONTEXTUAL (no written response needed) - Check for these patterns:
   ✓ Contains "We require/need/are looking for [X]" (buyer stating needs, no question mark) → CONTEXTUAL
   ✓ Contains "The [selected/chosen] provider is expected to..." → CONTEXTUAL (buyer expectation)
   ✓ Subject is BUYER describing their requirements (not asking bidder to explain) → CONTEXTUAL
+  ✓ CONTRACT OBLIGATION: "The [Contractor/Concessionaire/Provider/Supplier] shall/must/will [verb]..."
+      where it states what the winning party WILL DO under the contract → CONTEXTUAL
+      EXCEPTION: NOT CONTEXTUAL if the text also asks the bidder to "show", "demonstrate",
+      "describe", "explain", "provide [a policy/document]", or "submit as part of the tender"
 
 If ANY of the above match (and STEP 0 didn't match) → classify as CONTEXTUAL and STOP.
 
@@ -814,22 +859,65 @@ Signs you're incorrectly concatenating:
 If you see multiple numbered items in one text block, SPLIT THEM.
 
 ==============================================================================
-LIST PRESERVATION IN REQUIREMENTS
+LIST AND STRUCTURE PRESERVATION IN REQUIREMENTS (CRITICAL)
 ==============================================================================
-When a requirement contains a list (bullets or numbers), preserve the formatting:
+When a requirement contains structured content (lists, sub-headers, categories),
+you MUST preserve the formatting hierarchy. Never flatten structured content
+into a single run-on paragraph.
+
+RULE 1: BULLET POINTS AND NUMBERED LISTS
 - Keep bullet points (•, -, *) on separate lines
 - Keep numbered sub-items (a), b), 1., 2.) on separate lines
-- Preserve the list structure in your extracted text
+- Preserve indentation hierarchy
 
-EXAMPLE:
+RULE 2: CATEGORY HEADERS WITHIN REQUIREMENTS
+When a requirement has titled categories or sub-sections, preserve them as
+separate lines with their content beneath them.
+
+RULE 3: NEVER CREATE "TEXT VOMIT"
+If the original document has structured formatting (headers, sub-lists, categories),
+the extracted text MUST reflect that structure. A wall of unbroken text is WRONG.
+
+EXAMPLE 1 - Simple list:
 Original: "Please describe your approach to: • Security measures • Access controls • Audit logging"
-Extracted text should be:
+CORRECT:
 "Please describe your approach to:
 • Security measures
 • Access controls
 • Audit logging"
 
-NOT flattened to: "Please describe your approach to: • Security measures • Access controls • Audit logging"
+WRONG: "Please describe your approach to: • Security measures • Access controls • Audit logging"
+
+EXAMPLE 2 - Categorised content with sub-items:
+Original document has "Court Bookings" as a header, then bullet points, then "Unique Participants" as another header, then bullet points.
+CORRECT:
+"The booking system must capture the following:
+
+Court Bookings
+• Total number of Adult and Junior court hours booked per month
+• Total number as a percentage of total court hours available
+• A minimum of 50% of courts should be available for pay to play
+
+Unique Participants
+• Total number of unique players per month, broken down by:
+  - gender
+  - ethnicity
+  - age
+  - disability"
+
+WRONG: "Court Bookings Total number of Adult and Junior court hours booked per month. Total number as a percentage of total court hours available. A minimum of 50% Unique Participants Total number of unique players per month broken down as to gender ethnicity age and disability"
+
+EXAMPLE 3 - Requirements with sub-lists:
+Original has a preamble then lettered/numbered sub-items.
+CORRECT:
+"The Health and Safety Policy must address the following:
+a) Safe systems of work, including Permit to Work systems
+b) Production and review of risk assessments
+c) Fire safety, including inspection and testing
+d) Safety of electrical equipment and systems
+e) Control of substances hazardous to health"
+
+WRONG: "The Health and Safety Policy must address the following: Safe systems of work including Permit to Work systems Production and review of risk assessments Fire safety including inspection and testing Safety of electrical equipment and systems Control of substances hazardous to health"
 
 ==============================================================================
 
