@@ -1,165 +1,84 @@
 # RFP Extraction Worker
 
-External worker service for RFP requirement extraction. Runs outside Vercel's time limits to handle large documents with full LLM extraction.
+The long-running document extraction service used by RFP Matrix. It runs outside the web application's serverless request lifecycle so large tender packs can be processed without holding open a browser or Vercel function request.
 
-## Why External Worker?
+See the [repository README](../README.md) for product and system context.
 
-Vercel serverless functions have time limits (10-60s depending on plan). Large RFP documents with 400+ requirements can take 2-5 minutes to process with LLM extraction. This worker runs on Railway/Fly.io with no time limits.
+## Request Flow
 
-## Cost Estimates
+1. The web application creates an extraction job.
+2. It sends document text, a job ID, and an approved callback URL to `POST /extract-async`.
+3. The worker returns immediately, performs extraction, and calls the authenticated webhook with the result.
+4. The application stores the extracted requirements and exposes job status to the browser.
 
-| Document Size | Requirements | GPT-4o-mini | GPT-4o |
-|---------------|--------------|-------------|--------|
-| Small (20K chars) | ~50 | $0.01 | $0.15 |
-| Medium (50K chars) | ~150 | $0.02 | $0.35 |
-| Large (100K chars) | ~300 | $0.03 | $0.60 |
-| Huge (150K+ chars) | ~400+ | $0.04 | $0.85 |
+Worker requests use `X-Worker-Key`. Asynchronous callback URLs are checked against `ALLOWED_WEBHOOK_HOSTS` before any outbound request is made.
 
-## Setup
+## Configuration
 
-### 1. Install Dependencies
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Yes | Gemini extraction requests |
+| `EXTRACTION_WORKER_KEY` | Production | Shared secret for requests and callbacks |
+| `ALLOWED_ORIGINS` | Production | Comma-separated browser origins |
+| `ALLOWED_WEBHOOK_HOSTS` | Production | Comma-separated callback host allowlist |
+| `PORT` | No | HTTP port, default `3001` |
+| `NODE_ENV` | No | Runtime environment |
 
-```bash
-npm install
-```
+Copy `.env.example` to `.env` for local development.
 
-### 2. Environment Variables
-
-Create a `.env` file:
-
-```env
-# Required
-OPENAI_API_KEY=sk-...
-
-# Optional - for securing the endpoint
-EXTRACTION_WORKER_KEY=your-secret-key
-
-# Optional - CORS origins (comma-separated)
-ALLOWED_ORIGINS=https://your-app.vercel.app
-
-# Optional - port (default: 3001)
-PORT=3001
-```
-
-### 3. Run Locally
+## Commands
 
 ```bash
-# Development (with hot reload)
+npm ci
 npm run dev
-
-# Production
+npm run typecheck
 npm run build
 npm start
 ```
 
-### 4. Test the Endpoint
+## Endpoints
 
-```bash
-curl -X POST http://localhost:3001/extract \
-  -H "Content-Type: application/json" \
-  -H "X-Worker-Key: your-secret-key" \
-  -d '{"documentText": "1. Describe your approach to security.", "model": "gpt-4o-mini"}'
+### `GET /health`
+
+Returns service status, timestamp, and version.
+
+### `POST /extract-async`
+
+Starts an asynchronous extraction and returns immediately.
+
+Headers:
+
+```http
+Content-Type: application/json
+X-Worker-Key: <shared secret>
 ```
 
-## Deploy to Railway
+Body:
 
-1. Create a new project on [Railway](https://railway.app)
-2. Connect your GitHub repo
-3. Set environment variables:
-   - `OPENAI_API_KEY`
-   - `EXTRACTION_WORKER_KEY`
-4. Deploy
-
-Railway will auto-detect the Dockerfile and deploy.
-
-## Deploy to Fly.io
-
-1. Install Fly CLI: `brew install flyctl`
-2. Login: `fly auth login`
-3. Create app: `fly launch`
-4. Set secrets:
-   ```bash
-   fly secrets set OPENAI_API_KEY=sk-...
-   fly secrets set EXTRACTION_WORKER_KEY=your-secret-key
-   ```
-5. Deploy: `fly deploy`
-
-## API Endpoints
-
-### POST /extract
-
-Extract requirements from document text.
-
-**Request:**
 ```json
 {
-  "documentText": "Full RFP document text...",
-  "model": "gpt-4o-mini"  // Optional, default: gpt-4o-mini
+  "documentText": "Full tender text...",
+  "jobId": "job-id",
+  "webhookUrl": "https://approved-host.example/api/extract/webhook",
+  "model": "gemini-2.5-flash"
 }
 ```
 
-**Headers:**
-- `Content-Type: application/json`
-- `X-Worker-Key: your-secret-key` (if configured)
+Accepted response:
 
-**Response:**
 ```json
 {
-  "deadline": "2025-02-14T17:00:00",
-  "deadlineText": "5pm Friday 14 February 2025",
-  "requirements": [
-    {
-      "section": "3.1.1",
-      "sectionGroup": "3: Technical Requirements",
-      "text": "Describe your approach to security.",
-      "type": "DESCRIPTIVE",
-      "isMandatory": true,
-      "domainContext": "LEGAL",
-      "wordLimit": null,
-      "characterLimit": null,
-      "isAttestation": false
-    }
-  ]
+  "accepted": true,
+  "jobId": "job-id"
 }
 ```
 
-### GET /health
+The webhook receives `status: "complete"` with `result`, or `status: "failed"` with an error description.
 
-Health check endpoint.
+### `POST /extract`
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-01-17T12:00:00.000Z",
-  "version": "1.0.0"
-}
-```
+Synchronous extraction endpoint used for direct diagnostics. It accepts `documentText` and an optional Gemini `model`, then waits for the extraction result.
 
-## Configure Main App
+## Deployment
 
-In your Vercel app, set these environment variables:
-
-```env
-# Worker URL (Railway/Fly.io URL)
-EXTRACTION_WORKER_URL=https://your-worker.railway.app
-
-# Worker auth key (must match worker's EXTRACTION_WORKER_KEY)
-EXTRACTION_WORKER_KEY=your-secret-key
-```
-
-## Architecture
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Vercel App    │────▶│  This Worker    │────▶│    OpenAI API   │
-│  (time limited) │     │ (no time limit) │     │ (GPT-4o-mini)   │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                       │
-        │   POST /extract       │   Full EXTRACTION_PROMPT
-        │   { documentText }    │   + document text
-        │                       │
-        ▼                       ▼
-   Returns quickly        Takes 1-5 minutes
-   (async polling)        for large documents
-```
+The worker is deployed to Fly.io from `.github/workflows/fly-deploy.yml` when files under `extraction-worker/` change on `main`. Production configuration belongs in Fly secrets, not committed environment files.

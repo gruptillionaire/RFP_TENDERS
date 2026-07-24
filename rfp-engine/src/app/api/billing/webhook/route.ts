@@ -371,7 +371,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
             plan,
           },
         });
-        console.log(`Referral conversion tracked: ${user.email} -> ${plan} (referred by ${user.referredByUserId})`);
+        console.log(`Referral conversion tracked for user ${user.id}: ${plan}`);
       } catch (err) {
         console.error("Failed to track referral conversion:", err);
       }

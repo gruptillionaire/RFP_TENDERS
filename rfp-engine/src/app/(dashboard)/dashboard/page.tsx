@@ -130,14 +130,23 @@ export default async function DashboardPage() {
               <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Your Projects</h1>
               <p className="text-slate-500 mt-1">Manage your RFP and tender responses</p>
             </div>
-            <Link href="/projects/new">
-              <Button disabled={quota.remaining === 0 && !singleUseQuota.hasCredits} className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">
+            {quota.remaining === 0 && !singleUseQuota.hasCredits ? (
+              <Button disabled className="bg-[#18bfb2] text-white font-semibold shadow-sm opacity-50 cursor-not-allowed">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 New Project
               </Button>
-            </Link>
+            ) : (
+              <Link href="/projects/new">
+                <Button className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Project
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -161,9 +170,13 @@ export default async function DashboardPage() {
               </div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">No projects yet</h3>
               <p className="text-slate-500 mb-6">Upload your first RFP to get started</p>
-              <Link href="/projects/new">
-                <Button className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">Create your first project</Button>
-              </Link>
+              {quota.remaining === 0 && !singleUseQuota.hasCredits ? (
+                <Button disabled className="bg-[#18bfb2] text-white font-semibold shadow-sm opacity-50 cursor-not-allowed">Create your first project</Button>
+              ) : (
+                <Link href="/projects/new">
+                  <Button className="bg-[#18bfb2] hover:bg-[#14b8a6] text-white font-semibold shadow-sm">Create your first project</Button>
+                </Link>
+              )}
             </CardContent>
           </Card>
         ) : (

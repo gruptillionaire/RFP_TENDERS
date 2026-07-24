@@ -37,7 +37,8 @@ export function EvaluationWeightsEditor({
   const [criteria, setCriteria] = useState<EvaluationCriterion[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize criteria when dialog opens
+  // Opening the dialog starts a fresh editable draft from the persisted criteria.
+  /* eslint-disable react-hooks/set-state-in-effect -- reset local draft state at the modal boundary */
   useEffect(() => {
     if (isOpen) {
       if (currentCriteria && currentCriteria.length > 0) {
@@ -51,6 +52,7 @@ export function EvaluationWeightsEditor({
       setError(null);
     }
   }, [isOpen, currentCriteria]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Calculate total weight
   const totalWeight = criteria.reduce((sum, c) => sum + (c.weight || 0), 0);

@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // Check if current user is an admin
     if (!isAdmin(session.user.email)) {
-      console.warn(`Non-admin user ${session.user.email} attempted to access admin endpoint`);
+      console.warn(`Non-admin user ${session.user.id} attempted to access admin endpoint`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       },
     });
 
-    console.log(`Admin ${session.user.email} set user ${email} to Enterprise plan (expires: ${contractEndDate})`);
+    console.log(`Admin ${session.user.id} set user ${targetUser.id} to Enterprise plan`);
 
     return NextResponse.json({
       success: true,

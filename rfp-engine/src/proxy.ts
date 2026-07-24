@@ -33,7 +33,7 @@ function verifyOrigin(request: NextRequest): boolean {
   }
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   // CSRF protection for API routes (skip webhooks)
   if (req.nextUrl.pathname.startsWith("/api/") &&
       !req.nextUrl.pathname.startsWith("/api/billing/webhook")) {

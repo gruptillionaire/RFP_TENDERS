@@ -1608,7 +1608,7 @@ export function findRequirementCandidatesWithProfile(
       ? next.index
       : Math.min(startIndex + 3000, text.length);
 
-    let rawText = text.substring(startIndex, endIndex).trim();
+    const rawText = text.substring(startIndex, endIndex).trim();
 
     // Apply the same text cleanup as findRequirementCandidates
     // Strip trailing section contamination

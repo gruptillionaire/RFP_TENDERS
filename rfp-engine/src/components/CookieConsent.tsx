@@ -18,6 +18,8 @@ export function CookieConsent() {
     analytics: false,
   });
 
+  // Consent lives in browser-only storage, so it must be read after hydration.
+  /* eslint-disable react-hooks/set-state-in-effect -- this effect synchronises React with localStorage */
   useEffect(() => {
     // Check if consent has already been given
     if (!hasConsentBeenGiven()) {
@@ -27,6 +29,7 @@ export function CookieConsent() {
       initializeAnalyticsIfConsented();
     }
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleAcceptAll = async () => {
     acceptAllCookies();

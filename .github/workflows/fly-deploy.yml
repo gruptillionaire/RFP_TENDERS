@@ -7,6 +7,9 @@ on:
     paths:
       - 'extraction-worker/**'
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to Fly.io
@@ -18,8 +21,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: extraction-worker/package-lock.json
 
-      - run: flyctl deploy --remote-only
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check worker
+        run: npm run typecheck
+
+      - name: Build worker
+        run: npm run build
+
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+        with:
+          version: 0.4.49
+
+      - name: Deploy
+        run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

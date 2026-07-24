@@ -24,25 +24,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[verify-email] Looking up token:", token.substring(0, 16) + "...", "length:", token.length);
-
     // Find the token
     const verificationToken = await prisma.emailVerificationToken.findUnique({
       where: { token },
     });
 
     if (!verificationToken) {
-      // Debug: check if ANY tokens exist
-      const tokenCount = await prisma.emailVerificationToken.count();
-      console.log("[verify-email] Token not found. Total tokens in DB:", tokenCount);
-
       return NextResponse.json(
         { success: false, error: "Invalid or expired verification link" },
         { status: 400 }
       );
     }
-
-    console.log("[verify-email] Token found for email:", verificationToken.email);
 
     // Check if token has expired
     if (verificationToken.expiresAt < new Date()) {

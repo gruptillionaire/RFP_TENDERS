@@ -1169,7 +1169,7 @@ async function classifyAllRequirements(
   // Process with concurrency limit using a simple semaphore pattern
   await new Promise<void>((resolve, reject) => {
     let nextIndex = 0;
-    let hasError = false;
+    const hasError = false;
 
     const processNext = async () => {
       if (hasError) return;
@@ -3561,7 +3561,7 @@ export async function extractRequirementsHybrid(
   console.log(`[extractHybrid] Found ${lowConfidenceReqs.length} low-confidence items for LLM refinement`);
 
   // Step 6: Refine low-confidence items with LLM (parallel processing)
-  let finalRequirements = [...requirements]; // Create mutable copy
+  const finalRequirements = [...requirements]; // Create mutable copy
   if (lowConfidenceReqs.length > 0) {
     const refineStart = Date.now();
     const refinedReqs = await refineLowConfidenceRequirements(lowConfidenceReqs);

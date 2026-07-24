@@ -1,0 +1,119 @@
+name: Test Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  quality:
+    name: Lint, Type-check and Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: rfp-engine/package-lock.json
+
+      - name: Install dependencies
+        working-directory: rfp-engine
+        run: npm ci
+
+      - name: Lint
+        working-directory: rfp-engine
+        run: npm run lint
+
+      - name: Type-check
+        working-directory: rfp-engine
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: rfp-engine
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/rfp_test
+          NEXTAUTH_SECRET: ci-build-secret
+          NEXTAUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: rfp-engine/package-lock.json
+
+      - name: Install dependencies
+        working-directory: rfp-engine
+        run: npm ci
+
+      - name: Run integration tests
+        working-directory: rfp-engine
+        run: npm run test:integration
+        env:
+          NODE_ENV: test
+
+  worker:
+    name: Extraction Worker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: extraction-worker/package-lock.json
+
+      - name: Install dependencies
+        working-directory: extraction-worker
+        run: npm ci
+
+      - name: Type-check
+        working-directory: extraction-worker
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: extraction-worker
+        run: npm run build
+
+  test-gate:
+    name: Test Gate
+    runs-on: ubuntu-latest
+    needs: [quality, integration-tests, worker]
+    if: always()
+    steps:
+      - name: Check required jobs
+        shell: bash
+        run: |
+          if [[ "${{ needs.quality.result }}" != "success" ]]; then
+            echo "Quality checks failed"
+            exit 1
+          fi
+          if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then
+            echo "Integration tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.worker.result }}" != "success" ]]; then
+            echo "Worker checks failed"
+            exit 1
+          fi
+          echo "All required checks passed"

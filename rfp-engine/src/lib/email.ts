@@ -29,14 +29,8 @@ interface SendEmailParams {
 export async function sendEmail({ to, subject, html, text }: SendEmailParams) {
   const client = getResendClient();
 
-  // In development without API key, log the email instead
+  // Preserve local no-op behaviour without logging message bodies or links.
   if (!client) {
-    console.log("========================================");
-    console.log("EMAIL WOULD BE SENT (no RESEND_API_KEY):");
-    console.log("To:", to);
-    console.log("Subject:", subject);
-    console.log("HTML:", html);
-    console.log("========================================");
     return { success: true, messageId: "dev-mode" };
   }
 
@@ -145,9 +139,6 @@ export async function sendVerificationEmail(params: SendVerificationEmailParams)
   // Use APP_URL for emails (always production domain), strip trailing slashes
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || APP_URL).replace(/\/+$/, "");
   const verificationUrl = `${baseUrl}/verify-email?token=${params.verificationToken}`;
-
-  console.log("[sendVerificationEmail] URL:", verificationUrl);
-  console.log("[sendVerificationEmail] Token length:", params.verificationToken.length);
 
   const template = emailVerificationEmail({
     userName: params.userName || "there",

@@ -134,7 +134,7 @@ app.post('/extract-async', validateWorkerKey, async (req, res) => {
 
   // SSRF prevention: validate webhook URL
   if (!isAllowedWebhookUrl(webhookUrl)) {
-    console.error(`[/extract-async] Job ${jobId}: Rejected invalid webhook URL: ${webhookUrl}`);
+    console.error(`[/extract-async] Job ${jobId}: Rejected invalid webhook URL`);
     return res.status(400).json({ error: 'Invalid webhook URL' });
   }
 

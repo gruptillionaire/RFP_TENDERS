@@ -1,3 +1,18 @@
 tmpclaude-*
-# Local Claude configuration
+
+# Local AI tooling
 .claude/
+
+# Local marketing and scratch files
+/banner-assets/
+/cold comms.txt
+/RFP_Matrix_Marketing_Strategy.docx
+/nul
+
+# Internal planning and operational notes
+/PLAN.md
+/ROAD-MAP.md
+/project-brief.md
+/rfp-engine/TODO.md
+/rfp-engine/WEB_DEPENDENCIES.md
+/rfp-engine/security-features.md

@@ -253,7 +253,7 @@ function detectSectionBoundaries(text: string): DetectedSection[] {
     if (tooClose) continue;
 
     const sectionNumber = match[1].trim();
-    let sectionTitle = match[2].trim().replace(/[.:\-,]+$/, "").substring(0, 60);
+    const sectionTitle = match[2].trim().replace(/[.:\-,]+$/, "").substring(0, 60);
 
     if (sectionNumber.includes(".")) continue;
     if (sectionTitle.length < 5) continue;

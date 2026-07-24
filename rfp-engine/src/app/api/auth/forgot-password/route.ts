@@ -62,9 +62,8 @@ export async function POST(req: NextRequest) {
     // Check email-specific rate limit
     const emailRateLimit = checkResetRateLimit(`email:${email}`, MAX_RESET_ATTEMPTS_PER_EMAIL);
     if (!emailRateLimit.allowed) {
-      // Don't reveal whether the email exists - return success message anyway
-      // But log it for monitoring
-      console.log(`Rate limited password reset for: ${email}`);
+      // Do not put the submitted address into application logs.
+      console.warn("Password reset rate limit reached");
     }
 
     // Always return success message to prevent email enumeration

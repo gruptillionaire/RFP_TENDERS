@@ -73,19 +73,12 @@ export async function POST(request: NextRequest) {
     const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Create new verification token
-    const created = await prisma.emailVerificationToken.create({
+    await prisma.emailVerificationToken.create({
       data: {
         email: user.email,
         token: verificationToken,
         expiresAt: tokenExpiresAt,
       },
-    });
-
-    console.log("[resend-verification] Token created:", {
-      id: created.id,
-      email: created.email,
-      tokenPrefix: verificationToken.substring(0, 16) + "...",
-      tokenLength: verificationToken.length,
     });
 
     // Send verification email
@@ -94,8 +87,6 @@ export async function POST(request: NextRequest) {
       userName: user.name,
       verificationToken,
     });
-
-    console.log("[resend-verification] Email sent to:", user.email);
 
     return NextResponse.json({
       success: true,
